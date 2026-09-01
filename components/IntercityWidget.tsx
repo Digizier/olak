@@ -46,6 +46,9 @@ export const IntercityWidget = () => {
       if (data && data.length > 0) {
         setRoutes(data);
         setSelectedRouteId(data[0].id);
+      } else {
+        setRoutes(INITIAL_INTERCITY_ROUTES);
+        setSelectedRouteId(INITIAL_INTERCITY_ROUTES[0].id);
       }
     });
 

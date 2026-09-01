@@ -11,6 +11,7 @@ import {
   getIntercityRoutes, 
   saveIntercityRoute, 
   deleteIntercityRoute,
+  resetIntercityRoutesToDefaults,
   getCaptains, 
   updateCaptainStatus, 
   deleteCaptain,
@@ -96,7 +97,8 @@ import {
   Tag,
   Receipt,
   UploadCloud,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 
 interface DeleteModalState {
@@ -293,11 +295,17 @@ export default function AdminPage() {
       setCaptains(cp);
       setCustomers(cust);
       setPricingRates(pr);
-      setIntercityRoutes(ir);
+      if (ir && ir.length > 0) {
+        setIntercityRoutes(ir);
+      } else {
+        setIntercityRoutes(INITIAL_INTERCITY_ROUTES);
+      }
       setPromotions(prm);
       setSettlements(stl);
       if (lm && lm.length > 0) {
         setLandmarks(lm);
+      } else {
+        setLandmarks(TURBAT_LANDMARKS);
       }
     } catch (err) {
       console.error('Admin data load error:', err);
@@ -1598,94 +1606,316 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 6: INTERCITY ROUTES MANAGER */}
-        {activeTab === 'intercity' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-              <div>
-                <h3 className="text-lg font-black text-slate-900">Intercity Highway Routes & Pricing Editor</h3>
-                <span className="text-xs text-slate-500">Configure Fixed vs Per-KM rates and add new destinations</span>
+        {/* TAB 6: INTERCITY ROUTES & REAL-TIME DISPATCH */}
+        {activeTab === 'intercity' && (() => {
+          const intercityBookings = bookings.filter(b => 
+            b.service_type === 'intercity' || 
+            Boolean(b.intercity_origin || b.intercity_destination)
+          );
+          const totalIntercityFare = intercityBookings.reduce((sum, b) => sum + (b.final_fare || b.estimated_fare || 0), 0);
+          const displayRoutes = intercityRoutes && intercityRoutes.length > 0 ? intercityRoutes : INITIAL_INTERCITY_ROUTES;
+
+          return (
+            <div className="space-y-6">
+              {/* Header & Action Controls */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Intercity Highway Routes & Real-Time Booking Manager</h3>
+                  <span className="text-xs text-slate-500">Configure Fixed vs Per-KM rates and monitor live intercity passenger & parcel bookings</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      const restored = await resetIntercityRoutesToDefaults();
+                      setIntercityRoutes(restored);
+                      showToast('All 11 Baluchistan highway routes restored successfully!', 'success', 'Routes Reset');
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 border border-slate-200 transition cursor-pointer"
+                    title="Reload Gwadar, Pasni, Karachi, Quetta, Panjgur, etc."
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Reset 11 Baluchistan Routes</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setEditingRoute({
+                        origin_city: 'Turbat',
+                        destination_city: '',
+                        estimated_distance_km: 150,
+                        estimated_duration: '2.5 Hours',
+                        pricing_model: 'fixed',
+                        per_km_rate: 25,
+                        car_economy_fare: 3500,
+                        car_comfort_fare: 5000,
+                        delivery_parcel_fare: 800,
+                        is_active: true,
+                      });
+                      setRouteModalOpen(true);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>+ Add New Highway Route</span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                onClick={() => {
-                  setEditingRoute({
-                    origin_city: 'Turbat',
-                    destination_city: '',
-                    estimated_distance_km: 150,
-                    estimated_duration: '2.5 Hours',
-                    pricing_model: 'fixed',
-                    per_km_rate: 25,
-                    car_economy_fare: 3500,
-                    car_comfort_fare: 5000,
-                    delivery_parcel_fare: 800,
-                    is_active: true,
-                  });
-                  setRouteModalOpen(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-              >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Add New Highway Route</span>
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {intercityRoutes.map((route) => (
-                <div key={route.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm">
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                    <div>
-                      <span className="font-black text-slate-900 block">{route.origin_city} ➔ {route.destination_city}</span>
-                      <span className="text-xs text-emerald-700 font-bold">{route.estimated_distance_km} KM • {route.estimated_duration}</span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setEditingRoute(route);
-                          setRouteModalOpen(true);
-                        }}
-                        className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 transition cursor-pointer"
-                        title="Edit Route"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-
-                      <button
-                        onClick={() => triggerDelete('route', route.id, `Delete Route ${route.origin_city} to ${route.destination_city}?`, 'Are you sure you want to remove this route?')}
-                        className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
-                        title="Delete Route"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {/* Intercity Real-Time Overview Stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Highway Destinations</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-slate-900">{displayRoutes.length}</span>
+                    <span className="text-xs font-bold text-emerald-600">Active Routes</span>
                   </div>
-
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between text-slate-600">
-                      <span>Pricing Model:</span>
-                      <span className="font-black text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        {route.pricing_model === 'per_km' ? `Per-KM (@ PKR ${route.per_km_rate}/KM)` : 'Fixed Route Rate'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Economy Car:</span>
-                      <span className="font-bold text-slate-900">PKR {route.car_economy_fare}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>AC Comfort Car:</span>
-                      <span className="font-bold text-teal-700">PKR {route.car_comfort_fare}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Parcel Cargo:</span>
-                      <span className="font-bold text-amber-700">PKR {route.delivery_parcel_fare}</span>
-                    </div>
-                  </div>
+                  <span className="text-[10px] text-slate-400">Gwadar, Pasni, Karachi, Quetta, Panjgur...</span>
                 </div>
-              ))}
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Live Intercity Bookings</span>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-black text-emerald-700">{intercityBookings.length}</span>
+                    <span className="text-xs font-bold text-slate-500">
+                      ({intercityBookings.filter(b => b.booking_status === 'pending').length} Pending)
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Real-time rider and cargo requests</span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Intercity Gross Volume</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-xs font-bold text-slate-500">PKR</span>
+                    <span className="text-2xl font-black text-slate-900">{totalIntercityFare}</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400">Total intercity revenue</span>
+                </div>
+              </div>
+              
+              {/* Active Highway Routes Grid */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                    <Navigation className="w-4 h-4 text-emerald-600" />
+                    <span>Configured Highway Routes & Pricing ({displayRoutes.length})</span>
+                  </h4>
+                  <span className="text-xs text-slate-500">Click edit to change fares or toggle Fixed vs Per-KM</span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {displayRoutes.map((route) => (
+                    <div key={route.id} className="bg-white border border-slate-200 rounded-2xl p-5 space-y-3 shadow-sm hover:border-emerald-300 transition">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <div>
+                          <span className="font-black text-slate-900 block">{route.origin_city} ➔ {route.destination_city}</span>
+                          <span className="text-xs text-emerald-700 font-bold">{route.estimated_distance_km} KM • {route.estimated_duration}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              setEditingRoute(route);
+                              setRouteModalOpen(true);
+                            }}
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 transition cursor-pointer"
+                            title="Edit Route"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            onClick={() => triggerDelete('route', route.id, `Delete Route ${route.origin_city} to ${route.destination_city}?`, 'Are you sure you want to remove this route?')}
+                            className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
+                            title="Delete Route"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Pricing Model:</span>
+                          <span className="font-black text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {route.pricing_model === 'per_km' ? `Per-KM (@ PKR ${route.per_km_rate}/KM)` : 'Fixed Route Rate'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>Economy Car:</span>
+                          <span className="font-bold text-slate-900">PKR {route.car_economy_fare}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>AC Comfort Car:</span>
+                          <span className="font-bold text-teal-700">PKR {route.car_comfort_fare}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-600">
+                          <span>Parcel Cargo:</span>
+                          <span className="font-bold text-amber-700">PKR {route.delivery_parcel_fare}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* REAL-TIME INTERCITY BOOKINGS & DISPATCH DESK */}
+              <div className="space-y-3 pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                      <Car className="w-4 h-4 text-emerald-600" />
+                      <span>Real-Time Intercity Passenger & Cargo Dispatch Desk</span>
+                    </h4>
+                    <span className="text-xs text-slate-500">Live booking requests submitted by riders & parcel senders</span>
+                  </div>
+                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    {intercityBookings.length} Live Bookings
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  {intercityBookings.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs text-slate-700">
+                        <thead className="bg-slate-50 text-slate-700 uppercase font-bold border-b border-slate-200">
+                          <tr>
+                            <th className="px-4 py-3">Token & Date</th>
+                            <th className="px-4 py-3">Customer Contact</th>
+                            <th className="px-4 py-3">Route (Origin ➔ Destination)</th>
+                            <th className="px-4 py-3">Seats / Details</th>
+                            <th className="px-4 py-3">Fare</th>
+                            <th className="px-4 py-3">Assigned Captain</th>
+                            <th className="px-4 py-3">Status</th>
+                            <th className="px-4 py-3 text-right">Actions & Dispatch</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {intercityBookings.map((b) => {
+                            const assignedCap = captains.find(c => c.id === b.assigned_captain_id);
+                            return (
+                              <tr key={b.id} className="hover:bg-slate-50 transition">
+                                <td className="px-4 py-3">
+                                  <span className="font-mono font-bold text-slate-900 block">{b.booking_code}</span>
+                                  <span className="text-[10px] text-slate-500 block">
+                                    Date: {b.intercity_travel_date || new Date(b.created_at).toLocaleDateString()}
+                                  </span>
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  <span className="font-bold text-slate-900 block">{b.customer_name}</span>
+                                  <a href={`tel:${b.customer_phone}`} className="text-emerald-700 hover:underline flex items-center gap-1 font-mono text-[11px]">
+                                    <Phone className="w-3 h-3" />
+                                    <span>{b.customer_phone}</span>
+                                  </a>
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  <div className="space-y-0.5">
+                                    <span className="font-bold text-slate-900 block">{b.pickup_location}</span>
+                                    <span className="text-slate-400 text-[10px]">➔ {b.dropoff_location}</span>
+                                    {b.estimated_distance_km && (
+                                      <span className="text-[10px] text-emerald-700 font-bold block">{b.estimated_distance_km} KM</span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  <span className="font-bold text-slate-800 block">
+                                    {b.intercity_seats ? `${b.intercity_seats} Seat(s)` : 'Standard'}
+                                  </span>
+                                  {b.notes && (
+                                    <span className="text-[10px] text-slate-500 block max-w-xs truncate">{b.notes}</span>
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  <span className="font-black text-slate-900 text-sm block">PKR {b.final_fare || b.estimated_fare}</span>
+                                  <span className="text-[10px] uppercase font-bold text-slate-400">{b.payment_method}</span>
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  {assignedCap ? (
+                                    <div>
+                                      <span className="font-bold text-emerald-800 block">{assignedCap.full_name}</span>
+                                      <span className="text-[10px] text-slate-500 block">{assignedCap.vehicle_name} ({assignedCap.vehicle_number_plate})</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 text-[10px] font-bold">
+                                      Unassigned
+                                    </span>
+                                  )}
+                                </td>
+
+                                <td className="px-4 py-3">
+                                  <select
+                                    value={b.booking_status}
+                                    onChange={(e) => handleUpdateBookingStatus(b.id, e.target.value as BookingStatus)}
+                                    className={`text-[11px] font-bold px-2 py-1 rounded-lg border focus:outline-none cursor-pointer ${
+                                      b.booking_status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                      b.booking_status === 'assigned' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                      b.booking_status === 'in_progress' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                      b.booking_status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
+                                      'bg-amber-50 text-amber-700 border-amber-200'
+                                    }`}
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="assigned">Assigned</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                  </select>
+                                </td>
+
+                                <td className="px-4 py-3 text-right">
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <a
+                                      href={getPassengerWhatsAppLink(b, assignedCap)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="p-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-200 transition cursor-pointer"
+                                      title="WhatsApp Passenger"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5" />
+                                    </a>
+
+                                    <button
+                                      onClick={() => handlePrint(b)}
+                                      className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 transition cursor-pointer"
+                                      title="Print Receipt"
+                                    >
+                                      <Printer className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <button
+                                      onClick={() => triggerDelete('booking', b.id, `Delete Intercity Booking #${b.booking_code}?`, `Customer: ${b.customer_name} (${b.pickup_location} ➔ ${b.dropoff_location})`)}
+                                      className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
+                                      title="Delete Booking"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 space-y-1">
+                      <Car className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                      <span className="font-bold text-slate-600 block text-xs">No Intercity Bookings Placed Yet</span>
+                      <span className="text-[11px] text-slate-400 block">When customers book a passenger seat or cargo parcel on the Intercity page, it will immediately show here in real-time.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 7: ADS & PROMOTION BANNERS MANAGER */}
         {activeTab === 'promotions' && (

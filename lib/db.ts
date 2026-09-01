@@ -403,7 +403,17 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
 
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.INTERCITY);
-    const fallback = cached ? JSON.parse(cached) : INITIAL_INTERCITY_ROUTES;
+    let fallback = INITIAL_INTERCITY_ROUTES;
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          fallback = parsed;
+        }
+      } catch {
+        fallback = INITIAL_INTERCITY_ROUTES;
+      }
+    }
 
     const { data, error } = await supabase
       .from('intercity_routes')
@@ -415,11 +425,21 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
       return data as IntercityRoute[];
     }
 
+    // Always ensure valid default routes are saved in localStorage
+    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(fallback));
     return fallback;
   } catch (err) {
     console.warn('Error fetching intercity routes:', err);
     return INITIAL_INTERCITY_ROUTES;
   }
+};
+
+export const resetIntercityRoutesToDefaults = async (): Promise<IntercityRoute[]> => {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(INITIAL_INTERCITY_ROUTES));
+    dispatchCustomEvent('olak_intercity_updated', INITIAL_INTERCITY_ROUTES);
+  }
+  return INITIAL_INTERCITY_ROUTES;
 };
 
 export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Promise<IntercityRoute> => {
