@@ -85,13 +85,13 @@ function TrackContent() {
       
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-olak-teal bg-olak-teal/10 px-3 py-1 rounded-full border border-olak-teal/30">
+        <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
           {isUrdu ? 'لائیو ٹرپ و پارسل ٹریکر' : 'Live Trip & Parcel Tracker'}
         </span>
-        <h1 className="text-3xl sm:text-4xl font-black text-white">
+        <h1 className="text-3xl sm:text-4xl font-black text-slate-900">
           {isUrdu ? 'اپنی سواری یا پارسل کا اسٹیٹس چیک کریں' : 'Track Your Ride or Delivery'}
         </h1>
-        <p className="text-sm text-slate-300 font-urdu">
+        <p className="text-sm text-slate-600 font-urdu">
           {isUrdu 
             ? 'اپنا بکنگ ٹوکن کوڈ (مثلاً: OLK-8492) درج کریں اور کیپٹن کی لائیو صورتحال معلوم کریں۔' 
             : 'Enter your Booking Code (e.g. OLK-8492) to view live assigned captain and trip progress.'}
@@ -100,7 +100,7 @@ function TrackContent() {
 
       {/* Search Box */}
       <form onSubmit={handleSearch} className="max-w-xl mx-auto mb-10">
-        <div className="flex gap-2 bg-olak-navy-900/90 p-2 rounded-2xl border border-olak-navy-800 focus-within:border-olak-teal shadow-xl">
+        <div className="flex gap-2 bg-white p-2 rounded-2xl border border-slate-300 focus-within:border-emerald-500 shadow-lg">
           <div className="relative flex-1 flex items-center">
             <Search className="w-5 h-5 text-slate-400 absolute left-3" />
             <input
@@ -109,17 +109,17 @@ function TrackContent() {
               placeholder="e.g. OLK-8492"
               value={bookingCode}
               onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
-              className="w-full bg-transparent pl-10 pr-3 py-2 text-white font-mono uppercase tracking-wider text-base focus:outline-none placeholder-slate-500"
+              className="w-full bg-transparent pl-10 pr-3 py-2 text-slate-900 font-mono uppercase tracking-wider text-base focus:outline-none placeholder-slate-400"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="bg-olak-teal hover:bg-olak-teal-hover text-olak-navy-950 font-bold px-6 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-teal-glow"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md cursor-pointer"
           >
             {loading ? (
-              <span className="w-4 h-4 border-2 border-olak-navy-950 border-t-transparent rounded-full animate-spin"></span>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
             ) : (
               <span>{isUrdu ? 'تلاش کریں' : 'Track'}</span>
             )}
@@ -130,24 +130,24 @@ function TrackContent() {
       {/* Result View */}
       {loading ? (
         <div className="text-center py-12">
-          <div className="w-10 h-10 border-4 border-olak-teal border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-sm text-slate-400 font-urdu">
+          <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-sm text-slate-500 font-urdu">
             {isUrdu ? 'ڈیٹا حاصل کیا جا رہا ہے...' : 'Fetching live trip status...'}
           </p>
         </div>
       ) : booking ? (
-        <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 animate-fadeIn">
+        <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6 animate-fadeIn">
           
           {/* Top Token Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-olak-navy-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200">
             <div>
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
                 {isUrdu ? 'بکنگ ٹوکن کوڈ' : 'Booking Token'}
               </span>
-              <h2 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
+              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-0.5">
                 {booking.booking_code}
               </h2>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-500">
                 Created: {new Date(booking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -155,10 +155,10 @@ function TrackContent() {
             <div className="flex items-center gap-2">
               <span className={`px-3 py-1.5 rounded-full text-xs font-black uppercase tracking-wider border ${
                 booking.booking_status === 'completed'
-                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                   : booking.booking_status === 'cancelled'
-                  ? 'bg-red-500/20 text-red-400 border-red-500/40'
-                  : 'bg-olak-teal/20 text-olak-teal border-olak-teal/40 animate-pulse'
+                  ? 'bg-red-100 text-red-800 border-red-300'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
               }`}>
                 ● {booking.booking_status.replace('_', ' ')}
               </span>
@@ -179,20 +179,20 @@ function TrackContent() {
                   <div key={s.step} className="flex flex-col items-center">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs mb-1.5 transition ${
                       currentStep >= s.step
-                        ? 'bg-olak-teal text-olak-navy-950 font-black shadow-teal-glow-sm'
-                        : 'bg-olak-navy-950 text-slate-500 border border-olak-navy-800'
+                        ? 'bg-emerald-600 text-white font-black shadow-md'
+                        : 'bg-slate-100 text-slate-400 border border-slate-200'
                     }`}>
                       {currentStep >= s.step ? '✓' : s.step}
                     </div>
-                    <span className={`truncate w-full ${currentStep >= s.step ? 'text-white font-bold' : 'text-slate-500'}`}>
+                    <span className={`truncate w-full ${currentStep >= s.step ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>
                       {s.label}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="w-full bg-olak-navy-950 rounded-full h-1.5 mt-3 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden">
                 <div 
-                  className="bg-gradient-to-r from-olak-teal to-emerald-400 h-full transition-all duration-500"
+                  className="bg-emerald-500 h-full transition-all duration-500"
                   style={{ width: `${(currentStep / 5) * 100}%` }}
                 ></div>
               </div>
@@ -201,20 +201,20 @@ function TrackContent() {
 
           {/* Assigned Captain Card (if assigned) */}
           {captain ? (
-            <div className="bg-gradient-to-r from-olak-navy-950 to-olak-navy-850 p-4 sm:p-5 rounded-2xl border border-olak-teal/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-olak-teal/20 border border-olak-teal/40 flex items-center justify-center text-olak-teal font-black text-lg">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-800 font-black text-lg">
                   {captain.full_name.charAt(0)}
                 </div>
                 <div>
-                  <span className="text-[11px] font-bold text-olak-teal uppercase tracking-wider block">
+                  <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-wider block">
                     {isUrdu ? 'تفویض شدہ کیپٹن' : 'Assigned Captain'}
                   </span>
-                  <h4 className="text-base font-bold text-white leading-tight">
+                  <h4 className="text-base font-bold text-slate-900 leading-tight">
                     {captain.full_name}
                   </h4>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    {captain.vehicle_name} • <span className="font-mono text-olak-teal font-bold">{captain.vehicle_number_plate}</span>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {captain.vehicle_name} • <span className="font-mono text-emerald-700 font-bold">{captain.vehicle_number_plate}</span>
                   </p>
                 </div>
               </div>
@@ -222,7 +222,7 @@ function TrackContent() {
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <a
                   href={`tel:${captain.phone}`}
-                  className="flex-1 sm:flex-none bg-olak-teal hover:bg-olak-teal-hover text-olak-navy-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
+                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   <Phone className="w-3.5 h-3.5" />
                   <span>Call Captain</span>
@@ -233,7 +233,7 @@ function TrackContent() {
                     href={`https://wa.me/${captain.whatsapp_number.replace(/\D/g, '')}?text=Hello%20Captain%20${encodeURIComponent(captain.full_name)}%20I%20am%20passenger%20for%20trip%20${booking.booking_code}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 bg-emerald-900/60 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-xl border border-emerald-700/50"
+                    className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl border border-emerald-200 transition"
                   >
                     <MessageCircle className="w-4 h-4" />
                   </a>
@@ -241,7 +241,7 @@ function TrackContent() {
               </div>
             </div>
           ) : (
-            <div className="bg-olak-navy-950/80 p-4 rounded-2xl border border-olak-navy-800 text-center text-xs text-slate-400 font-urdu">
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-center text-xs text-slate-500 font-urdu">
               {isUrdu 
                 ? 'قریبی کیپٹن تفویض کیا جا رہا ہے۔ ایڈمن ڈسپیچ پینل جلد کیپٹن مقرر کرے گا۔' 
                 : 'Searching and assigning the nearest available verified captain in Turbat...'}
@@ -250,46 +250,46 @@ function TrackContent() {
 
           {/* Trip Details Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs sm:text-sm">
-            <div className="space-y-3 bg-olak-navy-950/60 p-4 rounded-2xl border border-olak-navy-800">
+            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <div className="flex items-start gap-2">
-                <MapPin className="w-4 h-4 text-olak-teal mt-0.5 flex-shrink-0" />
+                <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-slate-400 block">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
-                  <span className="text-slate-200 font-semibold">{booking.pickup_location}</span>
+                  <span className="text-[11px] text-slate-500 block">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
+                  <span className="text-slate-900 font-semibold">{booking.pickup_location}</span>
                 </div>
               </div>
 
               <div className="flex items-start gap-2">
-                <Navigation className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
                 <div>
-                  <span className="text-[11px] text-slate-400 block">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
-                  <span className="text-slate-200 font-semibold">{booking.dropoff_location}</span>
+                  <span className="text-[11px] text-slate-500 block">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
+                  <span className="text-slate-900 font-semibold">{booking.dropoff_location}</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3 bg-olak-navy-950/60 p-4 rounded-2xl border border-olak-navy-800">
-              <div className="flex justify-between items-center pb-2 border-b border-olak-navy-800">
-                <span className="text-slate-400">{isUrdu ? 'سروس کی قسم' : 'Service'}:</span>
-                <span className="font-bold text-white uppercase">{booking.service_type}</span>
+            <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">{isUrdu ? 'سروس کی قسم' : 'Service'}:</span>
+                <span className="font-bold text-slate-900 uppercase">{booking.service_type}</span>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-olak-navy-800">
-                <span className="text-slate-400">{isUrdu ? 'مسافر / صارف' : 'Customer'}:</span>
-                <span className="font-semibold text-slate-200">{booking.customer_name}</span>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">{isUrdu ? 'مسافر / صارف' : 'Customer'}:</span>
+                <span className="font-semibold text-slate-900">{booking.customer_name}</span>
               </div>
               <div className="flex justify-between items-center pt-1 text-base">
-                <span className="font-bold text-olak-teal">{isUrdu ? 'کرایہ' : 'Fare'}:</span>
-                <span className="font-black text-olak-teal">PKR {booking.final_fare || booking.estimated_fare}</span>
+                <span className="font-bold text-emerald-600">{isUrdu ? 'کرایہ' : 'Fare'}:</span>
+                <span className="font-black text-emerald-600">PKR {booking.final_fare || booking.estimated_fare}</span>
               </div>
             </div>
           </div>
 
           {/* Helpline Action */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-            <span>Turbat Dispatch Desk: <strong>+92 335 0455599</strong></span>
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <span>Turbat Dispatch Desk: <strong className="text-slate-800">+92 335 0455599</strong></span>
             <button
               onClick={() => fetchStatus(booking.booking_code)}
-              className="text-olak-teal hover:underline font-bold"
+              className="text-emerald-700 hover:underline font-bold"
             >
               ↻ Refresh Live Status
             </button>
@@ -297,11 +297,11 @@ function TrackContent() {
 
         </div>
       ) : searched ? (
-        <div className="bg-olak-navy-900 border border-red-500/30 rounded-3xl p-8 text-center space-y-3">
-          <h3 className="text-xl font-bold text-white">
+        <div className="bg-white border border-red-200 rounded-3xl p-8 text-center space-y-3 shadow-md">
+          <h3 className="text-xl font-bold text-slate-900">
             {isUrdu ? 'کوئی بکنگ نہیں ملی' : 'Booking Not Found'}
           </h3>
-          <p className="text-sm text-slate-400 font-urdu">
+          <p className="text-sm text-slate-600 font-urdu">
             {isUrdu 
               ? 'درج کیا گیا ٹوکن کوڈ درست نہیں ہے یا بکنگ ایکسپائر ہوچکی ہے۔ برائے مہربانی کوڈ دوبارہ چیک کریں۔' 
               : 'Please check your booking token code or contact OLAK Turbat helpline.'}
@@ -315,9 +315,9 @@ function TrackContent() {
 
 export default function TrackPage() {
   return (
-    <div className="min-h-screen bg-olak-navy-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
-      <Suspense fallback={<div className="text-center py-20 text-slate-400">Loading Tracker...</div>}>
+      <Suspense fallback={<div className="text-center py-20 text-slate-500">Loading Tracker...</div>}>
         <TrackContent />
       </Suspense>
       <Footer />

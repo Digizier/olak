@@ -15,7 +15,8 @@ import {
   getBookings, 
   updateBookingStatus, 
   toggleCaptainOnline,
-  uploadFileToStorage 
+  uploadFileToStorage,
+  getCaptainFinancialSummary
 } from '@/lib/db';
 import { Captain, Booking, ServiceType } from '@/lib/types';
 import { 
@@ -33,16 +34,16 @@ import {
   MapPin, 
   Banknote, 
   Clock, 
-  Sparkles,
-  ArrowRight,
-  UserCheck,
-  DollarSign,
-  TrendingUp,
-  AlertCircle,
-  MessageCircle,
-  LogOut,
-  User,
-  Star
+  Sparkles, 
+  ArrowRight, 
+  UserCheck, 
+  DollarSign, 
+  TrendingUp, 
+  AlertCircle, 
+  MessageCircle, 
+  LogOut, 
+  User, 
+  CreditCard
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -52,6 +53,16 @@ export default function CaptainHubPage() {
   
   // Current Session
   const [currentCaptain, setCurrentCaptain] = useState<Captain | null>(null);
+  const [financialSummary, setFinancialSummary] = useState<{
+    totalTrips: number;
+    grossFares: number;
+    commissionRate: number;
+    commissionDue: number;
+    driverEarnings: number;
+    totalSettled: number;
+    netBalanceDue: number;
+    isCleared: boolean;
+  } | null>(null);
   
   // Registration Form State
   const [fullName, setFullName] = useState('');
@@ -86,26 +97,38 @@ export default function CaptainHubPage() {
     const cur = getCurrentCaptain();
     if (cur) {
       const refreshed = caps.find(c => c.id === cur.id);
-      if (refreshed) setCurrentCaptain(refreshed);
+      if (refreshed) {
+        setCurrentCaptain(refreshed);
+        const fin = await getCaptainFinancialSummary(refreshed.id);
+        setFinancialSummary(fin);
+      }
     } else if (caps.length > 0) {
       const approved = caps.find(c => c.status === 'approved') || caps[0];
       setCurrentCaptain(approved);
+      const fin = await getCaptainFinancialSummary(approved.id);
+      setFinancialSummary(fin);
     }
   };
 
   useEffect(() => {
     loadData();
-    const handleAuth = (e: any) => {
-      if (e.detail) setCurrentCaptain(e.detail);
+    const handleAuth = async (e: any) => {
+      if (e.detail) {
+        setCurrentCaptain(e.detail);
+        const fin = await getCaptainFinancialSummary(e.detail.id);
+        setFinancialSummary(fin);
+      }
     };
     window.addEventListener('olak_captain_auth_changed', handleAuth);
     window.addEventListener('olak_bookings_updated', loadData);
     window.addEventListener('olak_captains_updated', loadData);
+    window.addEventListener('olak_settlements_updated', loadData);
 
     return () => {
       window.removeEventListener('olak_captain_auth_changed', handleAuth);
       window.removeEventListener('olak_bookings_updated', loadData);
       window.removeEventListener('olak_captains_updated', loadData);
+      window.removeEventListener('olak_settlements_updated', loadData);
     };
   }, []);
 
@@ -167,6 +190,8 @@ export default function CaptainHubPage() {
     const logged = await loginCaptain(loginPhone);
     if (logged) {
       setCurrentCaptain(logged);
+      const fin = await getCaptainFinancialSummary(logged.id);
+      setFinancialSummary(fin);
       setActiveTab('workplace');
       setLoginError('');
     } else {
@@ -177,6 +202,7 @@ export default function CaptainHubPage() {
   const handleLogout = () => {
     logoutCaptain();
     setCurrentCaptain(null);
+    setFinancialSummary(null);
     setActiveTab('login');
   };
 
@@ -189,10 +215,12 @@ export default function CaptainHubPage() {
   const handleAcceptRide = async (bookingId: string) => {
     if (!currentCaptain) return;
     await updateBookingStatus(bookingId, 'assigned', currentCaptain.id);
+    await loadData();
   };
 
   const handleStatusProgress = async (bookingId: string, nextStatus: any) => {
     await updateBookingStatus(bookingId, nextStatus);
+    await loadData();
   };
 
   // Driver Analytics Calculations
@@ -207,24 +235,24 @@ export default function CaptainHubPage() {
   const availablePendingBookings = liveBookings.filter(b => b.booking_status === 'pending');
 
   return (
-    <div className="min-h-screen bg-olak-navy-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
 
       <main className="flex-grow py-6 sm:py-12">
         <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
           
           {/* Top Header Strip */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-5 sm:p-6 shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-olak-teal bg-olak-teal/10 px-3 py-0.5 rounded-full border border-olak-teal/30">
+                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-0.5 rounded-full border border-emerald-300">
                   {isUrdu ? 'اولاک کیپٹن پورٹل' : 'OLAK Driver & Captain Portal'}
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900">
                 {currentCaptain ? `${currentCaptain.full_name} (${currentCaptain.vehicle_name})` : (isUrdu ? 'اپنی گاڑی رجسٹر کروائیں' : 'Drive with OLAK')}
               </h1>
-              <p className="text-xs text-slate-400 font-urdu">
+              <p className="text-xs text-slate-500 font-urdu">
                 {isUrdu ? 'تربت شہر، ایئرپورٹ اور بلوچستان بھر میں رائیڈز اور ڈلیوری قبول کریں۔' : 'On-demand ride dispatch & real-time driver earnings in Turbat.'}
               </p>
             </div>
@@ -233,8 +261,8 @@ export default function CaptainHubPage() {
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setActiveTab('workplace')}
-                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === 'workplace' ? 'bg-olak-teal text-olak-navy-950 shadow-teal-glow-sm' : 'bg-olak-navy-950 text-slate-400 hover:text-white'
+                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'workplace' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {isUrdu ? 'ورک پلیس' : 'Dashboard'}
@@ -242,8 +270,8 @@ export default function CaptainHubPage() {
 
               <button
                 onClick={() => setActiveTab('register')}
-                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition ${
-                  activeTab === 'register' ? 'bg-olak-teal text-olak-navy-950 shadow-teal-glow-sm' : 'bg-olak-navy-950 text-slate-400 hover:text-white'
+                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  activeTab === 'register' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {isUrdu ? 'رجسٹریشن' : 'Register'}
@@ -252,7 +280,7 @@ export default function CaptainHubPage() {
               {currentCaptain && (
                 <button
                   onClick={handleLogout}
-                  className="p-2.5 bg-slate-800 hover:bg-red-950 text-slate-300 hover:text-red-400 rounded-xl border border-slate-700 transition"
+                  className="p-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl border border-slate-200 transition cursor-pointer"
                   title="Logout"
                 >
                   <LogOut className="w-4 h-4" />
@@ -267,55 +295,55 @@ export default function CaptainHubPage() {
               
               {!currentCaptain ? (
                 /* Prompt to Sign In */
-                <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-6 sm:p-8 text-center space-y-4 max-w-md mx-auto">
-                  <div className="w-14 h-14 bg-olak-teal/20 text-olak-teal rounded-2xl flex items-center justify-center mx-auto border border-olak-teal/40">
+                <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 text-center space-y-4 max-w-md mx-auto shadow-md">
+                  <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200">
                     <User className="w-7 h-7" />
                   </div>
-                  <h3 className="text-xl font-bold text-white">Captain Login Required</h3>
-                  <p className="text-xs text-slate-400">Enter your registered mobile number to access your active trip queue and earnings.</p>
+                  <h3 className="text-xl font-bold text-slate-900">Captain Login Required</h3>
+                  <p className="text-xs text-slate-500">Enter your registered mobile number or number plate to access your queue and earnings.</p>
                   
                   <form onSubmit={handleLogin} className="space-y-3 pt-2">
                     <input
-                      type="tel"
+                      type="text"
                       required
-                      placeholder="0334 1234567"
+                      placeholder="0334 1234567 or Plate (TRB-1234)"
                       value={loginPhone}
                       onChange={(e) => setLoginPhone(e.target.value)}
-                      className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-olak-teal"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                     />
-                    {loginError && <p className="text-xs text-red-400">{loginError}</p>}
+                    {loginError && <p className="text-xs text-red-600 font-bold">{loginError}</p>}
                     <button
                       type="submit"
-                      className="w-full bg-olak-teal text-olak-navy-950 font-bold py-2.5 rounded-xl text-sm shadow-teal-glow"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-md cursor-pointer"
                     >
                       Sign In to Workplace
                     </button>
                   </form>
 
                   <div className="pt-2">
-                    <button onClick={() => setActiveTab('register')} className="text-xs text-olak-teal hover:underline font-semibold">
+                    <button onClick={() => setActiveTab('register')} className="text-xs text-emerald-700 hover:underline font-semibold cursor-pointer">
                       New Captain? Register your vehicle here →
                     </button>
                   </div>
                 </div>
               ) : currentCaptain.status === 'pending' ? (
                 /* Pending Admin Approval Banner */
-                <div className="bg-gradient-to-r from-amber-950/80 via-olak-navy-900 to-olak-navy-950 border border-amber-500/50 rounded-3xl p-6 sm:p-8 text-center space-y-4">
-                  <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/40">
+                <div className="bg-white border border-amber-300 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
+                  <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto border border-amber-200">
                     <Clock className="w-8 h-8" />
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
                     Application Status: Pending Admin Verification
                   </span>
-                  <h3 className="text-xl sm:text-2xl font-black text-white">
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
                     Hello, Captain {currentCaptain.full_name}!
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-300 max-w-xl mx-auto font-urdu leading-relaxed">
+                  <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto font-urdu leading-relaxed">
                     {isUrdu 
                       ? 'آپ کی بائیک/گاڑی کی رجسٹریشن اور دستاویزات موصول ہوچکی ہیں۔ ایڈمن ٹیم جانچ کے بعد آپ کا اکاؤنٹ فعال کر دے گی۔' 
                       : 'Your documents (CNIC & Driving License) are under review by our Turbat dispatch desk. You will be able to accept rides as soon as admin approves your account.'}
                   </p>
-                  <div className="bg-olak-navy-950 p-4 rounded-2xl border border-olak-navy-800 max-w-md mx-auto text-xs text-left space-y-1 text-slate-300">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 max-w-md mx-auto text-xs text-left space-y-1 text-slate-700">
                     <p>Vehicle: <strong>{currentCaptain.vehicle_name} ({currentCaptain.vehicle_number_plate})</strong></p>
                     <p>Phone: <strong>{currentCaptain.phone}</strong></p>
                     <p>Head Office: <strong>Near City Thana, Turbat</strong></p>
@@ -326,31 +354,31 @@ export default function CaptainHubPage() {
                 <div className="space-y-6 animate-fadeIn">
                   
                   {/* Status & Online Availability Header */}
-                  <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
                     <div className="flex items-center gap-3.5 sm:gap-4">
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-olak-teal/20 border border-olak-teal/40 flex items-center justify-center text-olak-teal font-black text-xl sm:text-2xl flex-shrink-0">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 font-black text-xl sm:text-2xl flex-shrink-0">
                         {currentCaptain.full_name.charAt(0)}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h2 className="text-lg sm:text-xl font-black text-white">{currentCaptain.full_name}</h2>
-                          <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
+                          <h2 className="text-lg sm:text-xl font-black text-slate-900">{currentCaptain.full_name}</h2>
+                          <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
                             <ShieldCheck className="w-3 h-3" />
                             <span>Approved</span>
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300 mt-1">
-                          Vehicle: <span className="text-white font-bold">{currentCaptain.vehicle_name}</span> • Plate: <span className="font-mono text-olak-teal font-bold">{currentCaptain.vehicle_number_plate}</span>
+                        <p className="text-xs text-slate-600 mt-1">
+                          Vehicle: <span className="text-slate-900 font-bold">{currentCaptain.vehicle_name}</span> • Plate: <span className="font-mono text-emerald-700 font-bold">{currentCaptain.vehicle_number_plate}</span>
                         </p>
                       </div>
                     </div>
 
                     <button
                       onClick={handleToggleOnline}
-                      className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-xl ${
+                      className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer ${
                         currentCaptain.is_online
-                          ? 'bg-emerald-500 hover:bg-emerald-400 text-olak-navy-950 shadow-teal-glow animate-pulse'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white'
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
+                          : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
                       }`}
                     >
                       <Power className="w-4 h-4" />
@@ -358,85 +386,88 @@ export default function CaptainHubPage() {
                     </button>
                   </div>
 
-                  {/* REAL-TIME DRIVER ANALYTICS & EARNINGS STRIP (RESPONSIVE GRID) */}
+                  {/* REAL-TIME DRIVER FINANCIAL ANALYTICS & CASH CLEARANCE STRIP */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-2xl p-3.5 sm:p-4">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Today's Net Earn</span>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Gross Cash Collected</span>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs font-bold text-emerald-400">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-emerald-400">{netEarnings}</span>
+                        <span className="text-xs font-bold text-slate-500">PKR</span>
+                        <span className="text-xl sm:text-2xl font-black text-slate-900">{grossEarnings}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">After 10% fee</span>
+                      <span className="text-[10px] text-slate-500">From Riders (Cash in Hand)</span>
                     </div>
 
-                    <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-2xl p-3.5 sm:p-4">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Completed Trips</span>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">Captain Net Share</span>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xl sm:text-2xl font-black text-white">{completedTrips.length}</span>
-                        <span className="text-[10px] text-olak-teal">Trips</span>
+                        <span className="text-xs font-bold text-emerald-600">PKR</span>
+                        <span className="text-xl sm:text-2xl font-black text-emerald-700">{netEarnings}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">100% Success</span>
+                      <span className="text-[10px] text-slate-500">90% of Total Fares</span>
                     </div>
 
-                    <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-2xl p-3.5 sm:p-4">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Gross Fare</span>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">10% Platform Fee</span>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs text-slate-400">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-white">{grossEarnings}</span>
+                        <span className="text-xs text-amber-600 font-bold">PKR</span>
+                        <span className="text-xl sm:text-2xl font-black text-amber-700">{platformFee}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">Cash in Hand</span>
+                      <span className="text-[10px] text-slate-500">Commission for OLAK</span>
                     </div>
 
-                    <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-2xl p-3.5 sm:p-4">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 block">Platform Fee</span>
+                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Office Clearance</span>
                       <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs text-amber-400">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-amber-400">{platformFee}</span>
+                        <span className={`text-lg sm:text-xl font-black ${financialSummary && financialSummary.netBalanceDue > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                          {financialSummary && financialSummary.netBalanceDue > 0 ? `PKR ${financialSummary.netBalanceDue} Due` : 'All Cleared ✓'}
+                        </span>
                       </div>
-                      <span className="text-[10px] text-slate-500">10% OLAK Fee</span>
+                      <span className="text-[10px] text-slate-500">
+                        {financialSummary ? `PKR ${financialSummary.totalSettled} paid` : 'Settled at Office'}
+                      </span>
                     </div>
                   </div>
 
                   {/* ACTIVE ONGOING TRIP CARD */}
                   {activeAssignedTrip && (
-                    <div className="bg-gradient-to-r from-olak-navy-950 via-olak-navy-900 to-olak-navy-950 border-2 border-olak-teal rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4">
+                    <div className="bg-white border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-olak-teal animate-ping"></span>
-                          <span className="font-mono font-bold text-olak-teal bg-olak-teal/10 px-2 py-0.5 rounded text-xs">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-200">
                             Active: {activeAssignedTrip.booking_code}
                           </span>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider bg-olak-teal text-olak-navy-950">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider bg-emerald-600 text-white">
                           {activeAssignedTrip.booking_status.replace('_', ' ')}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
-                        <div className="space-y-2 bg-olak-navy-950 p-3.5 sm:p-4 rounded-2xl border border-olak-navy-800">
+                        <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
                           <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-olak-teal mt-0.5 flex-shrink-0" />
-                            <span>Pickup: <strong className="text-white">{activeAssignedTrip.pickup_location}</strong></span>
+                            <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                            <span>Pickup: <strong className="text-slate-900">{activeAssignedTrip.pickup_location}</strong></span>
                           </div>
                           <div className="flex items-start gap-2">
-                            <Navigation className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                            <span>Destination: <strong className="text-white">{activeAssignedTrip.dropoff_location}</strong></span>
+                            <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
+                            <span>Destination: <strong className="text-slate-900">{activeAssignedTrip.dropoff_location}</strong></span>
                           </div>
                         </div>
 
-                        <div className="space-y-2 bg-olak-navy-950 p-3.5 sm:p-4 rounded-2xl border border-olak-navy-800 flex flex-col justify-between">
+                        <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-400">Passenger:</span>
-                            <span className="font-bold text-white">{activeAssignedTrip.customer_name}</span>
+                            <span className="text-slate-500">Passenger:</span>
+                            <span className="font-bold text-slate-900">{activeAssignedTrip.customer_name}</span>
                           </div>
                           <div className="flex justify-between items-center">
-                            <span className="text-slate-400">Collect Cash:</span>
-                            <span className="font-black text-olak-teal text-base">PKR {activeAssignedTrip.estimated_fare}</span>
+                            <span className="text-slate-500">Collect Cash:</span>
+                            <span className="font-black text-emerald-600 text-base">PKR {activeAssignedTrip.estimated_fare}</span>
                           </div>
                           <div className="flex gap-2 pt-1">
                             <a
                               href={`tel:${activeAssignedTrip.customer_phone}`}
-                              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-center py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-center py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
                             >
                               <Phone className="w-3.5 h-3.5" />
                               <span>Call</span>
@@ -445,7 +476,7 @@ export default function CaptainHubPage() {
                               href={`https://wa.me/${activeAssignedTrip.customer_phone.replace(/\D/g, '')}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-2 bg-emerald-900/60 hover:bg-emerald-600 text-emerald-300 rounded-xl"
+                              className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl border border-emerald-200 transition"
                             >
                               <MessageCircle className="w-4 h-4" />
                             </a>
@@ -458,7 +489,7 @@ export default function CaptainHubPage() {
                         {activeAssignedTrip.booking_status === 'assigned' && (
                           <button
                             onClick={() => handleStatusProgress(activeAssignedTrip.id, 'arrived')}
-                            className="w-full bg-amber-500 hover:bg-amber-400 text-olak-navy-950 font-black py-3 rounded-2xl text-xs sm:text-sm transition"
+                            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
                           >
                             Mark as "Arrived at Pickup Point"
                           </button>
@@ -466,7 +497,7 @@ export default function CaptainHubPage() {
                         {activeAssignedTrip.booking_status === 'arrived' && (
                           <button
                             onClick={() => handleStatusProgress(activeAssignedTrip.id, 'in_progress')}
-                            className="w-full bg-blue-500 hover:bg-blue-400 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition"
+                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
                           >
                             Start Trip to Destination
                           </button>
@@ -474,7 +505,7 @@ export default function CaptainHubPage() {
                         {activeAssignedTrip.booking_status === 'in_progress' && (
                           <button
                             onClick={() => handleStatusProgress(activeAssignedTrip.id, 'completed')}
-                            className="w-full bg-emerald-500 hover:bg-emerald-400 text-olak-navy-950 font-black py-3.5 rounded-2xl text-sm transition shadow-teal-glow"
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-2xl text-sm transition shadow-md cursor-pointer"
                           >
                             Complete Trip & Collect Cash (PKR {activeAssignedTrip.estimated_fare})
                           </button>
@@ -486,11 +517,11 @@ export default function CaptainHubPage() {
                   {/* AVAILABLE PENDING RIDES QUEUE */}
                   <div className="space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                        <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-olak-teal" />
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                         <span>{isUrdu ? 'تربت میں دستیاب سواریاں و پارسل' : 'Live Available Bookings in Turbat'}</span>
                       </h3>
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500">
                         {availablePendingBookings.length} Requests Available
                       </span>
                     </div>
@@ -499,31 +530,31 @@ export default function CaptainHubPage() {
                       {availablePendingBookings.map((b) => (
                         <div 
                           key={b.id}
-                          className="bg-olak-navy-900 border border-olak-navy-800 hover:border-olak-teal rounded-2xl p-4 sm:p-5 space-y-3.5 transition shadow-lg"
+                          className="bg-white border border-slate-200 hover:border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-3.5 transition shadow-sm hover:shadow-md"
                         >
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-mono font-bold text-olak-teal bg-olak-teal/10 px-2.5 py-0.5 rounded-md">
+                            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
                               {b.booking_code}
                             </span>
-                            <span className="text-[10px] sm:text-xs font-bold uppercase text-white bg-slate-800 px-2 py-0.5 rounded">
+                            <span className="text-[10px] sm:text-xs font-bold uppercase text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                               {b.service_type}
                             </span>
                           </div>
 
-                          <div className="space-y-1.5 text-xs text-slate-300">
-                            <p className="truncate">📍 Pickup: <strong className="text-white">{b.pickup_location}</strong></p>
-                            <p className="truncate">🏁 Destination: <strong className="text-white">{b.dropoff_location}</strong></p>
+                          <div className="space-y-1.5 text-xs text-slate-700">
+                            <p className="truncate">📍 Pickup: <strong className="text-slate-900">{b.pickup_location}</strong></p>
+                            <p className="truncate">🏁 Destination: <strong className="text-slate-900">{b.dropoff_location}</strong></p>
                           </div>
 
-                          <div className="flex items-center justify-between pt-2 border-t border-olak-navy-800">
+                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                             <div>
                               <span className="text-[10px] text-slate-400 block">Cash Fare</span>
-                              <span className="text-base font-black text-olak-teal">PKR {b.estimated_fare}</span>
+                              <span className="text-base font-black text-emerald-600">PKR {b.estimated_fare}</span>
                             </div>
 
                             <button
                               onClick={() => handleAcceptRide(b.id)}
-                              className="bg-olak-teal hover:bg-olak-teal-hover text-olak-navy-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-teal-glow transition"
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                             >
                               <CheckCircle2 className="w-4 h-4" />
                               <span>{isUrdu ? 'قبول کریں' : 'Accept Ride'}</span>
@@ -533,7 +564,7 @@ export default function CaptainHubPage() {
                       ))}
 
                       {availablePendingBookings.length === 0 && (
-                        <div className="col-span-2 bg-olak-navy-900/60 border border-olak-navy-800 rounded-2xl p-6 sm:p-8 text-center text-slate-400 text-xs font-urdu">
+                        <div className="col-span-2 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 text-center text-slate-500 text-xs font-urdu shadow-sm">
                           {isUrdu 
                             ? 'اس وقت کوئی نئی پینڈنگ رائیڈ نہیں ہے۔ جیسے ہی کوئی مسافر بکنگ کرے گا، یہاں شو ہوگی۔' 
                             : 'No pending requests currently. Keeping radar active for new customer bookings in Turbat...'}
@@ -545,38 +576,38 @@ export default function CaptainHubPage() {
                   {/* DRIVER COMPLETED TRIPS LIST */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-olak-teal" />
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                         <span>{isUrdu ? 'مکمل شدہ سفر' : 'Completed Trips & Earnings'}</span>
                       </h3>
-                      <span className="text-xs text-slate-400">{completedTrips.length} Completed</span>
+                      <span className="text-xs text-slate-500">{completedTrips.length} Completed</span>
                     </div>
 
                     {/* Mobile Cards */}
                     <div className="space-y-3 sm:hidden">
                       {completedTrips.map((b) => (
-                        <div key={b.id} className="bg-olak-navy-900 border border-olak-navy-800 rounded-2xl p-4 space-y-2 shadow-md">
+                        <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-sm">
                           <div className="flex justify-between text-xs">
-                            <span className="font-mono font-bold text-white">{b.booking_code}</span>
-                            <span className="font-bold text-emerald-400">
+                            <span className="font-mono font-bold text-slate-900">{b.booking_code}</span>
+                            <span className="font-bold text-emerald-700">
                               Net: PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 truncate">👤 {b.customer_name}</p>
-                          <p className="text-[11px] text-slate-400 truncate">{b.pickup_location} ➔ {b.dropoff_location}</p>
+                          <p className="text-xs text-slate-700 truncate">👤 {b.customer_name}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{b.pickup_location} ➔ {b.dropoff_location}</p>
                         </div>
                       ))}
                       {completedTrips.length === 0 && (
-                        <div className="p-6 text-center text-slate-500 text-xs font-urdu bg-olak-navy-900 rounded-2xl border border-olak-navy-800">
+                        <div className="p-6 text-center text-slate-500 text-xs font-urdu bg-white rounded-2xl border border-slate-200">
                           {isUrdu ? 'ابھی تک کوئی مکمل سفر درج نہیں۔' : 'No completed trips recorded yet.'}
                         </div>
                       )}
                     </div>
 
                     {/* Desktop Table */}
-                    <div className="hidden sm:block bg-olak-navy-900 border border-olak-navy-800 rounded-2xl overflow-hidden shadow-xl">
-                      <table className="w-full text-left text-xs text-slate-300">
-                        <thead className="bg-olak-navy-950 text-slate-400 uppercase font-bold border-b border-olak-navy-800">
+                    <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left text-xs text-slate-700">
+                        <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
                           <tr>
                             <th className="px-4 py-3">Token</th>
                             <th className="px-4 py-3">Passenger</th>
@@ -585,14 +616,14 @@ export default function CaptainHubPage() {
                             <th className="px-4 py-3">Net Earning (90%)</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-olak-navy-800">
+                        <tbody className="divide-y divide-slate-200">
                           {completedTrips.map((b) => (
-                            <tr key={b.id} className="hover:bg-olak-navy-850/60 transition">
-                              <td className="px-4 py-3 font-mono font-bold text-white">{b.booking_code}</td>
+                            <tr key={b.id} className="hover:bg-slate-50 transition">
+                              <td className="px-4 py-3 font-mono font-bold text-slate-900">{b.booking_code}</td>
                               <td className="px-4 py-3">{b.customer_name}</td>
                               <td className="px-4 py-3 max-w-xs truncate">{b.pickup_location} ➔ {b.dropoff_location}</td>
-                              <td className="px-4 py-3 text-slate-300">PKR {b.final_fare || b.estimated_fare}</td>
-                              <td className="px-4 py-3 font-black text-emerald-400">
+                              <td className="px-4 py-3 text-slate-600">PKR {b.final_fare || b.estimated_fare}</td>
+                              <td className="px-4 py-3 font-black text-emerald-700">
                                 PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
                               </td>
                             </tr>
@@ -614,7 +645,7 @@ export default function CaptainHubPage() {
               
               {/* Left Promotional Showcase */}
               <div className="lg:col-span-5 space-y-6">
-                <div className="relative h-64 sm:h-80 w-full rounded-3xl overflow-hidden border border-olak-navy-800 shadow-2xl">
+                <div className="relative h-64 sm:h-80 w-full rounded-3xl overflow-hidden border border-slate-200 shadow-md">
                   <Image
                     src="/assets/bike-poster.jpg"
                     alt="OLAK Captain"
@@ -622,21 +653,21 @@ export default function CaptainHubPage() {
                     className="object-cover"
                     unoptimized
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-olak-navy-950 via-transparent to-transparent"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent"></div>
                   <div className="absolute bottom-4 left-4 right-4 text-left">
-                    <span className="text-xs font-bold bg-olak-teal text-olak-navy-950 px-3 py-1 rounded-full uppercase">
+                    <span className="text-xs font-bold bg-emerald-500 text-slate-950 px-3 py-1 rounded-full uppercase">
                       Official Captain
                     </span>
                     <h3 className="text-xl font-black text-white mt-1">آسان سفر، آسان کمائی</h3>
                   </div>
                 </div>
 
-                <div className="bg-olak-navy-900/90 rounded-3xl p-6 border border-olak-navy-800 space-y-3 text-xs sm:text-sm">
-                  <h4 className="text-base font-bold text-white flex items-center gap-2">
-                    <ShieldCheck className="w-5 h-5 text-olak-teal" />
+                <div className="bg-white rounded-3xl p-6 border border-slate-200 space-y-3 text-xs sm:text-sm shadow-sm">
+                  <h4 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-600" />
                     <span>{isUrdu ? 'رجسٹریشن کے فوائد' : 'Why Partner with OLAK?'}</span>
                   </h4>
-                  <p className="text-slate-300 font-urdu leading-relaxed">
+                  <p className="text-slate-600 font-urdu leading-relaxed">
                     صرف 10% کمیشن، روزانہ نقد کمائی، اور تربت شہر کے معزز شہریوں کو تیز ترین سفری سہولت۔
                   </p>
                 </div>
@@ -645,36 +676,36 @@ export default function CaptainHubPage() {
               {/* Right Registration Form */}
               <div className="lg:col-span-7">
                 {registeredCaptain ? (
-                  <div className="bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-6 sm:p-8 text-center space-y-5">
-                    <div className="w-16 h-16 bg-olak-teal/20 text-olak-teal rounded-full flex items-center justify-center mx-auto border border-olak-teal/40">
+                  <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 text-center space-y-5 shadow-md">
+                    <div className="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
                       <CheckCircle2 className="w-10 h-10" />
                     </div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
+                    <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
                       Application Submitted (Pending Admin Approval)
                     </span>
-                    <h3 className="text-2xl font-black text-white">
+                    <h3 className="text-2xl font-black text-slate-900">
                       {registeredCaptain.full_name}
                     </h3>
-                    <p className="text-xs text-slate-300 font-urdu leading-relaxed">
+                    <p className="text-xs text-slate-600 font-urdu leading-relaxed">
                       آپ کی درخواست موصول ہوگئی ہے۔ ایڈمن منظوری کے بعد آپ رائیڈز قبول کر سکیں گے۔
                     </p>
                     <button
                       onClick={() => setActiveTab('workplace')}
-                      className="bg-olak-teal text-olak-navy-950 font-bold px-6 py-2.5 rounded-xl text-xs shadow-teal-glow"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs shadow-sm cursor-pointer"
                     >
                       Go to Driver Workplace
                     </button>
                   </div>
                 ) : (
-                  <form onSubmit={handleRegister} className="bg-olak-navy-900 border border-olak-navy-800 rounded-3xl p-5 sm:p-8 space-y-4 sm:space-y-5 shadow-2xl">
-                    <h3 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
-                      <UserPlus className="w-5 h-5 text-olak-teal" />
+                  <form onSubmit={handleRegister} className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-8 space-y-4 sm:space-y-5 shadow-sm">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
+                      <UserPlus className="w-5 h-5 text-emerald-600" />
                       <span>{isUrdu ? 'کیپٹن رجسٹریشن فارم' : 'Captain Registration Form'}</span>
                     </h3>
 
                     {/* Service Selection */}
                     <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">
                         {isUrdu ? 'گاڑی کی کیٹیگری' : 'Vehicle Service Category'}
                       </label>
                       <div className="grid grid-cols-4 gap-2">
@@ -688,11 +719,11 @@ export default function CaptainHubPage() {
                             key={item.id}
                             type="button"
                             onClick={() => setServiceType(item.id as any)}
-                            className={`p-2 sm:p-2.5 rounded-xl border text-center transition ${
-                              serviceType === item.id ? 'bg-olak-teal/20 border-olak-teal text-white shadow-sm' : 'bg-olak-navy-950 border-olak-navy-800 text-slate-400'
+                            className={`p-2 sm:p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                              serviceType === item.id ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600'
                             }`}
                           >
-                            <item.icon className="w-4 h-4 mx-auto mb-1 text-olak-teal" />
+                            <item.icon className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
                             <span className="block text-[11px] sm:text-xs font-bold truncate">{item.label}</span>
                           </button>
                         ))}
@@ -701,49 +732,49 @@ export default function CaptainHubPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Full Name (as per CNIC)</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Full Name (as per CNIC)</label>
                         <input
                           type="text"
                           required
                           placeholder="Tariq Baloch"
                           value={fullName}
                           onChange={(e) => setFullName(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Mobile Number</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Mobile Number</label>
                         <input
                           type="tel"
                           required
                           placeholder="0334 1234567"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">CNIC Number</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">CNIC Number</label>
                         <input
                           type="text"
                           required
                           placeholder="52201-1234567-1"
                           value={cnic}
                           onChange={(e) => setCnic(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Operating City</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Operating City</label>
                         <select
                           value={city}
                           onChange={(e) => setCity(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         >
                           <option value="Turbat">Turbat (تربت)</option>
                           <option value="Gwadar">Gwadar (گوادر)</option>
@@ -756,51 +787,51 @@ export default function CaptainHubPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Vehicle Model</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Model</label>
                         <input
                           type="text"
                           required
                           placeholder="Honda 125 / Alto"
                           value={vehicleName}
                           onChange={(e) => setVehicleName(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Year</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Year</label>
                         <input
                           type="text"
                           placeholder="2022"
                           value={modelYear}
                           onChange={(e) => setModelYear(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Plate Number</label>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Plate Number</label>
                         <input
                           type="text"
                           required
                           placeholder="TRB-7821"
                           value={numberPlate}
                           onChange={(e) => setNumberPlate(e.target.value)}
-                          className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2 text-xs sm:text-sm text-white uppercase focus:outline-none focus:border-olak-teal"
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-900 uppercase focus:outline-none focus:border-emerald-500"
                         />
                       </div>
                     </div>
 
                     {/* Document Uploads */}
                     <div className="space-y-3 pt-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
                         Verification Photos (Uploaded to Supabase)
                       </span>
                       
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div className="border border-dashed border-olak-navy-700 hover:border-olak-teal rounded-2xl p-3 bg-olak-navy-950 text-center">
-                          <Upload className="w-5 h-5 text-olak-teal mx-auto mb-1" />
-                          <span className="text-[11px] font-bold text-slate-300 block">CNIC Photo</span>
+                        <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
+                          <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                          <span className="text-[11px] font-bold text-slate-700 block">CNIC Photo</span>
                           <input 
                             type="file" 
                             accept="image/*" 
@@ -809,9 +840,9 @@ export default function CaptainHubPage() {
                           />
                         </div>
 
-                        <div className="border border-dashed border-olak-navy-700 hover:border-olak-teal rounded-2xl p-3 bg-olak-navy-950 text-center">
-                          <Upload className="w-5 h-5 text-olak-teal mx-auto mb-1" />
-                          <span className="text-[11px] font-bold text-slate-300 block">Driving License</span>
+                        <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
+                          <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                          <span className="text-[11px] font-bold text-slate-700 block">Driving License</span>
                           <input 
                             type="file" 
                             accept="image/*" 
@@ -820,9 +851,9 @@ export default function CaptainHubPage() {
                           />
                         </div>
 
-                        <div className="border border-dashed border-olak-navy-700 hover:border-olak-teal rounded-2xl p-3 bg-olak-navy-950 text-center">
-                          <Upload className="w-5 h-5 text-olak-teal mx-auto mb-1" />
-                          <span className="text-[11px] font-bold text-slate-300 block">Vehicle Photo</span>
+                        <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
+                          <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                          <span className="text-[11px] font-bold text-slate-700 block">Vehicle Photo</span>
                           <input 
                             type="file" 
                             accept="image/*" 
@@ -836,7 +867,7 @@ export default function CaptainHubPage() {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full bg-gradient-to-r from-olak-teal to-emerald-500 hover:from-emerald-400 hover:to-olak-teal text-olak-navy-950 font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-teal-glow transition text-base disabled:opacity-50"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-sm transition text-base disabled:opacity-50 cursor-pointer"
                     >
                       {isSubmitting ? (
                         <span>Uploading & Registering...</span>

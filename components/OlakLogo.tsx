@@ -7,57 +7,66 @@ interface OlakLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showText?: boolean;
   textColor?: string;
+  innerCircleColor?: string;
 }
 
 export const OlakLogo: React.FC<OlakLogoProps> = ({
   className = '',
   size = 'md',
   showText = true,
-  textColor = 'text-white',
+  textColor = 'text-slate-900',
+  innerCircleColor = '#ffffff',
 }) => {
   const getDimensions = () => {
     switch (size) {
-      case 'sm': return { width: 90, height: 28, iconSize: 26, fontSize: '18px' };
-      case 'lg': return { width: 150, height: 46, iconSize: 42, fontSize: '30px' };
-      case 'xl': return { width: 190, height: 58, iconSize: 52, fontSize: '38px' };
-      default: return { width: 120, height: 36, iconSize: 32, fontSize: '24px' };
+      case 'sm': return { iconSize: 28, fontSize: '19px' };
+      case 'lg': return { iconSize: 44, fontSize: '32px' };
+      case 'xl': return { iconSize: 54, fontSize: '38px' };
+      default: return { iconSize: 34, fontSize: '25px' };
     }
   };
 
   const dim = getDimensions();
 
   return (
-    <div className={`inline-flex items-center gap-2 select-none ${className}`}>
-      {/* Brand Icon SVG (Split Emerald & Teal Ring) */}
+    <div className={`inline-flex items-center gap-1.5 select-none ${className}`}>
+      {/* 
+        Brand Icon SVG: The Split Emerald & Teal Ring.
+        This geometric circular ring directly represents the "O" of OLAK!
+      */}
       <svg
         width={dim.iconSize}
         height={dim.iconSize}
         viewBox="0 0 100 100"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        className="flex-shrink-0"
+        className="flex-shrink-0 drop-shadow-sm"
       >
         {/* Left Emerald Arc */}
         <path
-          d="M 50 10 A 40 40 0 0 0 50 90 L 50 65 A 15 15 0 0 1 50 35 Z"
+          d="M 50 10 A 40 40 0 0 0 50 90 L 50 66 A 16 16 0 0 1 50 34 Z"
           fill="#00D084"
         />
         {/* Right Darker Teal Arc */}
         <path
-          d="M 50 10 A 40 40 0 0 1 50 90 L 50 65 A 15 15 0 0 0 50 35 Z"
+          d="M 50 10 A 40 40 0 0 1 50 90 L 50 66 A 16 16 0 0 0 50 34 Z"
           fill="#0A3C32"
         />
-        {/* Inner Emerald Glow Accent */}
-        <circle cx="50" cy="50" r="16" fill="#061325" />
+        {/* Inner Circle (White by default for seamless blend on light background) */}
+        <circle cx="50" cy="50" r="16" fill={innerCircleColor} />
       </svg>
 
-      {/* Brand Name Typography */}
+      {/* 
+        Brand Name Typography: 
+        Because the circular split-ring emblem above directly represents the letter 'O',
+        the text shows 'LAK' so the entire mark reads seamlessly as 'OLAK' without repeating 'O OLAK'!
+      */}
       {showText && (
         <span
           className={`font-black tracking-wider uppercase font-sans ${textColor}`}
           style={{ fontSize: dim.fontSize, letterSpacing: '0.04em' }}
         >
-          <span className="text-olak-teal">O</span>LAK
+          LAK
         </span>
       )}
     </div>

@@ -2,24 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
-import { 
-  PricingRate, 
-  ServiceType, 
-  Booking 
-} from '@/lib/types';
-import { 
-  TURBAT_LANDMARKS, 
-  INITIAL_PRICING_RATES 
-} from '@/lib/constants';
-import { 
-  getPricingRates, 
-  createBooking 
-} from '@/lib/db';
+import { PricingRate, ServiceType, Booking } from '@/lib/types';
+import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
+import { getPricingRates, createBooking } from '@/lib/db';
+import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
 import { 
   Bike, 
   Car, 
   Truck, 
-  Package, 
   MapPin, 
   Navigation, 
   Phone, 
@@ -29,7 +19,7 @@ import {
   ShieldCheck, 
   ArrowRight,
   Sparkles,
-  ExternalLink
+  Map as MapIcon
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -45,8 +35,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   // Form State
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[2].name);
-  const [customPickup, setCustomPickup] = useState('');
-  const [customDropoff, setCustomDropoff] = useState('');
+  const [customDistanceKm, setCustomDistanceKm] = useState<number>(4.5);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -64,21 +53,19 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
     return () => window.removeEventListener('olak_fares_updated', handleRatesUpdate);
   }, []);
 
-  // Distance & Fare Calculation
-  const activeRate = rates.find(r => r.service_type === selectedService) || rates[0];
-
-  // Approximate distance based on selected landmarks or default 4.5 KM
-  const calculateDistance = (): number => {
-    const pIndex = TURBAT_LANDMARKS.findIndex(l => l.name === (customPickup || pickup));
-    const dIndex = TURBAT_LANDMARKS.findIndex(l => l.name === (customDropoff || dropoff));
+  // Update distance when landmarks change
+  useEffect(() => {
+    const pIndex = TURBAT_LANDMARKS.findIndex(l => l.name === pickup);
+    const dIndex = TURBAT_LANDMARKS.findIndex(l => l.name === dropoff);
     if (pIndex >= 0 && dIndex >= 0 && pIndex !== dIndex) {
-      return Math.max(2.5, Math.abs(pIndex - dIndex) * 1.8 + 1.2);
+      const calculated = Math.max(2.0, Math.round((Math.abs(pIndex - dIndex) * 1.5 + 1.2) * 10) / 10);
+      setCustomDistanceKm(calculated);
     }
-    return 4.5;
-  };
+  }, [pickup, dropoff]);
 
-  const estimatedDistance = calculateDistance();
-  const rawFare = activeRate.base_fare + (estimatedDistance * activeRate.per_km_charge);
+  // Dynamic Fare Calculation based on editable KM
+  const activeRate = rates.find(r => r.service_type === selectedService) || rates[0];
+  const rawFare = activeRate.base_fare + (customDistanceKm * activeRate.per_km_charge);
   const estimatedFare = Math.round(Math.max(activeRate.minimum_fare, rawFare) / 10) * 10;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,19 +76,15 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
     }
 
     setIsSubmitting(true);
-
     try {
-      const finalPickup = customPickup.trim() || pickup;
-      const finalDropoff = customDropoff.trim() || dropoff;
-
       const booking = await createBooking({
         service_type: selectedService,
         customer_name: customerName,
         customer_phone: customerPhone,
-        pickup_location: finalPickup,
-        dropoff_location: finalDropoff,
+        pickup_location: pickup,
+        dropoff_location: dropoff,
         notes: notes,
-        estimated_distance_km: parseFloat(estimatedDistance.toFixed(1)),
+        estimated_distance_km: customDistanceKm,
         estimated_fare: estimatedFare,
         payment_method: 'cash',
       });
@@ -109,17 +92,14 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       setConfirmedBooking(booking);
       setIsSubmitting(false);
 
-      // Trigger Celebration Confetti
       try {
         confetti({
           particleCount: 80,
           spread: 70,
           origin: { y: 0.6 },
-          colors: ['#00D084', '#10B981', '#ffffff', '#0A192F']
+          colors: ['#00D084', '#10B981', '#061325', '#3b82f6']
         });
-      } catch (cErr) {
-        // ignore
-      }
+      } catch (cErr) {}
     } catch (err) {
       console.error('Booking failed:', err);
       setIsSubmitting(false);
@@ -128,55 +108,56 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   };
 
   return (
-    <div className="bg-olak-navy-900/95 border border-olak-navy-800 rounded-3xl p-5 sm:p-7 shadow-2xl backdrop-blur-xl relative overflow-hidden">
-      {/* Decorative Glow */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-olak-teal/15 rounded-full blur-3xl pointer-events-none"></div>
-
-      {/* Success Modal / Banner */}
+    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
       {confirmedBooking ? (
-        <div className="text-center py-6 sm:py-8 space-y-5 animate-fadeIn">
-          <div className="w-16 h-16 bg-olak-teal/20 text-olak-teal rounded-full flex items-center justify-center mx-auto border border-olak-teal/40">
+        /* Confirmation Voucher */
+        <div className="text-center py-6 space-y-5 animate-fadeIn">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
             <CheckCircle2 className="w-10 h-10" />
           </div>
 
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-olak-teal bg-olak-teal/10 px-3 py-1 rounded-full border border-olak-teal/30">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3.5 py-1 rounded-full border border-emerald-200">
               {t.booking_success}
             </span>
-            <h3 className="text-2xl sm:text-3xl font-black text-white mt-2">
+            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
               {confirmedBooking.booking_code}
             </h3>
-            <p className="text-sm text-slate-300 mt-1 font-urdu">
+            <p className="text-sm text-slate-600 mt-1 font-urdu">
               {isUrdu 
-                ? 'آپ کی بکنگ درج کرلی گئی ہے۔ قریبی کیپٹن کو اطلاع روانہ کردی گئی ہے۔' 
-                : 'Your ride request has been dispatched to nearby verified captains in Turbat.'}
+                ? 'آپ کی رائیڈ بکنگ درج ہوچکی ہے۔ تربت کے قریبی کیپٹن کو اطلاع روانہ کردی گئی ہے۔' 
+                : 'Your ride request has been dispatched to verified captains in Turbat.'}
             </p>
           </div>
 
           {/* Trip Summary Card */}
-          <div className="bg-olak-navy-950/80 rounded-2xl p-4 border border-olak-navy-800 text-left space-y-2 text-xs sm:text-sm">
-            <div className="flex justify-between text-slate-300 pb-2 border-b border-olak-navy-800">
-              <span className="text-slate-400">{isUrdu ? 'سروس' : 'Service'}:</span>
-              <span className="font-bold text-white uppercase">{confirmedBooking.service_type}</span>
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left space-y-2 text-xs sm:text-sm">
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'سروس' : 'Service'}:</span>
+              <span className="font-bold text-slate-900 uppercase">{confirmedBooking.service_type}</span>
             </div>
-            <div className="flex justify-between text-slate-300 pb-2 border-b border-olak-navy-800">
-              <span className="text-slate-400">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
-              <span className="font-semibold text-slate-200">{confirmedBooking.pickup_location}</span>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.pickup_location}</span>
             </div>
-            <div className="flex justify-between text-slate-300 pb-2 border-b border-olak-navy-800">
-              <span className="text-slate-400">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
-              <span className="font-semibold text-slate-200">{confirmedBooking.dropoff_location}</span>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.dropoff_location}</span>
             </div>
-            <div className="flex justify-between text-slate-300 pt-1 text-base">
-              <span className="font-bold text-olak-teal">{isUrdu ? 'تخمینی کرایہ' : 'Fare'}:</span>
-              <span className="font-black text-olak-teal">PKR {confirmedBooking.estimated_fare}</span>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'فاصلہ' : 'Distance'}:</span>
+              <span className="font-bold text-emerald-700">{confirmedBooking.estimated_distance_km} KM</span>
+            </div>
+            <div className="flex justify-between text-slate-900 pt-1 text-base">
+              <span className="font-bold text-emerald-600">{isUrdu ? 'کرایہ' : 'Fare'}:</span>
+              <span className="font-black text-emerald-600">PKR {confirmedBooking.estimated_fare}</span>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <a
               href={`/track/?code=${confirmedBooking.booking_code}`}
-              className="flex-1 bg-olak-teal hover:bg-olak-teal-hover text-olak-navy-950 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-teal-glow transition"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition"
             >
               <span>{t.track_status_btn}</span>
               <ArrowRight className="w-4 h-4" />
@@ -184,7 +165,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
             <button
               onClick={() => setConfirmedBooking(null)}
-              className="px-4 py-3 bg-olak-navy-800 hover:bg-olak-navy-700 text-slate-200 rounded-xl font-semibold transition"
+              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition border border-slate-200"
             >
               {isUrdu ? 'نئی بکنگ کریں' : 'Book Another Ride'}
             </button>
@@ -196,19 +177,19 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           {/* Header Title */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-olak-teal"></span>
-              <h3 className="text-lg sm:text-xl font-extrabold text-white">
-                {isUrdu ? 'سواری کی فوری بکنگ' : 'Instant Ride Request'}
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                {isUrdu ? 'سواری کی فوری بکنگ' : 'Instant Ride Booking'}
               </h3>
             </div>
-            <span className="text-xs text-olak-teal font-medium flex items-center gap-1">
+            <span className="text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
               <Clock className="w-3.5 h-3.5" />
               <span>{isUrdu ? '3-7 منٹ میں آمد' : '3-7 Min Pickup'}</span>
             </span>
           </div>
 
           {/* Service Selector Tabs */}
-          <div className="grid grid-cols-3 gap-2 bg-olak-navy-950 p-1.5 rounded-2xl border border-olak-navy-800">
+          <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
             {rates.filter(r => r.service_type !== 'delivery').map((rate) => {
               const isSelected = selectedService === rate.service_type;
               return (
@@ -218,8 +199,8 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                   onClick={() => setSelectedService(rate.service_type)}
                   className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl transition-all ${
                     isSelected 
-                      ? 'bg-gradient-to-b from-olak-teal to-emerald-600 text-olak-navy-950 font-bold shadow-lg shadow-olak-teal/20 scale-[1.02]' 
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-olak-navy-900'
+                      ? 'bg-emerald-600 text-white font-bold shadow-md scale-[1.02]' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
                   <div className="mb-1">
@@ -230,7 +211,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                   <span className="text-xs font-bold truncate max-w-full">
                     {isUrdu ? rate.service_name_urdu : rate.service_name}
                   </span>
-                  <span className={`text-[10px] ${isSelected ? 'text-olak-navy-950/80 font-semibold' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
                     Base PKR {rate.base_fare}
                   </span>
                 </button>
@@ -238,13 +219,12 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             })}
           </div>
 
-          {/* Location Selection */}
-          <div className="space-y-3.5">
-            {/* Pickup */}
+          {/* Location Selection Dropdowns */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-olak-teal" />
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
                   <span>{t.pickup_label}</span>
                 </span>
                 <span className="text-[10px] text-slate-400">Turbat</span>
@@ -252,11 +232,8 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
               <select
                 value={pickup}
-                onChange={(e) => {
-                  setPickup(e.target.value);
-                  setCustomPickup('');
-                }}
-                className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-olak-teal transition"
+                onChange={(e) => setPickup(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
                 {TURBAT_LANDMARKS.map((lm) => (
                   <option key={lm.name} value={lm.name}>
@@ -266,11 +243,10 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
               </select>
             </div>
 
-            {/* Dropoff */}
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-emerald-400" />
+                  <Navigation className="w-3.5 h-3.5 text-teal-700" />
                   <span>{t.dropoff_label}</span>
                 </span>
                 <span className="text-[10px] text-slate-400">Turbat</span>
@@ -278,11 +254,8 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
               <select
                 value={dropoff}
-                onChange={(e) => {
-                  setDropoff(e.target.value);
-                  setCustomDropoff('');
-                }}
-                className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-olak-teal transition"
+                onChange={(e) => setDropoff(e.target.value)}
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
                 {TURBAT_LANDMARKS.map((lm) => (
                   <option key={lm.name} value={lm.name}>
@@ -291,21 +264,34 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                 ))}
               </select>
             </div>
+          </div>
 
-            {/* Custom Specific Address (Optional) */}
+          {/* Embedded Interactive Google Map with Editable KM Customizer */}
+          <InteractiveRouteMap
+            pickupName={pickup}
+            dropoffName={dropoff}
+            onPickupChange={(name) => setPickup(name)}
+            onDropoffChange={(name) => setDropoff(name)}
+            customDistanceKm={customDistanceKm}
+            onDistanceKmChange={(km) => setCustomDistanceKm(km)}
+            isUrdu={isUrdu}
+          />
+
+          {/* Optional Street / Gate Notes */}
+          <div>
             <input
               type="text"
-              placeholder={isUrdu ? 'کوئی خاص گلی یا مکان نمبر (اختیاری)...' : 'Specific street, office, or house number (optional)...'}
+              placeholder={isUrdu ? 'کوئی خاص گلی، دکان یا گیٹ نمبر (اختیاری)...' : 'Specific street, shop, or gate number (optional)...'}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full bg-olak-navy-950/60 border border-olak-navy-800 rounded-xl px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-olak-teal"
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
             />
           </div>
 
-          {/* Customer Contact Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Customer Name & Phone Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <User className="w-3 h-3 text-slate-400" />
                 <span>{t.name_label}</span>
               </label>
@@ -315,12 +301,12 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                 placeholder={t.name_placeholder}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-olak-teal"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center gap-1">
+              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <Phone className="w-3 h-3 text-slate-400" />
                 <span>{t.phone_label}</span>
               </label>
@@ -330,46 +316,46 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                 placeholder={t.phone_placeholder}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                className="w-full bg-olak-navy-950 border border-olak-navy-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-olak-teal"
+                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
 
-          {/* Live Fare Estimation Box */}
-          <div className="bg-gradient-to-r from-olak-navy-950 via-olak-navy-850 to-olak-navy-950 border border-olak-teal/30 rounded-2xl p-4 flex items-center justify-between">
+          {/* Live Dynamic Fare Estimation Card */}
+          <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-semibold text-slate-400 block">
-                {t.est_fare} (~{estimatedDistance.toFixed(1)} KM)
+              <span className="text-[11px] font-bold text-slate-500 block">
+                {t.est_fare} ({customDistanceKm} KM @ PKR {activeRate.per_km_charge}/KM)
               </span>
               <div className="flex items-baseline gap-1">
-                <span className="text-xs font-bold text-olak-teal">PKR</span>
-                <span className="text-2xl sm:text-3xl font-black text-white">
+                <span className="text-xs font-bold text-emerald-600">PKR</span>
+                <span className="text-2xl sm:text-3xl font-black text-slate-900">
                   {estimatedFare}
                 </span>
               </div>
             </div>
 
-            <div className="text-right text-[11px] text-slate-400 space-y-0.5">
-              <span className="block text-slate-300">
-                {isUrdu ? 'کیش آن پک اپ' : 'Cash on Pickup'}
+            <div className="text-right text-[11px] text-slate-500 space-y-0.5">
+              <span className="block font-bold text-slate-800">
+                {isUrdu ? 'کیش آن پک اپ' : 'Cash on Delivery'}
               </span>
-              <span className="text-emerald-400 font-medium flex items-center gap-1 justify-end">
+              <span className="text-emerald-700 font-bold flex items-center gap-1 justify-end">
                 <ShieldCheck className="w-3.5 h-3.5" />
-                <span>{isUrdu ? 'کوئی پوشیدہ چارج نہیں' : 'Zero Hidden Fees'}</span>
+                <span>{isUrdu ? 'فکسڈ شفاف کرایہ' : 'Transparent Meter'}</span>
               </span>
             </div>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit Request Button */}
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-gradient-to-r from-olak-teal to-emerald-500 hover:from-emerald-400 hover:to-olak-teal text-olak-navy-950 font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-teal-glow hover:shadow-teal-glow transition transform active:scale-[0.99] disabled:opacity-50 text-base"
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-base cursor-pointer"
           >
             {isSubmitting ? (
               <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-olak-navy-950 border-t-transparent rounded-full animate-spin"></span>
-                <span>{isUrdu ? 'درخواست بھیجی جا رہی ہے...' : 'Connecting with Captains...'}</span>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>{isUrdu ? 'کیپٹن سے رابطہ ہو رہا ہے...' : 'Connecting with Captains...'}</span>
               </span>
             ) : (
               <span className="flex items-center gap-2">

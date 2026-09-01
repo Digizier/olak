@@ -7,7 +7,7 @@ import { Footer } from '@/components/Footer';
 import { RideBookingWidget } from '@/components/RideBookingWidget';
 import { DeliveryWidget } from '@/components/DeliveryWidget';
 import { IntercityWidget } from '@/components/IntercityWidget';
-import { MobileAppMockup } from '@/components/MobileAppMockup';
+import { PromotionBannerCarousel } from '@/components/PromotionBannerCarousel';
 import { FeaturesSection } from '@/components/FeaturesSection';
 import { FaresChartSection } from '@/components/FaresChartSection';
 import { CaptainPromoSection } from '@/components/CaptainPromoSection';
@@ -20,13 +20,13 @@ import {
   Package, 
   Navigation, 
   ShieldCheck, 
-  Phone, 
   MessageCircle, 
-  MapPin, 
   Sparkles,
   ArrowRight,
   UserCheck,
-  UserPlus
+  Phone,
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -39,135 +39,156 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div id="top" className="min-h-screen bg-olak-navy-950 text-slate-100 flex flex-col selection:bg-olak-teal selection:text-olak-navy-950">
+    <div id="top" className="min-h-screen bg-white text-slate-900 flex flex-col selection:bg-emerald-500 selection:text-white">
       <Navbar />
 
-      {/* Hero Section */}
-      <main className="flex-grow">
-        <section className="relative pt-8 pb-16 sm:pt-12 sm:pb-24 lg:pt-16 lg:pb-28 overflow-hidden bg-radial-navy">
-          
-          {/* Background Glows */}
-          <div className="absolute top-10 left-1/4 w-96 h-96 bg-olak-teal/10 rounded-full blur-[140px] pointer-events-none"></div>
-          <div className="absolute top-40 right-10 w-80 h-80 bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+      {/* Promotional Ads Showcase Carousel */}
+      <div className="bg-slate-50 border-b border-slate-200">
+        <PromotionBannerCarousel isUrdu={isUrdu} />
+      </div>
 
+      {/* Hero Section with Clean White & Slate Background */}
+      <main className="flex-grow">
+        <section className="relative pt-8 pb-16 sm:pt-12 sm:pb-20 overflow-hidden bg-white">
+          
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
               
-              {/* Left Column: Headings & Booking Engine (7 Cols) */}
-              <div className="lg:col-span-7 space-y-6 sm:space-y-8">
+              {/* Left Column: Headings & Value Props (5 Cols) */}
+              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-28">
                 
-                {/* Hero Badge & Customer Welcome */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 bg-olak-navy-900/90 border border-olak-teal/40 px-3.5 py-1.5 rounded-full text-xs font-bold text-olak-teal shadow-teal-glow-sm">
-                    <Sparkles className="w-3.5 h-3.5 text-olak-teal" />
+                {/* Badge */}
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-300/80 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-800 shadow-xs">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                     <span>{t.hero_badge}</span>
                   </div>
 
                   {currentCustomer ? (
                     <Link
                       href="/customer/"
-                      className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-emerald-500 hover:text-white transition"
+                      className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-slate-200 transition"
                     >
-                      <UserCheck className="w-3.5 h-3.5" />
+                      <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                       <span>{isUrdu ? `خوش آمدید، ${currentCustomer.full_name}` : `Welcome, ${currentCustomer.full_name}`}</span>
                     </Link>
                   ) : (
                     <Link
                       href="/customer/"
-                      className="inline-flex items-center gap-1.5 bg-slate-900/90 text-slate-300 border border-slate-700 px-3 py-1.5 rounded-full text-xs font-semibold hover:border-olak-teal transition"
+                      className="inline-flex items-center gap-1 text-slate-600 hover:text-emerald-700 text-xs font-bold transition"
                     >
-                      <span>{isUrdu ? 'کسٹمر پورٹل لاگ ان' : 'Customer Account'}</span>
+                      <span>{isUrdu ? 'کسٹمر پورٹل' : 'Customer Portal'}</span>
                       <ArrowRight className="w-3 h-3" />
                     </Link>
                   )}
                 </div>
 
-                {/* Fixed Main Titles (No clipping, proper responsive line heights) */}
+                {/* Main Titles */}
                 <div className="space-y-2">
-                  <h1 className={`text-3xl sm:text-5xl lg:text-6xl font-black text-white ${
-                    isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans tracking-tight leading-tight sm:leading-none'
+                  <h1 className={`text-3xl sm:text-5xl lg:text-5xl font-black text-slate-950 tracking-tight ${
+                    isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans'
                   }`}>
                     {t.hero_title_1}
                   </h1>
-                  <h2 className={`text-2xl sm:text-4xl lg:text-5xl font-black bg-gradient-to-r from-olak-teal via-emerald-300 to-accent bg-clip-text text-transparent ${
-                    isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans tracking-tight leading-tight sm:leading-tight'
+                  <h2 className={`text-2xl sm:text-4xl lg:text-4xl font-black text-emerald-600 ${
+                    isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans'
                   }`}>
                     {t.hero_title_2}
                   </h2>
                 </div>
 
-                <p className="text-sm sm:text-base text-slate-300 max-w-xl font-urdu leading-relaxed">
+                <p className="text-sm sm:text-base text-slate-600 font-urdu leading-relaxed max-w-lg">
                   {t.hero_desc}
                 </p>
 
-                {/* Primary Mode Tabs (Ride vs Delivery vs Intercity) */}
-                <div className="flex bg-olak-navy-900 p-1.5 rounded-2xl border border-olak-navy-800 max-w-md shadow-lg">
+                {/* Quick Trust Highlights */}
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
+                    <div className="flex items-center gap-2 text-emerald-600 font-black text-sm">
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>CNIC Verified</span>
+                    </div>
+                    <p className="text-xs text-slate-500">100% inspected Turbat captains</p>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
+                    <div className="flex items-center gap-2 text-emerald-600 font-black text-sm">
+                      <Clock className="w-4 h-4" />
+                      <span>3-7 Min Pickup</span>
+                    </div>
+                    <p className="text-xs text-slate-500">Rapid doorstep arrival</p>
+                  </div>
+                </div>
+
+                {/* Driver CTA Card */}
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <h4 className="font-black text-sm text-slate-900">
+                      {isUrdu ? 'گاڑی یا بائیک ہے؟' : 'Own a Bike or Car?'}
+                    </h4>
+                    <p className="text-xs text-slate-600 font-urdu">
+                      {isUrdu ? 'اولاک کے ساتھ جڑیں اور باعزت روزگار کمائیں' : 'Drive with OLAK & earn 90% income'}
+                    </p>
+                  </div>
+                  <Link
+                    href="/captain/"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition whitespace-nowrap shadow-xs"
+                  >
+                    {isUrdu ? 'کیپٹن بنیں' : 'Register Now'}
+                  </Link>
+                </div>
+
+              </div>
+
+              {/* Right Column: Booking Engine (7 Cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                
+                {/* Primary Mode Tabs (City Ride vs Delivery vs Intercity) */}
+                <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
                   <button
                     onClick={() => setActiveMainTab('rides')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'rides'
-                        ? 'bg-olak-teal text-olak-navy-950 shadow-md'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Car className="w-4 h-4" />
+                    <Car className="w-4 h-4 text-emerald-600" />
                     <span>{isUrdu ? 'شہری رائیڈ' : 'City Rides'}</span>
                   </button>
 
                   <button
                     onClick={() => setActiveMainTab('delivery')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'delivery'
-                        ? 'bg-olak-teal text-olak-navy-950 shadow-md'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Package className="w-4 h-4" />
+                    <Package className="w-4 h-4 text-emerald-600" />
                     <span>{isUrdu ? 'پارسل ڈلیوری' : 'Parcel Delivery'}</span>
                   </button>
 
                   <button
                     onClick={() => setActiveMainTab('intercity')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold transition ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'intercity'
-                        ? 'bg-olak-teal text-olak-navy-950 shadow-md'
-                        : 'text-slate-400 hover:text-white'
+                        ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Navigation className="w-4 h-4" />
-                    <span>{isUrdu ? 'انٹرسٹی' : 'Intercity'}</span>
+                    <Navigation className="w-4 h-4 text-emerald-600" />
+                    <span>{isUrdu ? 'انٹرسٹی ٹریول' : 'Intercity Travel'}</span>
                   </button>
                 </div>
 
-                {/* Dynamic Booking Widget Card */}
+                {/* Active Booking Engine Widget */}
                 <div>
                   {activeMainTab === 'rides' && <RideBookingWidget />}
                   {activeMainTab === 'delivery' && <DeliveryWidget />}
                   {activeMainTab === 'intercity' && <IntercityWidget />}
                 </div>
 
-              </div>
-
-              {/* Right Column: Interactive Mobile Mockup (5 Cols) */}
-              <div className="lg:col-span-5 flex flex-col items-center justify-center">
-                <div className="text-center mb-4 lg:hidden">
-                  <span className="text-xs font-bold text-olak-teal uppercase">
-                    {t.app_mockup_title}
-                  </span>
-                </div>
-                
-                <MobileAppMockup />
-
-                <div className="mt-6 flex items-center gap-4 text-xs text-slate-400">
-                  <span className="flex items-center gap-1">
-                    <ShieldCheck className="w-4 h-4 text-olak-teal" />
-                    <span>CNIC Verified</span>
-                  </span>
-                  <span>•</span>
-                  <span>Live Fare Meter</span>
-                  <span>•</span>
-                  <span>24/7 Helpline</span>
-                </div>
               </div>
 
             </div>
@@ -181,16 +202,16 @@ export default function HomePage() {
         <FaresChartSection />
 
         {/* Intercity Routes Overview */}
-        <section id="intercity" className="py-16 sm:py-24 bg-olak-navy-950 border-t border-olak-navy-800 relative">
+        <section id="intercity" className="py-16 sm:py-24 bg-white border-t border-slate-200 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-12 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-widest text-olak-teal bg-olak-teal/10 border border-olak-teal/30 px-3 py-1 rounded-full">
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 border border-emerald-300 px-3 py-1 rounded-full">
                 {isUrdu ? 'بلوچستان و سندھ رابطہ' : 'Intercity Mobility Network'}
               </span>
-              <h2 className="text-3xl sm:text-4xl font-black text-white">
+              <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
                 {isUrdu ? 'تربت سے بلوچستان کے تمام اہم شہروں تک سفر' : 'Travel from Turbat to All Major Hubs'}
               </h2>
-              <p className="text-sm sm:text-base text-slate-300 font-urdu">
+              <p className="text-sm sm:text-base text-slate-600 font-urdu">
                 {isUrdu 
                   ? 'گوادر پورٹ، پسنی ساحل، پنجگور، کوئٹہ، ہب چوکی اور کراچی کے لیے آرام دہ کاریں اور کارگو سروس۔' 
                   : 'Daily scheduled and private direct rides from Turbat to Gwadar, Quetta, Panjgur, and Karachi.'}
@@ -208,15 +229,15 @@ export default function HomePage() {
               ].map((route, i) => (
                 <div 
                   key={i} 
-                  className="bg-olak-navy-900/80 border border-olak-navy-800 hover:border-olak-teal rounded-2xl p-4 text-center transition group"
+                  className="bg-slate-50 border border-slate-200 hover:border-emerald-500 hover:bg-white rounded-2xl p-4 text-center transition group shadow-xs hover:shadow-md"
                 >
-                  <span className="text-xs font-bold text-slate-400 block group-hover:text-olak-teal">
+                  <span className="text-xs font-bold text-slate-500 block group-hover:text-emerald-600">
                     {route.km} • {route.time}
                   </span>
-                  <h4 className="text-sm font-black text-white mt-1">
+                  <h4 className="text-sm font-black text-slate-900 mt-1">
                     {route.city}
                   </h4>
-                  <span className="inline-block mt-2 text-xs font-bold text-olak-teal bg-olak-teal/10 px-2 py-0.5 rounded-lg">
+                  <span className="inline-block mt-2 text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg">
                     {route.fare}
                   </span>
                 </div>
@@ -235,7 +256,7 @@ export default function HomePage() {
         href="https://wa.me/923340468649?text=Hello%20OLAK%20Turbat%20I%20want%20to%20book%20a%20ride%20or%20delivery"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-6 right-6 z-40 bg-emerald-500 hover:bg-emerald-400 text-white p-3.5 sm:p-4 rounded-full shadow-2xl flex items-center gap-2 transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-40 bg-emerald-500 hover:bg-emerald-600 text-white p-3.5 sm:p-4 rounded-full shadow-2xl flex items-center gap-2 transition-all hover:scale-105"
         title="Chat on WhatsApp"
       >
         <MessageCircle className="w-6 h-6" />

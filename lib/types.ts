@@ -53,6 +53,8 @@ export interface IntercityRoute {
   destination_city: string;
   estimated_distance_km: number;
   estimated_duration: string;
+  pricing_model?: 'fixed' | 'per_km';
+  per_km_rate?: number;
   bike_fare?: number;
   car_economy_fare: number;
   car_comfort_fare: number;
@@ -114,6 +116,28 @@ export interface Booking {
   cancellation_reason?: string;
   created_at: string;
   updated_at?: string;
+}
+
+export interface PromotionBanner {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image_url: string;
+  link_url?: string;
+  badge?: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DriverSettlement {
+  id: string;
+  captain_id: string;
+  captain_name: string;
+  amount: number;
+  payment_method: string;
+  notes?: string;
+  recorded_by?: string;
+  created_at: string;
 }
 
 export interface SiteSettings {

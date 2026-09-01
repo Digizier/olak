@@ -6,13 +6,16 @@ import {
   IntercityRoute, 
   SiteSettings, 
   Customer,
-  BookingStatus,
-  CaptainStatus 
+  BookingStatus, 
+  CaptainStatus,
+  PromotionBanner,
+  DriverSettlement
 } from './types';
 import { 
   INITIAL_PRICING_RATES, 
   INITIAL_INTERCITY_ROUTES, 
-  INITIAL_SITE_SETTINGS 
+  INITIAL_SITE_SETTINGS,
+  INITIAL_PROMOTIONS
 } from './constants';
 
 const STORAGE_KEYS = {
@@ -24,6 +27,8 @@ const STORAGE_KEYS = {
   RATES: 'olak_cached_pricing_rates',
   INTERCITY: 'olak_cached_intercity_routes',
   SETTINGS: 'olak_cached_site_settings',
+  PROMOTIONS: 'olak_cached_promotions',
+  SETTLEMENTS: 'olak_cached_driver_settlements',
 };
 
 const dispatchCustomEvent = (eventName: string, detail?: any) => {
@@ -156,7 +161,7 @@ export const loginCustomer = async (emailOrPhone: string, password?: string): Pr
       return data as Customer;
     }
   } catch (err) {
-    console.warn('Error during customer login query:', err);
+    console.warn('Login lookup failed:', err);
   }
 
   return null;
@@ -171,11 +176,11 @@ export const getCustomers = async (): Promise<Customer[]> => {
 
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    const local: Customer[] = cached ? JSON.parse(cached) : [];
+    const localCustomers: Customer[] = cached ? JSON.parse(cached) : [];
 
     const { data, error } = await supabase
       .from('customers')
-      .select('id, full_name, email, phone, total_rides, created_at')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (data && !error) {
@@ -183,7 +188,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
       return data as Customer[];
     }
 
-    return local;
+    return localCustomers;
   } catch (err) {
     console.warn('Error fetching customers:', err);
     return [];
@@ -196,6 +201,10 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updated));
+    const current = getCurrentCustomer();
+    if (current && current.id === id) {
+      setCurrentCustomer(null);
+    }
     dispatchCustomEvent('olak_customers_updated', updated);
   }
 
@@ -207,77 +216,31 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 };
 
 // ==========================================
-// 3. CAPTAIN AUTH & DRIVER HUB
-// ==========================================
-export const getCurrentCaptain = (): Captain | null => {
-  if (typeof window === 'undefined') return null;
-  const data = localStorage.getItem(STORAGE_KEYS.CURRENT_CAPTAIN);
-  return data ? JSON.parse(data) : null;
-};
-
-export const setCurrentCaptain = (captain: Captain | null) => {
-  if (typeof window === 'undefined') return;
-  if (captain) {
-    localStorage.setItem(STORAGE_KEYS.CURRENT_CAPTAIN, JSON.stringify(captain));
-  } else {
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_CAPTAIN);
-  }
-  dispatchCustomEvent('olak_captain_auth_changed', captain);
-};
-
-export const loginCaptain = async (phone: string, cnicLastDigits?: string): Promise<Captain | null> => {
-  const cleanPhone = phone.trim().replace(/\D/g, '');
-  const all = await getCaptains();
-
-  const match = all.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
-  if (match) {
-    setCurrentCaptain(match);
-    return match;
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('captains')
-      .select('*')
-      .eq('phone', phone.trim())
-      .maybeSingle();
-
-    if (data && !error) {
-      setCurrentCaptain(data as Captain);
-      return data as Captain;
-    }
-  } catch (err) {
-    console.warn('Error logging in captain:', err);
-  }
-
-  return null;
-};
-
-export const logoutCaptain = () => {
-  setCurrentCaptain(null);
-};
-
-// ==========================================
-// 4. PRICING RATES MODULE
+// 3. PRICING RATES MODULE
 // ==========================================
 export const getPricingRates = async (): Promise<PricingRate[]> => {
   if (typeof window === 'undefined') return INITIAL_PRICING_RATES;
 
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.RATES);
-    const localRates = cached ? JSON.parse(cached) : INITIAL_PRICING_RATES;
+    const fallback = cached ? JSON.parse(cached) : INITIAL_PRICING_RATES;
 
     const { data, error } = await supabase
       .from('pricing_rates')
       .select('id, service_name, service_name_urdu, service_type, vehicle_models, base_fare, per_km_charge, waiting_charge_per_min, minimum_fare, cancellation_fee, operating_hours, service_areas, is_active, icon_name')
-      .order('service_type');
+      .order('base_fare', { ascending: true });
 
-    if (data && data.length > 0 && !error) {
-      localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify(data));
-      return data as PricingRate[];
+    if (data && !error && data.length > 0) {
+      const merged = data.map((d: any) => ({
+        ...d,
+        tagline: INITIAL_PRICING_RATES.find(r => r.service_type === d.service_type)?.tagline || '',
+        capacity: INITIAL_PRICING_RATES.find(r => r.service_type === d.service_type)?.capacity || '',
+      }));
+      localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify(merged));
+      return merged as PricingRate[];
     }
 
-    return localRates;
+    return fallback;
   } catch (err) {
     console.warn('Error fetching pricing rates:', err);
     return INITIAL_PRICING_RATES;
@@ -285,75 +248,190 @@ export const getPricingRates = async (): Promise<PricingRate[]> => {
 };
 
 export const savePricingRate = async (rate: PricingRate): Promise<PricingRate> => {
-  const allRates = await getPricingRates();
-  const index = allRates.findIndex(r => r.id === rate.id);
-  
-  let updatedList: PricingRate[];
-  if (index >= 0) {
-    updatedList = [...allRates];
-    updatedList[index] = rate;
-  } else {
-    updatedList = [rate, ...allRates];
-  }
+  const current = await getPricingRates();
+  const updated = current.map(r => r.id === rate.id ? { ...r, ...rate } : r);
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify(updatedList));
-    dispatchCustomEvent('olak_fares_updated', updatedList);
+    localStorage.setItem(STORAGE_KEYS.RATES, JSON.stringify(updated));
+    dispatchCustomEvent('olak_fares_updated', updated);
   }
 
   try {
-    await supabase.from('pricing_rates').upsert(rate);
+    const { tagline, capacity, ...cleanRate } = rate;
+    await supabase.from('pricing_rates').upsert({
+      ...cleanRate,
+      updated_at: new Date().toISOString(),
+    });
   } catch (err) {
-    console.error('Failed to sync rate to Supabase:', err);
+    console.error('Remote pricing rates update error:', err);
   }
 
   return rate;
 };
 
 // ==========================================
-// 5. INTERCITY ROUTES MODULE
+// 4. INTERCITY ROUTES MODULE
 // ==========================================
 export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
   if (typeof window === 'undefined') return INITIAL_INTERCITY_ROUTES;
 
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.INTERCITY);
-    const localRoutes = cached ? JSON.parse(cached) : INITIAL_INTERCITY_ROUTES;
+    const fallback = cached ? JSON.parse(cached) : INITIAL_INTERCITY_ROUTES;
 
     const { data, error } = await supabase
       .from('intercity_routes')
-      .select('id, origin_city, destination_city, estimated_distance_km, estimated_duration, bike_fare, car_economy_fare, car_comfort_fare, delivery_parcel_fare, is_active')
-      .order('origin_city');
+      .select('*')
+      .order('car_economy_fare', { ascending: true });
 
-    if (data && data.length > 0 && !error) {
+    if (data && !error && data.length > 0) {
       localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(data));
       return data as IntercityRoute[];
     }
 
-    return localRoutes;
+    return fallback;
   } catch (err) {
     console.warn('Error fetching intercity routes:', err);
     return INITIAL_INTERCITY_ROUTES;
   }
 };
 
-export const saveIntercityRoute = async (route: IntercityRoute): Promise<IntercityRoute> => {
+export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Promise<IntercityRoute> => {
   const all = await getIntercityRoutes();
-  const index = all.findIndex(r => r.id === route.id);
-  const updatedList = index >= 0 ? all.map(r => r.id === route.id ? route : r) : [route, ...all];
+  let updatedRoute: IntercityRoute;
 
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updatedList));
-    dispatchCustomEvent('olak_intercity_updated', updatedList);
+  if (routeData.id && all.some(r => r.id === routeData.id)) {
+    updatedRoute = { ...all.find(r => r.id === routeData.id)!, ...routeData } as IntercityRoute;
+    const updated = all.map(r => r.id === updatedRoute.id ? updatedRoute : r);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
+      dispatchCustomEvent('olak_intercity_updated', updated);
+    }
+  } else {
+    updatedRoute = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `route-${Date.now()}`,
+      origin_city: routeData.origin_city || 'Turbat',
+      destination_city: routeData.destination_city || 'Gwadar',
+      estimated_distance_km: Number(routeData.estimated_distance_km) || 100,
+      estimated_duration: routeData.estimated_duration || '2 Hours',
+      pricing_model: routeData.pricing_model || 'fixed',
+      per_km_rate: Number(routeData.per_km_rate) || 25,
+      car_economy_fare: Number(routeData.car_economy_fare) || 3000,
+      car_comfort_fare: Number(routeData.car_comfort_fare) || 4500,
+      delivery_parcel_fare: Number(routeData.delivery_parcel_fare) || 800,
+      is_active: routeData.is_active !== undefined ? routeData.is_active : true,
+    };
+    const updated = [updatedRoute, ...all];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
+      dispatchCustomEvent('olak_intercity_updated', updated);
+    }
   }
 
   try {
-    await supabase.from('intercity_routes').upsert(route);
+    await supabase.from('intercity_routes').upsert(updatedRoute);
   } catch (err) {
     console.error('Remote intercity sync error:', err);
   }
 
-  return route;
+  return updatedRoute;
+};
+
+export const deleteIntercityRoute = async (id: string): Promise<void> => {
+  const all = await getIntercityRoutes();
+  const updated = all.filter(r => r.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
+    dispatchCustomEvent('olak_intercity_updated', updated);
+  }
+
+  try {
+    await supabase.from('intercity_routes').delete().eq('id', id);
+  } catch (err) {
+    console.error('Remote intercity route delete error:', err);
+  }
+};
+
+// ==========================================
+// 5. PROMOTIONS & ADS MODULE
+// ==========================================
+export const getPromotions = async (): Promise<PromotionBanner[]> => {
+  if (typeof window === 'undefined') return INITIAL_PROMOTIONS;
+
+  try {
+    const cached = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
+    const fallback = cached ? JSON.parse(cached) : INITIAL_PROMOTIONS;
+
+    const { data, error } = await supabase
+      .from('promotions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data && !error && data.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(data));
+      return data as PromotionBanner[];
+    }
+
+    return fallback;
+  } catch (err) {
+    console.warn('Error fetching promotions:', err);
+    return INITIAL_PROMOTIONS;
+  }
+};
+
+export const savePromotion = async (promoData: Partial<PromotionBanner>): Promise<PromotionBanner> => {
+  const all = await getPromotions();
+  let updatedPromo: PromotionBanner;
+
+  if (promoData.id && all.some(p => p.id === promoData.id)) {
+    updatedPromo = { ...all.find(p => p.id === promoData.id)!, ...promoData } as PromotionBanner;
+    const updated = all.map(p => p.id === updatedPromo.id ? updatedPromo : p);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      dispatchCustomEvent('olak_promotions_updated', updated);
+    }
+  } else {
+    updatedPromo = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `promo-${Date.now()}`,
+      title: promoData.title || 'New Special Offer',
+      subtitle: promoData.subtitle || '',
+      image_url: promoData.image_url || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80',
+      link_url: promoData.link_url || '/#fares',
+      badge: promoData.badge || 'Offer',
+      is_active: promoData.is_active !== undefined ? promoData.is_active : true,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [updatedPromo, ...all];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      dispatchCustomEvent('olak_promotions_updated', updated);
+    }
+  }
+
+  try {
+    await supabase.from('promotions').upsert(updatedPromo);
+  } catch (err) {
+    console.error('Remote promotion sync error:', err);
+  }
+
+  return updatedPromo;
+};
+
+export const deletePromotion = async (id: string): Promise<void> => {
+  const all = await getPromotions();
+  const updated = all.filter(p => p.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+    dispatchCustomEvent('olak_promotions_updated', updated);
+  }
+
+  try {
+    await supabase.from('promotions').delete().eq('id', id);
+  } catch (err) {
+    console.error('Remote promotion delete error:', err);
+  }
 };
 
 // ==========================================
@@ -430,11 +508,15 @@ export const updateCaptainStatus = async (id: string, status: CaptainStatus): Pr
 };
 
 export const deleteCaptain = async (id: string): Promise<void> => {
-  const all = await getCaptains();
-  const updated = all.filter(c => c.id !== id);
+  const captains = await getCaptains();
+  const updated = captains.filter(c => c.id !== id);
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(updated));
+    const current = getCurrentCaptain();
+    if (current && current.id === id) {
+      setCurrentCaptain(null);
+    }
     dispatchCustomEvent('olak_captains_updated', updated);
   }
 
@@ -443,6 +525,42 @@ export const deleteCaptain = async (id: string): Promise<void> => {
   } catch (err) {
     console.error('Remote DB captain delete error:', err);
   }
+};
+
+export const getCurrentCaptain = (): Captain | null => {
+  if (typeof window === 'undefined') return null;
+  const data = localStorage.getItem(STORAGE_KEYS.CURRENT_CAPTAIN);
+  return data ? JSON.parse(data) : null;
+};
+
+export const setCurrentCaptain = (captain: Captain | null) => {
+  if (typeof window === 'undefined') return;
+  if (captain) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_CAPTAIN, JSON.stringify(captain));
+  } else {
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_CAPTAIN);
+  }
+  dispatchCustomEvent('olak_captain_auth_changed', captain);
+};
+
+export const logoutCaptain = () => {
+  setCurrentCaptain(null);
+};
+
+export const loginCaptain = async (phoneOrPlate: string): Promise<Captain | null> => {
+  const clean = phoneOrPlate.trim().toLowerCase();
+  const all = await getCaptains();
+  const match = all.find(c => 
+    c.phone.replace(/\D/g, '').includes(clean.replace(/\D/g, '')) ||
+    (c.whatsapp_number && c.whatsapp_number.replace(/\D/g, '').includes(clean.replace(/\D/g, ''))) ||
+    c.vehicle_number_plate.toLowerCase().replace(/\s/g, '') === clean.replace(/\s/g, '')
+  );
+
+  if (match) {
+    setCurrentCaptain(match);
+    return match;
+  }
+  return null;
 };
 
 export const toggleCaptainOnline = async (id: string, is_online: boolean): Promise<void> => {
@@ -461,12 +579,124 @@ export const toggleCaptainOnline = async (id: string, is_online: boolean): Promi
   try {
     await supabase.from('captains').update({ is_online }).eq('id', id);
   } catch (err) {
-    console.error('Remote DB captain online status error:', err);
+    console.error('Remote DB captain status update error:', err);
   }
 };
 
 // ==========================================
-// 7. BOOKINGS & TRIP LIFECYCLE
+// 7. DRIVER SETTLEMENTS & CASH CLEARANCE MODULE
+// ==========================================
+export const getDriverSettlements = async (captainId?: string): Promise<DriverSettlement[]> => {
+  if (typeof window === 'undefined') return [];
+
+  try {
+    const cached = localStorage.getItem(STORAGE_KEYS.SETTLEMENTS);
+    let settlements: DriverSettlement[] = cached ? JSON.parse(cached) : [];
+
+    const { data, error } = await supabase
+      .from('driver_settlements')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data && !error) {
+      settlements = data as DriverSettlement[];
+      localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(settlements));
+    }
+
+    if (captainId) {
+      return settlements.filter(s => s.captain_id === captainId);
+    }
+    return settlements;
+  } catch (err) {
+    console.warn('Error fetching settlements:', err);
+    return [];
+  }
+};
+
+export const recordDriverSettlement = async (data: {
+  captain_id: string;
+  captain_name: string;
+  amount: number;
+  payment_method?: string;
+  notes?: string;
+}): Promise<DriverSettlement> => {
+  const newSettlement: DriverSettlement = {
+    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `stl-${Date.now()}`,
+    captain_id: data.captain_id,
+    captain_name: data.captain_name,
+    amount: Number(data.amount),
+    payment_method: data.payment_method || 'cash',
+    notes: data.notes || '',
+    recorded_by: 'admin',
+    created_at: new Date().toISOString(),
+  };
+
+  const existing = await getDriverSettlements();
+  const updated = [newSettlement, ...existing];
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(updated));
+    dispatchCustomEvent('olak_settlements_updated', updated);
+  }
+
+  try {
+    await supabase.from('driver_settlements').insert(newSettlement);
+  } catch (err) {
+    console.error('Remote settlement insert error:', err);
+  }
+
+  return newSettlement;
+};
+
+export const deleteDriverSettlement = async (id: string): Promise<void> => {
+  const all = await getDriverSettlements();
+  const updated = all.filter(s => s.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.SETTLEMENTS, JSON.stringify(updated));
+    dispatchCustomEvent('olak_settlements_updated', updated);
+  }
+
+  try {
+    await supabase.from('driver_settlements').delete().eq('id', id);
+  } catch (err) {
+    console.error('Remote settlement delete error:', err);
+  }
+};
+
+export const getCaptainFinancialSummary = async (captainId: string) => {
+  const [bookings, settlements, settings] = await Promise.all([
+    getBookings(),
+    getDriverSettlements(captainId),
+    getSiteSettings(),
+  ]);
+
+  const completedTrips = bookings.filter(
+    b => b.assigned_captain_id === captainId && b.booking_status === 'completed'
+  );
+
+  const grossFares = completedTrips.reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
+  const commissionRate = settings.commission_percentage || 10;
+  const commissionDue = Math.round(grossFares * (commissionRate / 100));
+  const driverEarnings = grossFares - commissionDue;
+  const totalSettled = settlements.reduce((sum, s) => sum + Number(s.amount), 0);
+  const netBalanceDue = commissionDue - totalSettled;
+
+  return {
+    totalTrips: completedTrips.length,
+    grossFares,
+    commissionRate,
+    commissionDue,
+    driverEarnings,
+    totalSettled,
+    netBalanceDue,
+    isCleared: netBalanceDue <= 0,
+    recentSettlements: settlements,
+  };
+};
+
+// ==========================================
+// 8. BOOKINGS DISPATCH MODULE
 // ==========================================
 export const getBookings = async (): Promise<Booking[]> => {
   if (typeof window === 'undefined') return [];
@@ -477,7 +707,7 @@ export const getBookings = async (): Promise<Booking[]> => {
 
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, booking_code, service_type, customer_id, customer_name, customer_phone, pickup_location, pickup_landmark, dropoff_location, dropoff_landmark, intercity_origin, intercity_destination, delivery_parcel_type, delivery_weight_kg, delivery_receiver_name, delivery_receiver_phone, notes, estimated_distance_km, estimated_fare, final_fare, payment_method, payment_status, booking_status, assigned_captain_id, cancellation_reason, created_at, updated_at')
+      .select('id, booking_code, service_type, customer_name, customer_phone, pickup_location, dropoff_location, intercity_origin, intercity_destination, delivery_parcel_type, delivery_weight_kg, delivery_receiver_name, delivery_receiver_phone, estimated_distance_km, estimated_fare, final_fare, payment_method, payment_status, booking_status, assigned_captain_id, notes, created_at, updated_at')
       .order('created_at', { ascending: false });
 
     if (data && !error) {
@@ -492,11 +722,12 @@ export const getBookings = async (): Promise<Booking[]> => {
   }
 };
 
-export const getCustomerBookings = async (customerId?: string, customerPhone?: string): Promise<Booking[]> => {
+export const getCustomerBookings = async (phoneOrEmail: string): Promise<Booking[]> => {
   const all = await getBookings();
+  const clean = phoneOrEmail.trim().toLowerCase();
   return all.filter(b => 
-    (customerId && b.customer_id === customerId) ||
-    (customerPhone && b.customer_phone.replace(/\D/g, '') === customerPhone.replace(/\D/g, ''))
+    b.customer_phone.replace(/\D/g, '').includes(clean.replace(/\D/g, '')) ||
+    b.customer_name.toLowerCase().includes(clean)
   );
 };
 
@@ -608,7 +839,7 @@ export const deleteBooking = async (id: string): Promise<void> => {
 };
 
 // ==========================================
-// 8. STORAGE & FILE UPLOADS
+// 9. STORAGE & FILE UPLOADS
 // ==========================================
 export const uploadFileToStorage = async (file: File, folder = 'documents'): Promise<string> => {
   try {

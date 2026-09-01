@@ -18,7 +18,8 @@ import {
   User,
   LogOut,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Mail
 } from 'lucide-react';
 
 export const Navbar = () => {
@@ -50,50 +51,62 @@ export const Navbar = () => {
   };
 
   return (
-    <header className="sticky top-0 z-50 bg-olak-navy-950/95 backdrop-blur-md border-b border-olak-navy-800/80">
-      {/* Top Helpline Strip */}
-      <div className="bg-gradient-to-r from-olak-navy-900 via-olak-navy-850 to-olak-navy-900 border-b border-olak-navy-800/80 text-[11px] py-1.5 px-3 sm:px-4">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm transition-colors">
+      {/* Top Notification Strip */}
+      <div className="bg-slate-100/90 border-b border-slate-200 text-[11px] py-1.5 px-3 sm:px-4 text-slate-700">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-slate-300">
-            <span className="w-2 h-2 rounded-full bg-olak-teal animate-pulse"></span>
-            <span className="font-semibold text-olak-teal truncate max-w-[200px] sm:max-w-none">{t.hero_badge}</span>
-            <span className="hidden md:inline text-slate-500">|</span>
-            <span className="hidden md:inline text-slate-300 font-urdu">سفر ہر قدم آسان</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-bold text-emerald-700 truncate max-w-[200px] sm:max-w-none">
+              {t.hero_badge}
+            </span>
+            <span className="hidden md:inline text-slate-300">|</span>
+            <span className="hidden md:inline text-slate-600 font-urdu font-semibold">
+              سفر ہر قدم آسان
+            </span>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <a 
+              href="mailto:olak.tbt@gmail.com" 
+              className="hidden lg:flex items-center gap-1 text-slate-600 hover:text-emerald-600 font-medium transition"
+            >
+              <Mail className="w-3 h-3 text-emerald-600" />
+              <span>olak.tbt@gmail.com</span>
+            </a>
+
             <a 
               href="tel:+923350455599" 
-              className="flex items-center gap-1 text-slate-200 hover:text-olak-teal font-semibold transition"
+              className="flex items-center gap-1 text-slate-800 hover:text-emerald-600 font-bold transition"
             >
-              <Phone className="w-3 h-3 text-olak-teal" />
+              <Phone className="w-3 h-3 text-emerald-600" />
               <span>+92 335 0455599</span>
             </a>
 
             <button
               onClick={() => setLang(lang === 'ur' ? 'en' : 'ur')}
-              className="flex items-center gap-1 bg-olak-navy-800 hover:bg-olak-navy-700 text-olak-teal px-2 py-0.5 rounded text-[11px] font-bold border border-olak-teal/30 transition"
+              className="flex items-center gap-1 bg-white hover:bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-lg text-[11px] font-bold border border-slate-300 shadow-xs transition"
               title="Switch Language"
             >
-              <Globe className="w-3 h-3" />
+              <Globe className="w-3 h-3 text-emerald-600" />
               <span>{lang === 'ur' ? 'English' : 'اردو'}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Main Nav */}
+      {/* Main Nav Container in Pure White */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-20">
           
-          {/* Crisp Transparent Brand Logo */}
+          {/* Logo with Emblem (O) + LAK on Crisp White */}
           <Link href="/" className="flex items-center gap-3 group py-2">
-            <OlakLogo size="md" textColor="text-white" />
-            <div className="hidden sm:flex flex-col border-l border-slate-700 pl-2.5">
-              <span className="text-xs font-bold text-olak-teal font-urdu">
+            <OlakLogo size="md" textColor="text-slate-900" innerCircleColor="#ffffff" />
+            <div className="hidden sm:flex flex-col border-l border-slate-200 pl-2.5">
+              <span className="text-xs font-bold text-emerald-600 font-urdu">
                 اولاک تربت
               </span>
-              <span className="text-[10px] text-slate-400 font-urdu">
+              <span className="text-[10px] text-slate-500 font-urdu">
                 سفر ہر قدم آسان
               </span>
             </div>
@@ -104,7 +117,7 @@ export const Navbar = () => {
             <Link 
               href="/" 
               prefetch={false}
-              className="text-sm font-semibold text-slate-200 hover:text-olak-teal px-3 py-2 rounded-lg hover:bg-olak-navy-900 transition"
+              className="text-sm font-bold text-slate-700 hover:text-emerald-600 px-3 py-2 rounded-xl hover:bg-slate-100 transition"
             >
               {t.nav_home}
             </Link>
@@ -112,7 +125,7 @@ export const Navbar = () => {
             <Link 
               href="/#fares" 
               prefetch={false}
-              className="text-sm font-semibold text-slate-300 hover:text-olak-teal px-3 py-2 rounded-lg hover:bg-olak-navy-900 transition"
+              className="text-sm font-semibold text-slate-600 hover:text-emerald-600 px-3 py-2 rounded-xl hover:bg-slate-100 transition"
             >
               {t.nav_services}
             </Link>
@@ -120,7 +133,7 @@ export const Navbar = () => {
             <Link 
               href="/#intercity" 
               prefetch={false}
-              className="text-sm font-semibold text-slate-300 hover:text-olak-teal px-3 py-2 rounded-lg hover:bg-olak-navy-900 transition"
+              className="text-sm font-semibold text-slate-600 hover:text-emerald-600 px-3 py-2 rounded-xl hover:bg-slate-100 transition"
             >
               {t.nav_intercity}
             </Link>
@@ -128,17 +141,17 @@ export const Navbar = () => {
             <Link 
               href="/track/" 
               prefetch={false}
-              className="flex items-center gap-1.5 text-sm font-semibold text-slate-300 hover:text-olak-teal px-3 py-2 rounded-lg hover:bg-olak-navy-900 transition"
+              className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-emerald-600 px-3 py-2 rounded-xl hover:bg-slate-100 transition"
             >
-              <Search className="w-4 h-4 text-olak-teal" />
-              {t.nav_track}
+              <Search className="w-4 h-4 text-emerald-600" />
+              <span>{t.nav_track}</span>
             </Link>
 
             {/* Captain / Driver Portal CTA */}
             <Link 
               href="/captain/" 
               prefetch={false}
-              className="flex items-center gap-1.5 text-xs font-bold bg-olak-teal/10 text-olak-teal hover:bg-olak-teal hover:text-olak-navy-950 px-3.5 py-2 rounded-xl border border-olak-teal/40 transition shadow-sm"
+              className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3.5 py-2 rounded-xl border border-emerald-300/80 transition shadow-xs"
             >
               <UserPlus className="w-4 h-4" />
               <span>{currentCaptain ? (isUrdu ? 'کیپٹن ڈیش بورڈ' : 'Captain Hub') : (isUrdu ? 'کیپٹن بنیں' : 'Drive with OLAK')}</span>
@@ -146,17 +159,17 @@ export const Navbar = () => {
 
             {/* Customer Login / Dashboard Link */}
             {currentCustomer ? (
-              <div className="flex items-center gap-1.5 bg-olak-navy-900 border border-olak-navy-800 rounded-xl px-2.5 py-1">
+              <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1">
                 <Link
                   href="/customer/"
-                  className="flex items-center gap-1.5 text-xs font-bold text-white hover:text-olak-teal"
+                  className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-emerald-600"
                 >
-                  <User className="w-3.5 h-3.5 text-olak-teal" />
+                  <User className="w-3.5 h-3.5 text-emerald-600" />
                   <span className="truncate max-w-[110px]">{currentCustomer.full_name}</span>
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-slate-500 hover:text-red-400 p-1"
+                  className="text-slate-400 hover:text-red-500 p-1"
                   title="Logout"
                 >
                   <LogOut className="w-3.5 h-3.5" />
@@ -166,9 +179,9 @@ export const Navbar = () => {
               <Link 
                 href="/customer/" 
                 prefetch={false}
-                className="flex items-center gap-1.5 text-xs font-semibold bg-olak-navy-900 hover:bg-olak-navy-800 text-slate-200 px-3 py-2 rounded-xl border border-olak-navy-800 transition"
+                className="flex items-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-xl border border-slate-300 transition shadow-xs"
               >
-                <User className="w-3.5 h-3.5 text-slate-400" />
+                <User className="w-3.5 h-3.5 text-slate-500" />
                 <span>{isUrdu ? 'کسٹمر لاگ ان' : 'Customer Login'}</span>
               </Link>
             )}
@@ -177,10 +190,10 @@ export const Navbar = () => {
             <Link 
               href="/admin/" 
               prefetch={false}
-              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
               title="Admin Portal"
             >
-              <Lock className="w-3.5 h-3.5" />
+              <Lock className="w-4 h-4" />
             </Link>
           </nav>
 
@@ -188,7 +201,7 @@ export const Navbar = () => {
           <div className="flex items-center gap-2 lg:hidden">
             <Link
               href="/customer/"
-              className="p-2 bg-olak-navy-900 border border-olak-navy-800 text-olak-teal rounded-xl text-xs font-bold"
+              className="p-2 bg-slate-100 border border-slate-200 text-emerald-700 rounded-xl text-xs font-bold"
               title="Customer Hub"
             >
               <User className="w-4 h-4" />
@@ -196,7 +209,7 @@ export const Navbar = () => {
 
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-200 hover:text-white bg-olak-navy-900 border border-olak-navy-800 rounded-xl focus:outline-none"
+              className="p-2 text-slate-700 hover:text-slate-900 bg-slate-100 border border-slate-200 rounded-xl focus:outline-none"
               aria-label="Toggle Menu"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -205,56 +218,56 @@ export const Navbar = () => {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Drawer Menu in Clean White */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-olak-navy-950 border-b border-olak-navy-800 px-4 pt-3 pb-6 space-y-2 animate-fadeIn shadow-2xl">
+        <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-2 animate-fadeIn shadow-xl">
           <Link
             href="/"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-200 hover:bg-olak-navy-900 hover:text-olak-teal"
+            className="block px-3 py-2.5 rounded-xl text-base font-bold text-slate-800 hover:bg-slate-50 hover:text-emerald-600"
           >
             {t.nav_home}
           </Link>
           <Link
             href="/#fares"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-200 hover:bg-olak-navy-900 hover:text-olak-teal"
+            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
           >
             {t.nav_services}
           </Link>
           <Link
             href="/#intercity"
             onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-200 hover:bg-olak-navy-900 hover:text-olak-teal"
+            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
           >
             {t.nav_intercity}
           </Link>
           <Link
             href="/track/"
             onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-base font-semibold text-slate-200 hover:bg-olak-navy-900 hover:text-olak-teal"
+            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
           >
-            <Search className="w-4 h-4 text-olak-teal" />
-            {t.nav_track}
+            <Search className="w-4 h-4 text-emerald-600" />
+            <span>{t.nav_track}</span>
           </Link>
           
-          <div className="pt-2 border-t border-olak-navy-800 space-y-2">
+          <div className="pt-2 border-t border-slate-200 space-y-2">
             <Link
               href="/customer/"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-bold text-white bg-slate-900 border border-slate-800"
+              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold text-slate-900 bg-slate-100 border border-slate-200"
             >
               <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-olak-teal" />
+                <User className="w-4 h-4 text-emerald-600" />
                 <span>{currentCustomer ? currentCustomer.full_name : (isUrdu ? 'کسٹمر پورٹل' : 'Customer Account')}</span>
               </div>
-              <span className="text-[10px] text-olak-teal">{currentCustomer ? 'Active' : 'Sign In'}</span>
+              <span className="text-[10px] text-emerald-600 font-bold">{currentCustomer ? 'Active' : 'Sign In'}</span>
             </Link>
 
             <Link
               href="/captain/"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold text-olak-teal bg-olak-teal/10 border border-olak-teal/30"
+              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-300"
             >
               <UserPlus className="w-4 h-4" />
               <span>{isUrdu ? 'کیپٹن ڈیش بورڈ و رجسٹریشن' : 'Drive with OLAK (Captain)'}</span>
@@ -263,7 +276,7 @@ export const Navbar = () => {
             <Link
               href="/admin/"
               onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-white"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-500 hover:text-slate-800"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>Admin Command Center</span>
