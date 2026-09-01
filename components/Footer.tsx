@@ -32,7 +32,7 @@ export const Footer = () => {
               <OlakLogo size="lg" textColor="text-white" innerCircleColor="#0f172a" />
             </div>
 
-            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-urdu">
+            <p className={`text-xs sm:text-sm text-slate-300 leading-relaxed ${isUrdu ? 'font-urdu' : ''}`}>
               {t.hero_desc}
             </p>
 

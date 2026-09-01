@@ -9,13 +9,16 @@ import {
   BookingStatus, 
   CaptainStatus,
   PromotionBanner,
-  DriverSettlement
+  DriverSettlement,
+  CityLandmark,
+  ServiceType
 } from './types';
 import { 
   INITIAL_PRICING_RATES, 
   INITIAL_INTERCITY_ROUTES, 
   INITIAL_SITE_SETTINGS,
-  INITIAL_PROMOTIONS
+  INITIAL_PROMOTIONS,
+  INITIAL_LANDMARKS
 } from './constants';
 
 const STORAGE_KEYS = {
@@ -29,6 +32,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'olak_cached_site_settings',
   PROMOTIONS: 'olak_cached_promotions',
   SETTLEMENTS: 'olak_cached_driver_settlements',
+  LANDMARKS: 'olak_cached_landmarks',
 };
 
 const dispatchCustomEvent = (eventName: string, detail?: any) => {
@@ -267,6 +271,128 @@ export const savePricingRate = async (rate: PricingRate): Promise<PricingRate> =
   }
 
   return rate;
+};
+
+// ==========================================
+// 3.1 REAL-TIME DISTANCE & FARE CALCULATOR
+// ==========================================
+export const calculateRealtimeDistance = (
+  p1: { lat: number; lng: number },
+  p2: { lat: number; lng: number }
+): number => {
+  if (!p1 || !p2) return 3.5;
+  if (p1.lat === p2.lat && p1.lng === p2.lng) return 1.5;
+
+  const R = 6371; // Earth radius in km
+  const dLat = (p2.lat - p1.lat) * (Math.PI / 180);
+  const dLng = (p2.lng - p1.lng) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(p1.lat * (Math.PI / 180)) * Math.cos(p2.lat * (Math.PI / 180)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const aerialKm = R * c;
+  // Turbat road network curvature factor (1.30)
+  const roadKm = aerialKm * 1.30;
+  return Math.max(1.5, Math.round(roadKm * 10) / 10);
+};
+
+export const calculateTripFare = (
+  serviceType: ServiceType,
+  distanceKm: number,
+  rates?: PricingRate[]
+): number => {
+  const currentRates = rates || INITIAL_PRICING_RATES;
+  const rate = currentRates.find(r => r.service_type === serviceType) || currentRates[0];
+  const rawFare = rate.base_fare + (distanceKm * rate.per_km_charge);
+  return Math.max(rate.minimum_fare, Math.round(rawFare / 10) * 10);
+};
+
+// ==========================================
+// 3.2 CITY LANDMARKS MODULE
+// ==========================================
+export const getCityLandmarks = async (): Promise<CityLandmark[]> => {
+  if (typeof window === 'undefined') return INITIAL_LANDMARKS;
+
+  try {
+    const cached = localStorage.getItem(STORAGE_KEYS.LANDMARKS);
+    const fallback = cached ? JSON.parse(cached) : INITIAL_LANDMARKS;
+
+    const { data, error } = await supabase
+      .from('city_landmarks')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (data && !error && data.length > 0) {
+      const formatted = data.map((d: any) => ({
+        ...d,
+        nameUrdu: d.name_urdu || d.nameUrdu || d.name,
+      }));
+      localStorage.setItem(STORAGE_KEYS.LANDMARKS, JSON.stringify(formatted));
+      return formatted as CityLandmark[];
+    }
+
+    return fallback;
+  } catch (err) {
+    console.warn('Error fetching landmarks:', err);
+    return INITIAL_LANDMARKS;
+  }
+};
+
+export const saveCityLandmark = async (landmarkData: Partial<CityLandmark>): Promise<CityLandmark> => {
+  const all = await getCityLandmarks();
+  let updatedLandmark: CityLandmark;
+
+  if (landmarkData.id && all.some(l => l.id === landmarkData.id)) {
+    updatedLandmark = { ...all.find(l => l.id === landmarkData.id)!, ...landmarkData } as CityLandmark;
+    const updated = all.map(l => l.id === updatedLandmark.id ? updatedLandmark : l);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.LANDMARKS, JSON.stringify(updated));
+      dispatchCustomEvent('olak_landmarks_updated', updated);
+    }
+  } else {
+    updatedLandmark = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `lm-${Date.now()}`,
+      name: landmarkData.name || 'New Landmark',
+      name_urdu: landmarkData.name_urdu || landmarkData.nameUrdu || '',
+      nameUrdu: landmarkData.nameUrdu || landmarkData.name_urdu || '',
+      area: landmarkData.area || 'Turbat',
+      lat: Number(landmarkData.lat) || 26.0031,
+      lng: Number(landmarkData.lng) || 63.0544,
+      is_active: landmarkData.is_active !== undefined ? landmarkData.is_active : true,
+    };
+    const updated = [...all, updatedLandmark];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEYS.LANDMARKS, JSON.stringify(updated));
+      dispatchCustomEvent('olak_landmarks_updated', updated);
+    }
+  }
+
+  try {
+    const { nameUrdu, ...dbPayload } = updatedLandmark as any;
+    if (!dbPayload.name_urdu) dbPayload.name_urdu = updatedLandmark.nameUrdu || updatedLandmark.name;
+    await supabase.from('city_landmarks').upsert(dbPayload);
+  } catch (err) {
+    console.error('Remote landmark sync error:', err);
+  }
+
+  return updatedLandmark;
+};
+
+export const deleteCityLandmark = async (id: string): Promise<void> => {
+  const all = await getCityLandmarks();
+  const updated = all.filter(l => l.id !== id);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.LANDMARKS, JSON.stringify(updated));
+    dispatchCustomEvent('olak_landmarks_updated', updated);
+  }
+
+  try {
+    await supabase.from('city_landmarks').delete().eq('id', id);
+  } catch (err) {
+    console.error('Remote landmark delete error:', err);
+  }
 };
 
 // ==========================================

@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
-import { PricingRate, ServiceType, Booking } from '@/lib/types';
+import { PricingRate, ServiceType, Booking, CityLandmark } from '@/lib/types';
 import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
-import { getPricingRates, createBooking } from '@/lib/db';
+import { getPricingRates, createBooking, getCityLandmarks, calculateRealtimeDistance } from '@/lib/db';
 import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
 import { 
   Bike, 
@@ -19,7 +19,7 @@ import {
   ShieldCheck, 
   ArrowRight,
   Sparkles,
-  Map as MapIcon
+  Route
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -30,42 +30,50 @@ interface Props {
 export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const { t, isUrdu } = useLanguage();
   const [rates, setRates] = useState<PricingRate[]>(initialRates || INITIAL_PRICING_RATES);
+  const [landmarks, setLandmarks] = useState<CityLandmark[]>(TURBAT_LANDMARKS);
   const [selectedService, setSelectedService] = useState<ServiceType>('bike');
 
   // Form State
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[2].name);
-  const [customDistanceKm, setCustomDistanceKm] = useState<number>(4.5);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
-  // Dynamic Rates Hydration
+  // Dynamic Rates & Landmarks Hydration
   useEffect(() => {
     getPricingRates().then(setRates);
+    getCityLandmarks().then(setLandmarks);
 
     const handleRatesUpdate = (e: any) => {
       if (e.detail) setRates(e.detail);
     };
+    const handleLandmarksUpdate = (e: any) => {
+      if (e.detail) setLandmarks(e.detail);
+    };
+
     window.addEventListener('olak_fares_updated', handleRatesUpdate);
-    return () => window.removeEventListener('olak_fares_updated', handleRatesUpdate);
+    window.addEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+    return () => {
+      window.removeEventListener('olak_fares_updated', handleRatesUpdate);
+      window.removeEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+    };
   }, []);
 
-  // Update distance when landmarks change
-  useEffect(() => {
-    const pIndex = TURBAT_LANDMARKS.findIndex(l => l.name === pickup);
-    const dIndex = TURBAT_LANDMARKS.findIndex(l => l.name === dropoff);
-    if (pIndex >= 0 && dIndex >= 0 && pIndex !== dIndex) {
-      const calculated = Math.max(2.0, Math.round((Math.abs(pIndex - dIndex) * 1.5 + 1.2) * 10) / 10);
-      setCustomDistanceKm(calculated);
-    }
-  }, [pickup, dropoff]);
+  // Compute Real-time Distance between selected pickup & dropoff coordinates
+  const pickupPoint = landmarks.find(l => l.name === pickup) || landmarks[0] || TURBAT_LANDMARKS[0];
+  const dropoffPoint = landmarks.find(l => l.name === dropoff) || landmarks[2] || landmarks[0] || TURBAT_LANDMARKS[2];
+  
+  const realTimeDistanceKm = calculateRealtimeDistance(
+    { lat: Number(pickupPoint.lat), lng: Number(pickupPoint.lng) },
+    { lat: Number(dropoffPoint.lat), lng: Number(dropoffPoint.lng) }
+  );
 
-  // Dynamic Fare Calculation based on editable KM
+  // Dynamic Fare Calculation based on Admin's Rates & Real-Time KM
   const activeRate = rates.find(r => r.service_type === selectedService) || rates[0];
-  const rawFare = activeRate.base_fare + (customDistanceKm * activeRate.per_km_charge);
+  const rawFare = activeRate.base_fare + (realTimeDistanceKm * activeRate.per_km_charge);
   const estimatedFare = Math.round(Math.max(activeRate.minimum_fare, rawFare) / 10) * 10;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,7 +92,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
         pickup_location: pickup,
         dropoff_location: dropoff,
         notes: notes,
-        estimated_distance_km: customDistanceKm,
+        estimated_distance_km: realTimeDistanceKm,
         estimated_fare: estimatedFare,
         payment_method: 'cash',
       });
@@ -165,7 +173,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
             <button
               onClick={() => setConfirmedBooking(null)}
-              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition border border-slate-200"
+              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition border border-slate-200 cursor-pointer"
             >
               {isUrdu ? 'نئی بکنگ کریں' : 'Book Another Ride'}
             </button>
@@ -190,14 +198,14 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
           {/* Service Selector Tabs */}
           <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
-            {rates.filter(r => r.service_type !== 'delivery').map((rate) => {
+            {rates.filter(r => r.service_type !== 'delivery' && r.service_type !== 'intercity').map((rate) => {
               const isSelected = selectedService === rate.service_type;
               return (
                 <button
                   key={rate.id}
                   type="button"
                   onClick={() => setSelectedService(rate.service_type)}
-                  className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl transition-all ${
+                  className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl transition-all cursor-pointer ${
                     isSelected 
                       ? 'bg-emerald-600 text-white font-bold shadow-md scale-[1.02]' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -209,7 +217,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                     {rate.service_type === 'car' && <Car className="w-5 h-5" />}
                   </div>
                   <span className="text-xs font-bold truncate max-w-full">
-                    {isUrdu ? rate.service_name_urdu : rate.service_name}
+                    {isUrdu ? (rate.service_name_urdu || rate.service_name) : rate.service_name}
                   </span>
                   <span className={`text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
                     Base PKR {rate.base_fare}
@@ -235,9 +243,9 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                 onChange={(e) => setPickup(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
-                {TURBAT_LANDMARKS.map((lm) => (
-                  <option key={lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu} (${lm.area})` : `${lm.name} (${lm.area})`}
+                {landmarks.map((lm) => (
+                  <option key={lm.id || lm.name} value={lm.name}>
+                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
                   </option>
                 ))}
               </select>
@@ -257,23 +265,23 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                 onChange={(e) => setDropoff(e.target.value)}
                 className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               >
-                {TURBAT_LANDMARKS.map((lm) => (
-                  <option key={lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu} (${lm.area})` : `${lm.name} (${lm.area})`}
+                {landmarks.map((lm) => (
+                  <option key={lm.id || lm.name} value={lm.name}>
+                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {/* Embedded Interactive Google Map with Editable KM Customizer */}
+          {/* Embedded Real-Time Interactive Google Map (Automated Distance, No Manual KM Stepper) */}
           <InteractiveRouteMap
             pickupName={pickup}
             dropoffName={dropoff}
             onPickupChange={(name) => setPickup(name)}
             onDropoffChange={(name) => setDropoff(name)}
-            customDistanceKm={customDistanceKm}
-            onDistanceKmChange={(km) => setCustomDistanceKm(km)}
+            distanceKm={realTimeDistanceKm}
+            landmarks={landmarks}
             isUrdu={isUrdu}
           />
 
@@ -321,11 +329,11 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             </div>
           </div>
 
-          {/* Live Dynamic Fare Estimation Card */}
+          {/* Live Dynamic Fare Estimation Card (Calculated automatically from Admin Rates) */}
           <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <span className="text-[11px] font-bold text-slate-500 block">
-                {t.est_fare} ({customDistanceKm} KM @ PKR {activeRate.per_km_charge}/KM)
+                {t.est_fare} ({realTimeDistanceKm} KM @ PKR {activeRate.per_km_charge}/KM)
               </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xs font-bold text-emerald-600">PKR</span>

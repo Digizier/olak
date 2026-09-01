@@ -102,7 +102,7 @@ export const Navbar = () => {
           {/* Logo with Emblem (O) + LAK on Crisp White */}
           <Link href="/" className="flex items-center gap-3 group py-2">
             <OlakLogo size="md" textColor="text-slate-900" innerCircleColor="#ffffff" />
-            <div className="hidden sm:flex flex-col border-l border-slate-200 pl-2.5">
+            <div className="hidden sm:flex flex-col border-s border-slate-200 ps-2.5">
               <span className="text-xs font-bold text-emerald-600 font-urdu">
                 اولاک تربت
               </span>

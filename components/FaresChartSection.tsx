@@ -51,7 +51,7 @@ export const FaresChartSection = () => {
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
             {isUrdu ? 'تربت شہر و مضافات کا مکمل ریٹ چارٹ' : 'Turbat City & Suburbs Official Rate Card'}
           </h2>
-          <p className="text-sm sm:text-base text-slate-600 font-urdu">
+          <p className={`text-sm sm:text-base text-slate-600 ${isUrdu ? 'font-urdu leading-relaxed' : ''}`}>
             {isUrdu 
               ? 'کوئی اوور چارجنگ نہیں، میٹر کے مطابق منصفانہ کرایہ۔ کیپٹن اور سواری دونوں کا تحفظ۔' 
               : 'Fair, regulated pricing structured for affordable daily commuting and safe driver earnings.'}

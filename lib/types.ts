@@ -18,6 +18,17 @@ export interface LocationCoords {
   lng: number;
 }
 
+export interface CityLandmark {
+  id: string;
+  name: string;
+  name_urdu?: string;
+  nameUrdu?: string;
+  area: string;
+  lat: number;
+  lng: number;
+  is_active?: boolean;
+}
+
 export interface Customer {
   id: string;
   full_name: string;
@@ -100,6 +111,8 @@ export interface Booking {
   dropoff_coords?: LocationCoords;
   intercity_origin?: string;
   intercity_destination?: string;
+  intercity_travel_date?: string;
+  intercity_seats?: number;
   delivery_parcel_type?: string;
   delivery_weight_kg?: number;
   delivery_receiver_name?: string;

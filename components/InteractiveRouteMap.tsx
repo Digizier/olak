@@ -1,19 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { CityLandmark } from '@/lib/types';
 import { TURBAT_LANDMARKS } from '@/lib/constants';
 import { 
   MapPin, 
   Navigation, 
   Compass, 
   ExternalLink, 
-  RotateCw, 
-  Sliders, 
-  Maximize2,
-  Check,
-  Layers,
-  Map as MapIcon,
-  ShieldCheck
+  Clock,
+  ShieldCheck,
+  CheckCircle2,
+  Route
 } from 'lucide-react';
 
 interface InteractiveRouteMapProps {
@@ -21,8 +19,8 @@ interface InteractiveRouteMapProps {
   dropoffName: string;
   onPickupChange?: (name: string, coords?: { lat: number; lng: number }) => void;
   onDropoffChange?: (name: string, coords?: { lat: number; lng: number }) => void;
-  customDistanceKm: number;
-  onDistanceKmChange: (newKm: number) => void;
+  distanceKm: number;
+  landmarks?: CityLandmark[];
   isUrdu?: boolean;
 }
 
@@ -31,20 +29,18 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   dropoffName,
   onPickupChange,
   onDropoffChange,
-  customDistanceKm,
-  onDistanceKmChange,
+  distanceKm,
+  landmarks = TURBAT_LANDMARKS,
   isUrdu = false,
 }) => {
-  const [mapStyle, setMapStyle] = useState<'streets' | 'satellite'>('streets');
   const [activePinSelection, setActivePinSelection] = useState<'pickup' | 'dropoff'>('pickup');
-  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Find landmarks coords
-  const pickupLandmark = TURBAT_LANDMARKS.find(l => l.name === pickupName) || TURBAT_LANDMARKS[0];
-  const dropoffLandmark = TURBAT_LANDMARKS.find(l => l.name === dropoffName) || TURBAT_LANDMARKS[2];
+  const currentLandmarks = landmarks.length > 0 ? landmarks : TURBAT_LANDMARKS;
+  const pickupLandmark = currentLandmarks.find(l => l.name === pickupName) || currentLandmarks[0];
+  const dropoffLandmark = currentLandmarks.find(l => l.name === dropoffName) || currentLandmarks[2] || currentLandmarks[0];
 
-  // Calculate actual bounding box for Turbat coordinates
-  // Turbat bounds roughly: Lat 25.97 to 26.04, Lng 63.02 to 63.12
+  // Turbat coordinate bounds
   const minLat = 25.9800;
   const maxLat = 26.0400;
   const minLng = 63.0200;
@@ -53,7 +49,6 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   // Convert coords to percentage position on canvas
   const getCanvasCoords = (lat: number, lng: number) => {
     const x = Math.max(10, Math.min(90, ((lng - minLng) / (maxLng - minLng)) * 100));
-    // Invert Y because latitude goes north (up)
     const y = Math.max(10, Math.min(90, 100 - ((lat - minLat) / (maxLat - minLat)) * 100));
     return { x, y };
   };
@@ -64,7 +59,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   // Google Maps Direction URL for live GPS navigation
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${pickupLandmark.lat},${pickupLandmark.lng}&destination=${dropoffLandmark.lat},${dropoffLandmark.lng}&travelmode=driving`;
 
-  const handleLandmarkClick = (lm: typeof TURBAT_LANDMARKS[0]) => {
+  const handleLandmarkClick = (lm: CityLandmark) => {
     if (activePinSelection === 'pickup') {
       if (onPickupChange) onPickupChange(lm.name, { lat: lm.lat, lng: lm.lng });
       setActivePinSelection('dropoff');
@@ -74,10 +69,8 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
     }
   };
 
-  const handleKmAdjust = (delta: number) => {
-    const next = Math.max(1.0, Math.round((customDistanceKm + delta) * 10) / 10);
-    onDistanceKmChange(next);
-  };
+  // Estimated driving time (approx 2.5 min per km + 2 min pickup buffer)
+  const estimatedMins = Math.max(4, Math.round(distanceKm * 2.5 + 2));
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-md space-y-4">
@@ -96,7 +89,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
               </span>
             </h4>
             <p className="text-[11px] text-slate-500">
-              {isUrdu ? 'نقشے پر پک اپ اور ڈراپ آف پوائنٹس تبدیل کریں' : 'Click points to set pickup & dropoff'}
+              {isUrdu ? 'نقشے پر مقام منتخب کریں — فاصلہ خودکار طریقے سے طے ہوگا' : 'Select points on map — Real-time distance is calculated automatically'}
             </p>
           </div>
         </div>
@@ -107,14 +100,22 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             <button
               type="button"
               onClick={() => setActivePinSelection('pickup')}
-              className={`px-2 py-1 rounded transition ${activePinSelection === 'pickup' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                activePinSelection === 'pickup' 
+                  ? 'bg-emerald-600 text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               📍 {isUrdu ? 'پک اپ' : 'Pickup'}
             </button>
             <button
               type="button"
               onClick={() => setActivePinSelection('dropoff')}
-              className={`px-2 py-1 rounded transition ${activePinSelection === 'dropoff' ? 'bg-teal-700 text-white' : 'text-slate-600 hover:text-slate-900'}`}
+              className={`px-2.5 py-1 rounded transition cursor-pointer ${
+                activePinSelection === 'dropoff' 
+                  ? 'bg-teal-700 text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
               🏁 {isUrdu ? 'منزل' : 'Dropoff'}
             </button>
@@ -139,29 +140,29 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         {/* Background Map Graphic (Vector Turbat City Grid + Roads) */}
         <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <pattern id="grid-pattern" width="40" height="40" patternUnits="userSpaceOnUse">
+            <pattern id="grid-pattern-user" width="40" height="40" patternUnits="userSpaceOnUse">
               <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.8" />
             </pattern>
             {/* Kech River Flow Pattern */}
-            <linearGradient id="riverGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="riverGradientUser" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#bfdbfe" stopOpacity="0.8" />
               <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.8" />
             </linearGradient>
             {/* Pulsing Dash on Route */}
-            <linearGradient id="routeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id="routeGradientUser" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#00D084" />
               <stop offset="100%" stopColor="#0284c7" />
             </linearGradient>
           </defs>
 
           {/* City Grid Background */}
-          <rect width="100%" height="100%" fill="url(#grid-pattern)" />
+          <rect width="100%" height="100%" fill="url(#grid-pattern-user)" />
 
           {/* Kech River Flow Simulation Path */}
           <path
             d="M 0 160 Q 150 180 300 130 T 600 110"
             fill="none"
-            stroke="url(#riverGradient)"
+            stroke="url(#riverGradientUser)"
             strokeWidth="14"
             strokeLinecap="round"
           />
@@ -178,7 +179,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           <path
             d={`M ${pPos.x}% ${pPos.y}% Q ${(pPos.x + dPos.x) / 2 + 5}% ${(pPos.y + dPos.y) / 2 - 10}% ${dPos.x}% ${dPos.y}%`}
             fill="none"
-            stroke="url(#routeGradient)"
+            stroke="url(#routeGradientUser)"
             strokeWidth="5"
             strokeLinecap="round"
             strokeDasharray="8 6"
@@ -187,14 +188,14 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         </svg>
 
         {/* Real Landmarks Points Clickable on Map */}
-        {TURBAT_LANDMARKS.map((lm, idx) => {
+        {currentLandmarks.map((lm, idx) => {
           const pos = getCanvasCoords(lm.lat, lm.lng);
           const isPickup = lm.name === pickupLandmark.name;
           const isDropoff = lm.name === dropoffLandmark.name;
 
           return (
             <div
-              key={idx}
+              key={lm.id || idx}
               onClick={() => handleLandmarkClick(lm)}
               style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
               className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group z-20"
@@ -234,7 +235,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         })}
 
         {/* Floating Route Badge */}
-        <div className="absolute top-3 left-3 z-30 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs font-bold text-slate-800 flex items-center gap-2">
+        <div className="absolute top-3 left-3 z-30 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs font-bold text-slate-800 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
           <span>{pickupLandmark.area} ➔ {dropoffLandmark.area}</span>
         </div>
@@ -249,58 +250,45 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             <span className="w-2 h-2 rounded-full bg-teal-800"></span>
             <span>Dropoff</span>
           </span>
-          <span className="hidden sm:inline text-slate-400">| Turbat City Area</span>
+          <span className="hidden sm:inline text-slate-400">| Turbat City Network</span>
         </div>
       </div>
 
-      {/* Full KM Customization & Distance Control Panel */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div>
-          <label className="text-xs font-black text-slate-800 flex items-center gap-1.5 mb-0.5">
-            <Sliders className="w-3.5 h-3.5 text-emerald-600" />
-            <span>{isUrdu ? 'فاصلہ ایڈٹ کریں (کلو میٹر)' : 'Customize Distance (KM)'}</span>
-          </label>
+      {/* AUTOMATED LIVE GPS DISTANCE METER — NO CONFUSING MANUAL USER INPUT */}
+      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2">
+            <Route className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-black text-slate-900">
+              {isUrdu ? 'رئیل ٹائم جی پی ایس روٹ فاصلہ' : 'Real-Time GPS Route Distance'}
+            </span>
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
+              Automated
+            </span>
+          </div>
           <p className="text-[11px] text-slate-500">
             {isUrdu 
-              ? 'فاصلہ کم یا زیادہ کریں، کرایہ خودکار طریقے سے اپڈیٹ ہوگا' 
-              : 'Adjust KM to match your route. Fare updates in real-time.'}
+              ? `${pickupLandmark.name.split(',')[0]} سے ${dropoffLandmark.name.split(',')[0]} تک روڈ فاصلہ`
+              : `Road distance from ${pickupLandmark.name.split(',')[0]} to ${dropoffLandmark.name.split(',')[0]}`}
           </p>
         </div>
 
-        {/* Numeric Stepper and Direct Editable KM Input */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => handleKmAdjust(-0.5)}
-            className="w-8 h-8 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-black text-sm flex items-center justify-center transition shadow-xs"
-            title="Decrease 0.5 KM"
-          >
-            -
-          </button>
-
-          <div className="relative">
-            <input
-              type="number"
-              step="0.1"
-              min="0.5"
-              max="150"
-              value={customDistanceKm}
-              onChange={(e) => onDistanceKmChange(Math.max(0.5, parseFloat(e.target.value) || 1.0))}
-              className="w-24 bg-white border border-emerald-500 text-center font-black text-slate-900 py-1.5 px-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
-            />
-            <span className="absolute right-2 top-1.5 text-[11px] font-bold text-slate-400 pointer-events-none">
-              KM
+        {/* Display Badge showing exact calculated KM & Travel Duration */}
+        <div className="flex items-center gap-3 self-end sm:self-auto">
+          <div className="text-right">
+            <span className="text-[10px] font-bold text-slate-400 block uppercase">Est. Time</span>
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
+              <Clock className="w-3 h-3 text-slate-400" />
+              <span>~{estimatedMins} Mins</span>
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => handleKmAdjust(0.5)}
-            className="w-8 h-8 rounded-lg bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-black text-sm flex items-center justify-center transition shadow-xs"
-            title="Increase 0.5 KM"
-          >
-            +
-          </button>
+          <div className="bg-white border-2 border-emerald-500 rounded-xl px-3.5 py-1.5 text-center shadow-xs">
+            <span className="text-[10px] font-bold text-slate-500 block uppercase">Distance</span>
+            <span className="text-base font-black text-slate-900 leading-none">
+              {distanceKm} <span className="text-xs font-bold text-emerald-600">KM</span>
+            </span>
+          </div>
         </div>
       </div>
 

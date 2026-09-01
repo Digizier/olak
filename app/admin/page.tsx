@@ -25,7 +25,12 @@ import {
   getDriverSettlements,
   recordDriverSettlement,
   deleteDriverSettlement,
-  getCaptainFinancialSummary
+  getCaptainFinancialSummary,
+  getCityLandmarks,
+  saveCityLandmark,
+  deleteCityLandmark,
+  calculateRealtimeDistance,
+  calculateTripFare
 } from '@/lib/db';
 import { 
   SiteSettings, 
@@ -38,13 +43,15 @@ import {
   CaptainStatus, 
   ServiceType,
   PromotionBanner,
-  DriverSettlement
+  DriverSettlement,
+  CityLandmark
 } from '@/lib/types';
 import { 
   INITIAL_SITE_SETTINGS, 
   INITIAL_PRICING_RATES, 
   INITIAL_INTERCITY_ROUTES,
-  INITIAL_PROMOTIONS
+  INITIAL_PROMOTIONS,
+  TURBAT_LANDMARKS
 } from '@/lib/constants';
 import { PrintableReceipt } from '@/components/PrintableReceipt';
 import { 
@@ -89,7 +96,7 @@ import {
 
 interface DeleteModalState {
   isOpen: boolean;
-  type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement';
+  type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement' | 'landmark';
   id: string;
   title: string;
   subtitle: string;
@@ -115,6 +122,22 @@ export default function AdminPage() {
   const [intercityRoutes, setIntercityRoutes] = useState<IntercityRoute[]>(INITIAL_INTERCITY_ROUTES);
   const [promotions, setPromotions] = useState<PromotionBanner[]>(INITIAL_PROMOTIONS);
   const [settlements, setSettlements] = useState<DriverSettlement[]>([]);
+  const [landmarks, setLandmarks] = useState<CityLandmark[]>(TURBAT_LANDMARKS);
+  
+  // Simulator State for Admin Fare Testing
+  const [simPickup, setSimPickup] = useState<string>(TURBAT_LANDMARKS[0].name);
+  const [simDropoff, setSimDropoff] = useState<string>(TURBAT_LANDMARKS[2].name);
+
+  // Landmark Modal State
+  const [landmarkModalOpen, setLandmarkModalOpen] = useState(false);
+  const [editingLandmark, setEditingLandmark] = useState<Partial<CityLandmark>>({
+    name: '',
+    name_urdu: '',
+    area: 'Central Turbat',
+    lat: 26.0031,
+    lng: 63.0544,
+    is_active: true
+  });
   
   // Filters & State
   const [bookingFilter, setBookingFilter] = useState<string>('all');
@@ -164,7 +187,7 @@ export default function AdminPage() {
   // Load All Data
   const loadData = async () => {
     try {
-      const [st, bk, cp, cust, pr, ir, prm, stl] = await Promise.all([
+      const [st, bk, cp, cust, pr, ir, prm, stl, lm] = await Promise.all([
         getSiteSettings(),
         getBookings(),
         getCaptains(),
@@ -173,6 +196,7 @@ export default function AdminPage() {
         getIntercityRoutes(),
         getPromotions(),
         getDriverSettlements(),
+        getCityLandmarks(),
       ]);
       setSettings(st);
       setBookings(bk);
@@ -182,6 +206,9 @@ export default function AdminPage() {
       setIntercityRoutes(ir);
       setPromotions(prm);
       setSettlements(stl);
+      if (lm && lm.length > 0) {
+        setLandmarks(lm);
+      }
     } catch (err) {
       console.error('Admin data load error:', err);
     }
@@ -203,6 +230,7 @@ export default function AdminPage() {
     window.addEventListener('olak_promotions_updated', handleUpdate);
     window.addEventListener('olak_settlements_updated', handleUpdate);
     window.addEventListener('olak_settings_updated', handleUpdate);
+    window.addEventListener('olak_landmarks_updated', handleUpdate);
     return () => {
       window.removeEventListener('olak_bookings_updated', handleUpdate);
       window.removeEventListener('olak_captains_updated', handleUpdate);
@@ -212,6 +240,7 @@ export default function AdminPage() {
       window.removeEventListener('olak_promotions_updated', handleUpdate);
       window.removeEventListener('olak_settlements_updated', handleUpdate);
       window.removeEventListener('olak_settings_updated', handleUpdate);
+      window.removeEventListener('olak_landmarks_updated', handleUpdate);
     };
   }, []);
 
@@ -337,9 +366,24 @@ export default function AdminPage() {
     alert('Promotion banner saved successfully!');
   };
 
+  // City Landmark Handlers
+  const handleSaveLandmarkSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLandmark.name) {
+      alert('Please provide a landmark name.');
+      return;
+    }
+    setIsSaving(true);
+    await saveCityLandmark(editingLandmark);
+    setIsSaving(false);
+    setLandmarkModalOpen(false);
+    await loadData();
+    alert('City landmark saved successfully!');
+  };
+
   // Prompt and Execute Deletions
   const triggerDelete = (
-    type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement', 
+    type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement' | 'landmark', 
     id: string, 
     title: string, 
     subtitle: string
@@ -369,6 +413,8 @@ export default function AdminPage() {
         await deletePromotion(deleteModal.id);
       } else if (deleteModal.type === 'settlement') {
         await deleteDriverSettlement(deleteModal.id);
+      } else if (deleteModal.type === 'landmark') {
+        await deleteCityLandmark(deleteModal.id);
       }
       await loadData();
     } catch (err) {
@@ -1236,6 +1282,182 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+
+            {/* REAL-TIME DISTANCE & FARE SIMULATOR (ADMIN VISIBILITY & CONTROL) */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <Navigation className="w-5 h-5 text-emerald-600" />
+                    <span>Real-Time GPS Route Distance & Fare Simulator</span>
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Test the exact real-time distance and fare calculations that customers see in live Turbat bookings.
+                  </p>
+                </div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">
+                  Live Calculator
+                </span>
+              </div>
+
+              {/* Landmark Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Select Pickup Location</label>
+                  <select
+                    value={simPickup}
+                    onChange={(e) => setSimPickup(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    {landmarks.map(lm => (
+                      <option key={lm.id || lm.name} value={lm.name}>
+                        {lm.name} ({lm.area})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Select Dropoff Destination</label>
+                  <select
+                    value={simDropoff}
+                    onChange={(e) => setSimDropoff(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    {landmarks.map(lm => (
+                      <option key={lm.id || lm.name} value={lm.name}>
+                        {lm.name} ({lm.area})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Calculated Outputs */}
+              {(() => {
+                const simP = landmarks.find(l => l.name === simPickup) || landmarks[0] || TURBAT_LANDMARKS[0];
+                const simD = landmarks.find(l => l.name === simDropoff) || landmarks[1] || landmarks[0] || TURBAT_LANDMARKS[1];
+                const simDistanceKm = calculateRealtimeDistance(
+                  { lat: Number(simP.lat), lng: Number(simP.lng) },
+                  { lat: Number(simD.lat), lng: Number(simD.lng) }
+                );
+                const simBike = calculateTripFare('bike', simDistanceKm, pricingRates);
+                const simRickshaw = calculateTripFare('rickshaw', simDistanceKm, pricingRates);
+                const simCar = calculateTripFare('car', simDistanceKm, pricingRates);
+                const deliveryRate = pricingRates.find(r => r.service_type === 'delivery');
+                const simDelivery = deliveryRate 
+                  ? Math.max(deliveryRate.minimum_fare, Math.round((deliveryRate.base_fare + simDistanceKm * deliveryRate.per_km_charge) / 10) * 10) 
+                  : 150;
+
+                return (
+                  <div className="space-y-3 pt-2">
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Calculated Road Distance</span>
+                        <div className="flex items-baseline gap-1 mt-0.5">
+                          <span className="text-2xl font-black text-slate-900">{simDistanceKm}</span>
+                          <span className="text-xs font-bold text-emerald-600">KM</span>
+                        </div>
+                        <span className="text-[11px] text-slate-500">Coordinates: ({Number(simP.lat).toFixed(4)}, {Number(simP.lng).toFixed(4)}) ➔ ({Number(simD.lat).toFixed(4)}, {Number(simD.lng).toFixed(4)})</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full sm:w-auto">
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-xs">
+                          <span className="text-[10px] text-slate-500 font-bold block">Bike Fare</span>
+                          <span className="text-sm font-black text-slate-900">PKR {simBike}</span>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-xs">
+                          <span className="text-[10px] text-slate-500 font-bold block">Rickshaw</span>
+                          <span className="text-sm font-black text-slate-900">PKR {simRickshaw}</span>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-xs">
+                          <span className="text-[10px] text-slate-500 font-bold block">Car Fare</span>
+                          <span className="text-sm font-black text-slate-900">PKR {simCar}</span>
+                        </div>
+                        <div className="bg-white border border-slate-200 rounded-xl p-2.5 text-center shadow-xs">
+                          <span className="text-[10px] text-slate-500 font-bold block">Delivery</span>
+                          <span className="text-sm font-black text-slate-900">PKR {simDelivery}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* CITY LOCATIONS & LANDMARKS MANAGER */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-emerald-600" />
+                    <span>Turbat City Locations & Landmarks Manager ({landmarks.length})</span>
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    Locations and coordinates used to calculate customer distances in real-time.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setEditingLandmark({
+                      name: '',
+                      name_urdu: '',
+                      area: 'Central Turbat',
+                      lat: 26.0031,
+                      lng: 63.0544,
+                      is_active: true
+                    });
+                    setLandmarkModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ Add City Location / Landmark</span>
+                </button>
+              </div>
+
+              {/* Landmarks Table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 uppercase font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3">Landmark / Place Name</th>
+                      <th className="px-4 py-3">Urdu Name</th>
+                      <th className="px-4 py-3">Area</th>
+                      <th className="px-4 py-3">GPS Latitude</th>
+                      <th className="px-4 py-3">GPS Longitude</th>
+                      <th className="px-4 py-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {landmarks.map((lm) => (
+                      <tr key={lm.id || lm.name} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-bold text-slate-900">{lm.name}</td>
+                        <td className="px-4 py-3 text-slate-700 font-urdu">{lm.nameUrdu || lm.name_urdu || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{lm.area}</td>
+                        <td className="px-4 py-3 font-mono text-slate-700">{Number(lm.lat).toFixed(4)}</td>
+                        <td className="px-4 py-3 font-mono text-slate-700">{Number(lm.lng).toFixed(4)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => triggerDelete(
+                              'landmark',
+                              lm.id,
+                              `Delete Location ${lm.name}?`,
+                              `Are you sure you want to remove ${lm.name} from Turbat city landmarks?`
+                            )}
+                            className="p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
+                            title="Delete Landmark"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1864,6 +2086,110 @@ export default function AdminPage() {
                   className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl"
                 >
                   Save Banner
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CITY LANDMARK / LOCATION MODAL */}
+      {landmarkModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-scaleIn">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+                <span>Add Turbat City Location / Landmark</span>
+              </h3>
+              <button
+                onClick={() => setLandmarkModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 text-base cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveLandmarkSubmit} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Landmark / Place Name (English)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Turbat Gate Chowk"
+                  value={editingLandmark.name}
+                  onChange={(e) => setEditingLandmark({ ...editingLandmark, name: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Name in Urdu (اردو نام)</label>
+                <input
+                  type="text"
+                  placeholder="مثلاً: تربت گیٹ چوک"
+                  value={editingLandmark.name_urdu}
+                  onChange={(e) => setEditingLandmark({ ...editingLandmark, name_urdu: e.target.value, nameUrdu: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-urdu text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">City Zone / Area</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Absar Road, Main Bazaar, Ginna"
+                  value={editingLandmark.area}
+                  onChange={(e) => setEditingLandmark({ ...editingLandmark, area: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">GPS Latitude (North)</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    required
+                    placeholder="26.0031"
+                    value={editingLandmark.lat}
+                    onChange={(e) => setEditingLandmark({ ...editingLandmark, lat: parseFloat(e.target.value) || 26.0031 })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-mono text-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-400">Turbat bounds ~25.98 to 26.04</span>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">GPS Longitude (East)</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    required
+                    placeholder="63.0544"
+                    value={editingLandmark.lng}
+                    onChange={(e) => setEditingLandmark({ ...editingLandmark, lng: parseFloat(e.target.value) || 63.0544 })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 font-mono text-slate-900"
+                  />
+                  <span className="text-[10px] text-slate-400">Turbat bounds ~63.02 to 63.12</span>
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLandmarkModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl shadow-md cursor-pointer"
+                >
+                  Save Landmark
                 </button>
               </div>
             </form>

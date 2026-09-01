@@ -29,7 +29,7 @@ export const CaptainPromoSection = () => {
             {t.captain_banner_title}
           </h2>
 
-          <p className="text-base sm:text-lg text-slate-600 font-urdu">
+          <p className={`text-base sm:text-lg text-slate-600 ${isUrdu ? 'font-urdu leading-relaxed' : ''}`}>
             {t.captain_banner_sub}
           </p>
         </div>

@@ -97,7 +97,7 @@ export default function HomePage() {
                   </h2>
                 </div>
 
-                <p className="text-sm sm:text-base text-slate-600 font-urdu leading-relaxed max-w-lg">
+                <p className={`text-sm sm:text-base text-slate-600 leading-relaxed max-w-lg ${isUrdu ? 'font-urdu' : ''}`}>
                   {t.hero_desc}
                 </p>
 
@@ -126,7 +126,7 @@ export default function HomePage() {
                     <h4 className="font-black text-sm text-slate-900">
                       {isUrdu ? 'گاڑی یا بائیک ہے؟' : 'Own a Bike or Car?'}
                     </h4>
-                    <p className="text-xs text-slate-600 font-urdu">
+                    <p className={`text-xs text-slate-600 ${isUrdu ? 'font-urdu' : ''}`}>
                       {isUrdu ? 'اولاک کے ساتھ جڑیں اور باعزت روزگار کمائیں' : 'Drive with OLAK & earn 90% income'}
                     </p>
                   </div>
@@ -211,7 +211,7 @@ export default function HomePage() {
               <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
                 {isUrdu ? 'تربت سے بلوچستان کے تمام اہم شہروں تک سفر' : 'Travel from Turbat to All Major Hubs'}
               </h2>
-              <p className="text-sm sm:text-base text-slate-600 font-urdu">
+              <p className={`text-sm sm:text-base text-slate-600 ${isUrdu ? 'font-urdu' : ''}`}>
                 {isUrdu 
                   ? 'گوادر پورٹ، پسنی ساحل، پنجگور، کوئٹہ، ہب چوکی اور کراچی کے لیے آرام دہ کاریں اور کارگو سروس۔' 
                   : 'Daily scheduled and private direct rides from Turbat to Gwadar, Quetta, Panjgur, and Karachi.'}

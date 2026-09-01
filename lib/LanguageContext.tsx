@@ -14,12 +14,19 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export const LanguageProvider = ({ children }: { children: React.ReactNode }) => {
-  const [lang, setLangState] = useState<Language>('ur'); // Default to Urdu/Bilingual as requested by client
+  // Default to English as requested
+  const [lang, setLangState] = useState<Language>('en');
 
   useEffect(() => {
     const saved = localStorage.getItem('olak_language') as Language;
-    if (saved === 'en' || saved === 'ur') {
-      setLangState(saved);
+    if (saved === 'ur') {
+      setLangState('ur');
+      document.documentElement.dir = 'rtl';
+      document.documentElement.lang = 'ur';
+    } else {
+      setLangState('en');
+      document.documentElement.dir = 'ltr';
+      document.documentElement.lang = 'en';
     }
   }, []);
 
@@ -35,7 +42,7 @@ export const LanguageProvider = ({ children }: { children: React.ReactNode }) =>
 
   return (
     <LanguageContext.Provider value={{ lang, setLang, t, isUrdu }}>
-      <div className={isUrdu ? 'font-urdu' : ''} dir={isUrdu ? 'rtl' : 'ltr'}>
+      <div className={isUrdu ? 'font-urdu leading-normal' : 'font-sans'} dir={isUrdu ? 'rtl' : 'ltr'}>
         {children}
       </div>
     </LanguageContext.Provider>

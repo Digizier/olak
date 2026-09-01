@@ -61,7 +61,7 @@ export const FeaturesSection = () => {
           <h2 className="text-3xl sm:text-4xl font-black text-slate-900">
             {t.features_title}
           </h2>
-          <p className="text-sm sm:text-base text-slate-600 font-urdu">
+          <p className={`text-sm sm:text-base text-slate-600 ${isUrdu ? 'font-urdu leading-relaxed' : ''}`}>
             {isUrdu 
               ? 'ہم تربت کے عوام اور مہمانوں کے لیے محفوظ، تیز اور باوقار سفری سہولیات فراہم کرنے کے لیے ہمہ وقت تیار ہیں۔' 
               : 'Empowering commuters and businesses across Turbat and Balochistan with seamless on-demand mobility.'}
@@ -83,7 +83,7 @@ export const FeaturesSection = () => {
                 <h3 className="text-lg font-bold text-slate-900 leading-snug">
                   {f.title}
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-urdu">
+                <p className={`text-xs sm:text-sm text-slate-600 leading-relaxed ${isUrdu ? 'font-urdu' : ''}`}>
                   {f.desc}
                 </p>
               </div>

@@ -1,21 +1,23 @@
-import { PricingRate, IntercityRoute, SiteSettings, PromotionBanner } from './types';
+import { PricingRate, IntercityRoute, SiteSettings, PromotionBanner, CityLandmark } from './types';
 
-export const TURBAT_LANDMARKS = [
-  { name: 'City Thana, Thana Road', nameUrdu: 'سٹی تھانہ، تھانہ روڈ', area: 'Central Turbat', lat: 26.0031, lng: 63.0544 },
-  { name: 'Turbat International Airport', nameUrdu: 'تربت انٹرنیشنل ایئرپورٹ', area: 'Airport Road', lat: 25.9863, lng: 63.0312 },
-  { name: 'University of Turbat (UoT)', nameUrdu: 'یونیورسٹی آف تربت', area: 'M-8 Ginna', lat: 26.0289, lng: 63.0978 },
-  { name: 'Main Bazaar / Shahi Bazaar', nameUrdu: 'مین بازار / شاہی بازار', area: 'Central Turbat', lat: 26.0055, lng: 63.0501 },
-  { name: 'District Headquarters (DHQ) Hospital', nameUrdu: 'ڈی ایچ کیو ہسپتال تربت', area: 'Hospital Road', lat: 26.0082, lng: 63.0485 },
-  { name: 'Absar Chowk', nameUrdu: 'ابسر چوک', area: 'Absar', lat: 25.9924, lng: 63.0721 },
-  { name: 'Malikabad / Aabsar Road', nameUrdu: 'ملک آباد / ابسر روڈ', area: 'Malikabad', lat: 26.0125, lng: 63.0655 },
-  { name: 'D-Baloch Chowk', nameUrdu: 'ڈی بلوچ چوک', area: 'D-Baloch', lat: 26.0188, lng: 63.0412 },
-  { name: 'Singanisar Chowk', nameUrdu: 'سنگانی سر چوک', area: 'Singanisar', lat: 25.9875, lng: 63.0611 },
-  { name: 'Ginna Road / M-8 CPEC Junction', nameUrdu: 'گنہ روڈ / ایم 8 جنکشن', area: 'Ginna', lat: 26.0351, lng: 63.1120 },
-  { name: 'Circuit House Turbat', nameUrdu: 'سرکٹ ہاؤس تربت', area: 'Officers Colony', lat: 26.0101, lng: 63.0588 },
-  { name: 'Turbat Public School & College', nameUrdu: 'تربت پبلک اسکول و کالج', area: 'Absar Road', lat: 25.9981, lng: 63.0699 },
-  { name: 'Kech River View Point', nameUrdu: 'کیچ ریور ویو پوائنٹ', area: 'Kech River', lat: 26.0150, lng: 63.0380 },
-  { name: 'Government Degree College Turbat', nameUrdu: 'گورنمنٹ ڈگری کالج تربت', area: 'College Road', lat: 26.0012, lng: 63.0531 },
+export const TURBAT_LANDMARKS: CityLandmark[] = [
+  { id: 'lm-1', name: 'City Thana, Thana Road', nameUrdu: 'سٹی تھانہ، تھانہ روڈ', name_urdu: 'سٹی تھانہ، تھانہ روڈ', area: 'Central Turbat', lat: 26.0031, lng: 63.0544, is_active: true },
+  { id: 'lm-2', name: 'Turbat International Airport', nameUrdu: 'تربت انٹرنیشنل ایئرپورٹ', name_urdu: 'تربت انٹرنیشنل ایئرپورٹ', area: 'Airport Road', lat: 25.9863, lng: 63.0312, is_active: true },
+  { id: 'lm-3', name: 'University of Turbat (UoT)', nameUrdu: 'یونیورسٹی آف تربت', name_urdu: 'یونیورسٹی آف تربت', area: 'M-8 Ginna', lat: 26.0289, lng: 63.0978, is_active: true },
+  { id: 'lm-4', name: 'Main Bazaar / Shahi Bazaar', nameUrdu: 'مین بازار / شاہی بازار', name_urdu: 'مین بازار / شاہی بازار', area: 'Central Turbat', lat: 26.0055, lng: 63.0501, is_active: true },
+  { id: 'lm-5', name: 'District Headquarters (DHQ) Hospital', nameUrdu: 'ڈی ایچ کیو ہسپتال تربت', name_urdu: 'ڈی ایچ کیو ہسپتال تربت', area: 'Hospital Road', lat: 26.0082, lng: 63.0485, is_active: true },
+  { id: 'lm-6', name: 'Absar Chowk', nameUrdu: 'ابسر چوک', name_urdu: 'ابسر چوک', area: 'Absar', lat: 25.9924, lng: 63.0721, is_active: true },
+  { id: 'lm-7', name: 'Malikabad / Aabsar Road', nameUrdu: 'ملک آباد / ابسر روڈ', name_urdu: 'ملک آباد / ابسر روڈ', area: 'Malikabad', lat: 26.0125, lng: 63.0655, is_active: true },
+  { id: 'lm-8', name: 'D-Baloch Chowk', nameUrdu: 'ڈی بلوچ چوک', name_urdu: 'ڈی بلوچ چوک', area: 'D-Baloch', lat: 26.0188, lng: 63.0412, is_active: true },
+  { id: 'lm-9', name: 'Singanisar Chowk', nameUrdu: 'سنگانی سر چوک', name_urdu: 'سنگانی سر چوک', area: 'Singanisar', lat: 25.9875, lng: 63.0611, is_active: true },
+  { id: 'lm-10', name: 'Ginna Road / M-8 CPEC Junction', nameUrdu: 'گنہ روڈ / ایم 8 جنکشن', name_urdu: 'گنہ روڈ / ایم 8 جنکشن', area: 'Ginna', lat: 26.0351, lng: 63.1120, is_active: true },
+  { id: 'lm-11', name: 'Circuit House Turbat', nameUrdu: 'سرکٹ ہاؤس تربت', name_urdu: 'سرکٹ ہاؤس تربت', area: 'Officers Colony', lat: 26.0101, lng: 63.0588, is_active: true },
+  { id: 'lm-12', name: 'Turbat Public School & College', nameUrdu: 'تربت پبلک اسکول و کالج', name_urdu: 'تربت پبلک اسکول و کالج', area: 'Absar Road', lat: 25.9981, lng: 63.0699, is_active: true },
+  { id: 'lm-13', name: 'Kech River View Point', nameUrdu: 'کیچ ریور ویو پوائنٹ', name_urdu: 'کیچ ریور ویو پوائنٹ', area: 'Kech River', lat: 26.0150, lng: 63.0380, is_active: true },
+  { id: 'lm-14', name: 'Government Degree College Turbat', nameUrdu: 'گورنمنٹ ڈگری کالج تربت', name_urdu: 'گورنمنٹ ڈگری کالج تربت', area: 'College Road', lat: 26.0012, lng: 63.0531, is_active: true },
 ];
+
+export const INITIAL_LANDMARKS = TURBAT_LANDMARKS;
 
 export const INITIAL_PRICING_RATES: PricingRate[] = [
   {

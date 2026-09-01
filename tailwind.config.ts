@@ -32,7 +32,7 @@ const config: Config = {
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        urdu: ["'Noto Nastaliq Urdu'", "'Jameel Noori Nastaleeq'", "serif"],
+        urdu: ["'Noto Sans Arabic'", "'Noto Nastaliq Urdu'", "'Jameel Noori Nastaleeq'", "'Segoe UI'", "Tahoma", "sans-serif"],
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
