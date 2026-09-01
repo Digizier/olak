@@ -7,6 +7,7 @@ import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
 import { getPricingRates, createBooking, getCityLandmarks, calculateRealtimeDistance, getCurrentCustomer } from '@/lib/db';
 import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
+import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   Bike, 
   Car, 
@@ -47,6 +48,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   // Dynamic Rates, Landmarks & Customer Hydration
   useEffect(() => {
@@ -127,8 +129,11 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       } catch (cErr) {}
     } catch (err) {
       console.error('Booking failed:', err);
-      setIsSubmitting(false);
-      alert('Could not submit booking. Please try again.');
+      setToast({
+        type: 'error',
+        title: 'Booking Error',
+        message: 'Could not submit ride booking. Please check connection and try again.'
+      });
     }
   };
 
@@ -457,6 +462,9 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
         dropoffLocation={dropoff}
         defaultTab="register"
       />
+
+      {/* Modern UI Toast Notification */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
     </div>
   );

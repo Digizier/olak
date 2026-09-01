@@ -6,6 +6,7 @@ import { INITIAL_INTERCITY_ROUTES } from '@/lib/constants';
 import { createBooking, getIntercityRoutes, getCurrentCustomer } from '@/lib/db';
 import { Booking, IntercityRoute, Customer } from '@/lib/types';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
+import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   Compass, 
   MapPin, 
@@ -40,6 +41,7 @@ export const IntercityWidget = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     getIntercityRoutes().then((data) => {
@@ -133,8 +135,11 @@ export const IntercityWidget = () => {
       } catch (e) {}
     } catch (err) {
       console.error(err);
-      setIsSubmitting(false);
-      alert('Could not book intercity seat. Please try again.');
+      setToast({
+        type: 'error',
+        title: 'Booking Error',
+        message: 'Could not book intercity seat. Please check your connection and try again.'
+      });
     }
   };
 
@@ -435,6 +440,9 @@ export const IntercityWidget = () => {
         dropoffLocation={currentRoute.destination_city}
         defaultTab="register"
       />
+
+      {/* Modern UI Toast Notification */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
     </div>
   );

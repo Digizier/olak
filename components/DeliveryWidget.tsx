@@ -6,6 +6,7 @@ import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
 import { createBooking, getPricingRates, getCityLandmarks, calculateRealtimeDistance, getCurrentCustomer } from '@/lib/db';
 import { Booking, CityLandmark, PricingRate, Customer } from '@/lib/types';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
+import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   Package, 
   MapPin, 
@@ -47,6 +48,7 @@ export const DeliveryWidget = () => {
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   useEffect(() => {
     getPricingRates().then(setRates);
@@ -108,7 +110,11 @@ export const DeliveryWidget = () => {
 
   const executeDelivery = async (sName: string, sPhone: string) => {
     if (!receiverPhone) {
-      alert(isUrdu ? 'برائے مہربانی وصول کنندہ کا موبائل نمبر درج کریں۔' : 'Please enter receiver mobile number.');
+      setToast({
+        type: 'error',
+        title: 'Missing Details',
+        message: isUrdu ? 'برائے مہربانی وصول کنندہ کا موبائل نمبر درج کریں۔' : 'Please enter receiver mobile number.'
+      });
       return;
     }
 
@@ -144,7 +150,11 @@ export const DeliveryWidget = () => {
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
-      alert('Delivery booking failed. Please try again.');
+      setToast({
+        type: 'error',
+        title: 'Booking Error',
+        message: 'Delivery booking failed. Please check connection and try again.'
+      });
     }
   };
 
@@ -512,6 +522,9 @@ export const DeliveryWidget = () => {
         dropoffLocation={dropoff}
         defaultTab="register"
       />
+
+      {/* Modern UI Toast Notification */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
     </div>
   );
