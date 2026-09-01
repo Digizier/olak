@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
-import { PricingRate, ServiceType, Booking, CityLandmark } from '@/lib/types';
+import { PricingRate, ServiceType, Booking, CityLandmark, Customer } from '@/lib/types';
 import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
-import { getPricingRates, createBooking, getCityLandmarks, calculateRealtimeDistance } from '@/lib/db';
+import { getPricingRates, createBooking, getCityLandmarks, calculateRealtimeDistance, getCurrentCustomer } from '@/lib/db';
 import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
+import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { 
   Bike, 
   Car, 
@@ -19,7 +20,8 @@ import {
   ShieldCheck, 
   ArrowRight,
   Sparkles,
-  Route
+  Route,
+  UserCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -33,6 +35,10 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const [landmarks, setLandmarks] = useState<CityLandmark[]>(TURBAT_LANDMARKS);
   const [selectedService, setSelectedService] = useState<ServiceType>('bike');
 
+  // Customer Session & Auth Modal
+  const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   // Form State
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[2].name);
@@ -42,10 +48,17 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
-  // Dynamic Rates & Landmarks Hydration
+  // Dynamic Rates, Landmarks & Customer Hydration
   useEffect(() => {
     getPricingRates().then(setRates);
     getCityLandmarks().then(setLandmarks);
+    
+    const cur = getCurrentCustomer();
+    if (cur) {
+      setCurrentCustomer(cur);
+      setCustomerName(cur.full_name);
+      setCustomerPhone(cur.phone);
+    }
 
     const handleRatesUpdate = (e: any) => {
       if (e.detail) setRates(e.detail);
@@ -53,12 +66,21 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
     const handleLandmarksUpdate = (e: any) => {
       if (e.detail) setLandmarks(e.detail);
     };
+    const handleCustomerAuth = (e: any) => {
+      setCurrentCustomer(e.detail);
+      if (e.detail) {
+        setCustomerName(e.detail.full_name);
+        setCustomerPhone(e.detail.phone);
+      }
+    };
 
     window.addEventListener('olak_fares_updated', handleRatesUpdate);
     window.addEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+    window.addEventListener('olak_customer_auth_changed', handleCustomerAuth);
     return () => {
       window.removeEventListener('olak_fares_updated', handleRatesUpdate);
       window.removeEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+      window.removeEventListener('olak_customer_auth_changed', handleCustomerAuth);
     };
   }, []);
 
@@ -76,19 +98,14 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const rawFare = activeRate.base_fare + (realTimeDistanceKm * activeRate.per_km_charge);
   const estimatedFare = Math.round(Math.max(activeRate.minimum_fare, rawFare) / 10) * 10;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName || !customerPhone) {
-      alert(isUrdu ? 'برائے مہربانی اپنا نام اور موبائل نمبر درج کریں۔' : 'Please enter your Name and Mobile Number.');
-      return;
-    }
-
+  // Actual Ride Creation Execution
+  const executeBooking = async (name: string, phone: string) => {
     setIsSubmitting(true);
     try {
       const booking = await createBooking({
         service_type: selectedService,
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_name: name,
+        customer_phone: phone,
         pickup_location: pickup,
         dropoff_location: dropoff,
         notes: notes,
@@ -113,6 +130,33 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       setIsSubmitting(false);
       alert('Could not submit booking. Please try again.');
     }
+  };
+
+  // When User presses "Request Ride Now"
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check if customer is ALREADY logged in
+    const activeCustomer = getCurrentCustomer() || currentCustomer;
+    if (!activeCustomer) {
+      // NOT logged in -> Popup Customer Login / Register modal
+      setShowAuthModal(true);
+      return;
+    }
+
+    // ALREADY logged in -> Immediately place and accept booking without any login prompt!
+    await executeBooking(activeCustomer.full_name || customerName, activeCustomer.phone || customerPhone);
+  };
+
+  // Called when user completes Registration or Login in the popup
+  const handleAuthSuccess = async (customer: Customer) => {
+    setCurrentCustomer(customer);
+    setCustomerName(customer.full_name);
+    setCustomerPhone(customer.phone);
+    setShowAuthModal(false);
+
+    // IMMEDIATELY accept and submit booking!
+    await executeBooking(customer.full_name, customer.phone);
   };
 
   return (
@@ -143,6 +187,10 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'سروس' : 'Service'}:</span>
               <span className="font-bold text-slate-900 uppercase">{confirmedBooking.service_type}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'مسافر' : 'Passenger'}:</span>
+              <span className="font-bold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
             </div>
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
@@ -274,7 +322,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             </div>
           </div>
 
-          {/* Embedded Real-Time Interactive Google Map (Automated Distance, No Manual KM Stepper) */}
+          {/* Embedded Real-Time Interactive Google Map */}
           <InteractiveRouteMap
             pickupName={pickup}
             dropoffName={dropoff}
@@ -296,40 +344,62 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             />
           </div>
 
-          {/* Customer Name & Phone Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <User className="w-3 h-3 text-slate-400" />
-                <span>{t.name_label}</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder={t.name_placeholder}
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
+          {/* Customer Authentication State Indicator or Inputs */}
+          {currentCustomer ? (
+            /* Logged in Passenger Badge */
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                    {isUrdu ? 'لاگ ان شدہ کسٹمر' : 'Verified Customer'}
+                  </span>
+                  <span className="text-xs font-black text-slate-900">
+                    {currentCustomer.full_name} ({currentCustomer.phone})
+                  </span>
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-slate-400" />
-                <span>{t.phone_label}</span>
-              </label>
-              <input
-                type="tel"
-                required
-                placeholder={t.phone_placeholder}
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
+              <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                Auto-Confirmed
+              </span>
             </div>
-          </div>
+          ) : (
+            /* Passenger Name & Phone Details (If not yet logged in) */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <User className="w-3 h-3 text-slate-400" />
+                  <span>{t.name_label}</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder={t.name_placeholder}
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
 
-          {/* Live Dynamic Fare Estimation Card (Calculated automatically from Admin Rates) */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-slate-400" />
+                  <span>{t.phone_label}</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder={t.phone_placeholder}
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Live Dynamic Fare Estimation Card */}
           <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
             <div>
               <span className="text-[11px] font-bold text-slate-500 block">
@@ -375,6 +445,19 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </button>
         </form>
       )}
+
+      {/* CUSTOMER AUTHENTICATION MODAL (If user clicks Request Ride without being logged in) */}
+      <CustomerAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+        serviceTitle={`OLAK ${selectedService.toUpperCase()}`}
+        estimatedFare={estimatedFare}
+        pickupLocation={pickup}
+        dropoffLocation={dropoff}
+        defaultTab="register"
+      />
+
     </div>
   );
 };

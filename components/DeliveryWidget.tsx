@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { TURBAT_LANDMARKS, INITIAL_PRICING_RATES } from '@/lib/constants';
-import { createBooking, getPricingRates, getCityLandmarks, calculateRealtimeDistance } from '@/lib/db';
-import { Booking, CityLandmark, PricingRate } from '@/lib/types';
+import { createBooking, getPricingRates, getCityLandmarks, calculateRealtimeDistance, getCurrentCustomer } from '@/lib/db';
+import { Booking, CityLandmark, PricingRate, Customer } from '@/lib/types';
+import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { 
   Package, 
   MapPin, 
@@ -20,7 +21,8 @@ import {
   Pill,
   Scale,
   Route,
-  Clock
+  Clock,
+  UserCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -29,6 +31,9 @@ export const DeliveryWidget = () => {
   
   const [landmarks, setLandmarks] = useState<CityLandmark[]>(TURBAT_LANDMARKS);
   const [rates, setRates] = useState<PricingRate[]>(INITIAL_PRICING_RATES);
+  const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[1].name);
   const [senderName, setSenderName] = useState('');
@@ -47,18 +52,34 @@ export const DeliveryWidget = () => {
     getPricingRates().then(setRates);
     getCityLandmarks().then(setLandmarks);
 
+    const cur = getCurrentCustomer();
+    if (cur) {
+      setCurrentCustomer(cur);
+      setSenderName(cur.full_name);
+      setSenderPhone(cur.phone);
+    }
+
     const handleRatesUpdate = (e: any) => {
       if (e.detail) setRates(e.detail);
     };
     const handleLandmarksUpdate = (e: any) => {
       if (e.detail) setLandmarks(e.detail);
     };
+    const handleCustomerAuth = (e: any) => {
+      setCurrentCustomer(e.detail);
+      if (e.detail) {
+        setSenderName(e.detail.full_name);
+        setSenderPhone(e.detail.phone);
+      }
+    };
 
     window.addEventListener('olak_fares_updated', handleRatesUpdate);
     window.addEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+    window.addEventListener('olak_customer_auth_changed', handleCustomerAuth);
     return () => {
       window.removeEventListener('olak_fares_updated', handleRatesUpdate);
       window.removeEventListener('olak_landmarks_updated', handleLandmarksUpdate);
+      window.removeEventListener('olak_customer_auth_changed', handleCustomerAuth);
     };
   }, []);
 
@@ -85,10 +106,9 @@ export const DeliveryWidget = () => {
   const rawFare = baseRate + (realTimeDistanceKm * perKmRate) + weightSurcharge;
   const estimatedFare = Math.max(deliveryRate.minimum_fare, Math.round(rawFare / 10) * 10);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!senderName || !senderPhone || !receiverPhone) {
-      alert(isUrdu ? 'برائے مہربانی بھیجنے اور وصول کرنے والے کی تفصیلات مکمل کریں۔' : 'Please fill sender and receiver contact details.');
+  const executeDelivery = async (sName: string, sPhone: string) => {
+    if (!receiverPhone) {
+      alert(isUrdu ? 'برائے مہربانی وصول کنندہ کا موبائل نمبر درج کریں۔' : 'Please enter receiver mobile number.');
       return;
     }
 
@@ -96,8 +116,8 @@ export const DeliveryWidget = () => {
     try {
       const booking = await createBooking({
         service_type: 'delivery',
-        customer_name: senderName,
-        customer_phone: senderPhone,
+        customer_name: sName,
+        customer_phone: sPhone,
         pickup_location: pickup,
         dropoff_location: dropoff,
         delivery_parcel_type: parcelType,
@@ -128,6 +148,28 @@ export const DeliveryWidget = () => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check if customer is already logged in
+    const activeCustomer = getCurrentCustomer() || currentCustomer;
+    if (!activeCustomer) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    await executeDelivery(activeCustomer.full_name || senderName, activeCustomer.phone || senderPhone);
+  };
+
+  const handleAuthSuccess = async (customer: Customer) => {
+    setCurrentCustomer(customer);
+    setSenderName(customer.full_name);
+    setSenderPhone(customer.phone);
+    setShowAuthModal(false);
+
+    await executeDelivery(customer.full_name, customer.phone);
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
       {confirmedBooking ? (
@@ -154,6 +196,10 @@ export const DeliveryWidget = () => {
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'پارسل کی قسم' : 'Parcel Type'}:</span>
               <span className="font-bold text-slate-900">{confirmedBooking.delivery_parcel_type}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'بھیجنے والا' : 'Sender'}:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
             </div>
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'روٹ فاصلہ' : 'Route Distance'}:</span>
@@ -332,39 +378,48 @@ export const DeliveryWidget = () => {
             </div>
           </div>
 
-          {/* Contact Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <User className="w-3 h-3 text-slate-400" />
-                <span>{t.sender_name}</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Aslam Baloch"
-                value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
+          {/* Contact Details (Sender info auto-filled if logged in) */}
+          {currentCustomer ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-900">Sender: {currentCustomer.full_name} ({currentCustomer.phone})</span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">Verified</span>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                  <User className="w-3 h-3 text-slate-400" />
+                  <span>{t.sender_name}</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Aslam Baloch"
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-slate-400" />
-                <span>Sender Mobile</span>
-              </label>
-              <input
-                type="tel"
-                required
-                placeholder="0334 1234567"
-                value={senderPhone}
-                onChange={(e) => setSenderPhone(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-slate-400" />
+                  <span>Sender Mobile</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="0334 1234567"
+                  value={senderPhone}
+                  onChange={(e) => setSenderPhone(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
+          {/* Receiver Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
@@ -445,6 +500,19 @@ export const DeliveryWidget = () => {
           </button>
         </form>
       )}
+
+      {/* Customer Auth Modal for Parcel Delivery */}
+      <CustomerAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+        serviceTitle="OLAK Parcel Delivery"
+        estimatedFare={estimatedFare}
+        pickupLocation={pickup}
+        dropoffLocation={dropoff}
+        defaultTab="register"
+      />
+
     </div>
   );
 };

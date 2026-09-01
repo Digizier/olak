@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/lib/LanguageContext';
 import { INITIAL_INTERCITY_ROUTES } from '@/lib/constants';
-import { createBooking, getIntercityRoutes } from '@/lib/db';
-import { Booking, IntercityRoute } from '@/lib/types';
+import { createBooking, getIntercityRoutes, getCurrentCustomer } from '@/lib/db';
+import { Booking, IntercityRoute, Customer } from '@/lib/types';
+import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { 
   Compass, 
   MapPin, 
@@ -18,7 +19,8 @@ import {
   User, 
   Phone,
   Package,
-  Route
+  Route,
+  UserCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -28,6 +30,8 @@ export const IntercityWidget = () => {
   const [routes, setRoutes] = useState<IntercityRoute[]>(INITIAL_INTERCITY_ROUTES);
   const [selectedRouteId, setSelectedRouteId] = useState<string>(INITIAL_INTERCITY_ROUTES[0].id);
   const [vehicleClass, setVehicleClass] = useState<'economy' | 'comfort' | 'cargo'>('economy');
+  const [currentCustomer, setCurrentCustomer] = useState<Customer | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -45,13 +49,32 @@ export const IntercityWidget = () => {
       }
     });
 
+    const cur = getCurrentCustomer();
+    if (cur) {
+      setCurrentCustomer(cur);
+      setCustomerName(cur.full_name);
+      setCustomerPhone(cur.phone);
+    }
+
     const handleUpdate = (e: any) => {
       if (e.detail && e.detail.length > 0) {
         setRoutes(e.detail);
       }
     };
+    const handleCustomerAuth = (e: any) => {
+      setCurrentCustomer(e.detail);
+      if (e.detail) {
+        setCustomerName(e.detail.full_name);
+        setCustomerPhone(e.detail.phone);
+      }
+    };
+
     window.addEventListener('olak_intercity_updated', handleUpdate);
-    return () => window.removeEventListener('olak_intercity_updated', handleUpdate);
+    window.addEventListener('olak_customer_auth_changed', handleCustomerAuth);
+    return () => {
+      window.removeEventListener('olak_intercity_updated', handleUpdate);
+      window.removeEventListener('olak_customer_auth_changed', handleCustomerAuth);
+    };
   }, []);
 
   const currentRoute = routes.find(r => r.id === selectedRouteId) || routes[0] || INITIAL_INTERCITY_ROUTES[0];
@@ -63,11 +86,9 @@ export const IntercityWidget = () => {
 
   let estimatedFare = 0;
   if (isPerKm) {
-    // Per-KM Model configured by Admin
     const multiplier = vehicleClass === 'economy' ? 1.0 : vehicleClass === 'comfort' ? 1.4 : 0.25;
     estimatedFare = Math.round((distanceKm * perKmRate * multiplier) / 50) * 50;
   } else {
-    // Fixed Model configured by Admin
     if (vehicleClass === 'economy') {
       estimatedFare = currentRoute.car_economy_fare;
     } else if (vehicleClass === 'comfort') {
@@ -77,19 +98,13 @@ export const IntercityWidget = () => {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName || !customerPhone) {
-      alert(isUrdu ? 'برائے مہربانی نام اور موبائل نمبر درج کریں۔' : 'Please enter your Name and Mobile Number.');
-      return;
-    }
-
+  const executeIntercityBooking = async (name: string, phone: string) => {
     setIsSubmitting(true);
     try {
       const booking = await createBooking({
         service_type: 'intercity',
-        customer_name: customerName,
-        customer_phone: customerPhone,
+        customer_name: name,
+        customer_phone: phone,
         pickup_location: `${currentRoute.origin_city} (Intercity Terminal)`,
         dropoff_location: `${currentRoute.destination_city} (City Center)`,
         intercity_origin: currentRoute.origin_city,
@@ -120,6 +135,28 @@ export const IntercityWidget = () => {
     }
   };
 
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Check if customer is already logged in
+    const activeCustomer = getCurrentCustomer() || currentCustomer;
+    if (!activeCustomer) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    await executeIntercityBooking(activeCustomer.full_name || customerName, activeCustomer.phone || customerPhone);
+  };
+
+  const handleAuthSuccess = async (customer: Customer) => {
+    setCurrentCustomer(customer);
+    setCustomerName(customer.full_name);
+    setCustomerPhone(customer.phone);
+    setShowAuthModal(false);
+
+    await executeIntercityBooking(customer.full_name, customer.phone);
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
       {confirmedBooking ? (
@@ -146,6 +183,10 @@ export const IntercityWidget = () => {
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'روٹ' : 'Route'}:</span>
               <span className="font-bold text-slate-900">{confirmedBooking.intercity_origin} ➔ {confirmedBooking.intercity_destination}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'مسافر' : 'Passenger'}:</span>
+              <span className="font-bold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
             </div>
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'فاصلہ و وقت' : 'Distance & Duration'}:</span>
@@ -274,38 +315,46 @@ export const IntercityWidget = () => {
             </div>
           </div>
 
-          {/* Passenger Contact Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <User className="w-3 h-3 text-slate-400" />
-                <span>{t.name_label}</span>
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="e.g. Aslam Baloch"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
+          {/* Passenger Contact Details (Pre-filled or verified if logged in) */}
+          {currentCustomer ? (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <UserCheck className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-bold text-slate-900">Passenger: {currentCustomer.full_name} ({currentCustomer.phone})</span>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200">Verified</span>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                  <User className="w-3 h-3 text-slate-400" />
+                  <span>{t.name_label}</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Aslam Baloch"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
-                <Phone className="w-3 h-3 text-slate-400" />
-                <span>{t.phone_label}</span>
-              </label>
-              <input
-                type="tel"
-                required
-                placeholder="0334 1234567"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-              />
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1">
+                  <Phone className="w-3 h-3 text-slate-400" />
+                  <span>{t.phone_label}</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="0334 1234567"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -371,6 +420,19 @@ export const IntercityWidget = () => {
           </button>
         </form>
       )}
+
+      {/* Customer Auth Modal for Intercity */}
+      <CustomerAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={handleAuthSuccess}
+        serviceTitle="OLAK Intercity Highway Travel"
+        estimatedFare={estimatedFare}
+        pickupLocation={currentRoute.origin_city}
+        dropoffLocation={currentRoute.destination_city}
+        defaultTab="register"
+      />
+
     </div>
   );
 };
