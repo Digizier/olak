@@ -967,6 +967,15 @@ export const deleteBooking = async (id: string): Promise<void> => {
 // ==========================================
 // 9. STORAGE & FILE UPLOADS
 // ==========================================
+export const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
+
 export const uploadFileToStorage = async (file: File, folder = 'documents'): Promise<string> => {
   try {
     const fileExt = file.name.split('.').pop();
@@ -977,8 +986,8 @@ export const uploadFileToStorage = async (file: File, folder = 'documents'): Pro
       .upload(fileName, file, { cacheControl: '3600', upsert: false });
 
     if (error) {
-      console.warn('Supabase storage upload fallback to local ObjectURL:', error.message);
-      return URL.createObjectURL(file);
+      console.warn('Supabase storage upload fallback to base64:', error.message);
+      return await fileToBase64(file);
     }
 
     const { data: publicData } = supabase.storage
@@ -987,7 +996,11 @@ export const uploadFileToStorage = async (file: File, folder = 'documents'): Pro
 
     return publicData.publicUrl;
   } catch (err) {
-    console.warn('Storage upload error, using local fallback:', err);
-    return URL.createObjectURL(file);
+    console.warn('Storage upload error, using base64 fallback:', err);
+    try {
+      return await fileToBase64(file);
+    } catch {
+      return URL.createObjectURL(file);
+    }
   }
 };

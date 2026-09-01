@@ -30,7 +30,9 @@ import {
   saveCityLandmark,
   deleteCityLandmark,
   calculateRealtimeDistance,
-  calculateTripFare
+  calculateTripFare,
+  fileToBase64,
+  uploadFileToStorage
 } from '@/lib/db';
 import { 
   SiteSettings, 
@@ -54,6 +56,7 @@ import {
   TURBAT_LANDMARKS
 } from '@/lib/constants';
 import { PrintableReceipt } from '@/components/PrintableReceipt';
+import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   Lock, 
   ShieldCheck, 
@@ -91,7 +94,9 @@ import {
   CheckCircle,
   Sliders,
   Tag,
-  Receipt
+  Receipt,
+  UploadCloud,
+  Check
 } from 'lucide-react';
 
 interface DeleteModalState {
@@ -178,11 +183,96 @@ export default function AdminPage() {
   const [editingPromo, setEditingPromo] = useState<Partial<PromotionBanner>>({
     title: '',
     subtitle: '',
-    image_url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80',
+    image_url: '',
     link_url: '/#fares',
     badge: 'Special Deal',
     is_active: true,
   });
+
+  // UI Toast State (Replaces native browser alerts)
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success', title?: string) => {
+    setToast({ message, type, title });
+  };
+
+  // Google Maps URL Auto-Extractor for Landmarks
+  const [mapsUrlInput, setMapsUrlInput] = useState('');
+  const [detectedMapsInfo, setDetectedMapsInfo] = useState<{ lat: number; lng: number; placeName?: string } | null>(null);
+
+  const parseGoogleMapsUrl = (input: string) => {
+    const text = input.trim();
+    if (!text) return null;
+
+    let lat: number | null = null;
+    let lng: number | null = null;
+    let placeName: string | null = null;
+
+    // 1. Extract place name from /place/PLACE_NAME/
+    const placeMatch = text.match(/\/place\/([^/@?]+)/i);
+    if (placeMatch && placeMatch[1]) {
+      try {
+        placeName = decodeURIComponent(placeMatch[1].replace(/\+/g, ' ')).trim();
+      } catch {
+        placeName = placeMatch[1].replace(/\+/g, ' ').trim();
+      }
+    }
+
+    // 2. Exact place coordinates in data parameter: !3dLAT!4dLNG
+    const pinpointMatch = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (pinpointMatch) {
+      lat = parseFloat(pinpointMatch[1]);
+      lng = parseFloat(pinpointMatch[2]);
+    }
+
+    // 3. Center map coordinates: @LAT,LNG
+    if (lat === null || isNaN(lat)) {
+      const atMatch = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (atMatch) {
+        lat = parseFloat(atMatch[1]);
+        lng = parseFloat(atMatch[2]);
+      }
+    }
+
+    // 4. Query coordinates: ?q=LAT,LNG or ll=LAT,LNG
+    if (lat === null || isNaN(lat)) {
+      const queryMatch = text.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (queryMatch) {
+        lat = parseFloat(queryMatch[1]);
+        lng = parseFloat(queryMatch[2]);
+      }
+    }
+
+    // 5. Raw comma-separated coordinates: LAT, LNG
+    if (lat === null || isNaN(lat)) {
+      const rawMatch = text.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+      if (rawMatch) {
+        lat = parseFloat(rawMatch[1]);
+        lng = parseFloat(rawMatch[2]);
+      }
+    }
+
+    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+      return { lat, lng, placeName: placeName || undefined };
+    }
+    return null;
+  };
+
+  const handleMapsUrlChange = (value: string) => {
+    setMapsUrlInput(value);
+    const parsed = parseGoogleMapsUrl(value);
+    if (parsed) {
+      setDetectedMapsInfo(parsed);
+      setEditingLandmark(prev => ({
+        ...prev,
+        lat: parsed.lat,
+        lng: parsed.lng,
+        name: prev.name && prev.name.trim() !== '' ? prev.name : (parsed.placeName || prev.name),
+      }));
+      showToast(`Detected: Lat ${parsed.lat.toFixed(4)}, Lng ${parsed.lng.toFixed(4)}`, 'success', 'Google Maps Auto-Detected');
+    } else {
+      setDetectedMapsInfo(null);
+    }
+  };
 
   // Load All Data
   const loadData = async () => {
@@ -282,7 +372,7 @@ export default function AdminPage() {
     await savePricingRate(rate);
     setIsSaving(false);
     await loadData();
-    alert(`Saved ${rate.service_name} rates!`);
+    showToast(`Saved ${rate.service_name} rates successfully!`, 'success', 'Pricing Updated');
   };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
@@ -290,7 +380,7 @@ export default function AdminPage() {
     setIsSaving(true);
     await saveSiteSettings(settings);
     setIsSaving(false);
-    alert('Settings saved successfully!');
+    showToast('Platform settings and commission rates updated successfully!', 'success', 'System Settings Saved');
   };
 
   const handlePrint = (bk: Booking) => {
@@ -318,7 +408,7 @@ export default function AdminPage() {
   const handleRecordSettlementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCaptainForSettle || settleAmount <= 0) {
-      alert('Please specify a valid payment amount.');
+      showToast('Please specify a valid payment amount.', 'error', 'Invalid Amount');
       return;
     }
 
@@ -333,14 +423,14 @@ export default function AdminPage() {
     setIsSaving(false);
     setSettleModalOpen(false);
     await loadData();
-    alert(`Cash payment of PKR ${settleAmount} recorded for ${selectedCaptainForSettle.full_name}!`);
+    showToast(`Cash payment of PKR ${settleAmount} recorded for Captain ${selectedCaptainForSettle.full_name}!`, 'success', 'Payment Recorded');
   };
 
   // Intercity Route Handlers
   const handleSaveRouteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingRoute.origin_city || !editingRoute.destination_city) {
-      alert('Please provide Origin and Destination cities.');
+      showToast('Please provide Origin and Destination cities.', 'error', 'Missing Information');
       return;
     }
     setIsSaving(true);
@@ -348,14 +438,14 @@ export default function AdminPage() {
     setIsSaving(false);
     setRouteModalOpen(false);
     await loadData();
-    alert('Intercity route saved successfully!');
+    showToast(`Highway route ${editingRoute.origin_city} ➔ ${editingRoute.destination_city} saved successfully!`, 'success', 'Route Configured');
   };
 
   // Promotion Handlers
   const handleSavePromoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPromo.title || !editingPromo.image_url) {
-      alert('Please provide a banner title and image URL.');
+      showToast('Please provide a banner title and upload an image.', 'error', 'Image Required');
       return;
     }
     setIsSaving(true);
@@ -363,14 +453,14 @@ export default function AdminPage() {
     setIsSaving(false);
     setPromoModalOpen(false);
     await loadData();
-    alert('Promotion banner saved successfully!');
+    showToast('Promotional banner saved and published successfully!', 'success', 'Promotion Saved');
   };
 
   // City Landmark Handlers
   const handleSaveLandmarkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLandmark.name) {
-      alert('Please provide a landmark name.');
+      showToast('Please provide a landmark name.', 'error', 'Name Required');
       return;
     }
     setIsSaving(true);
@@ -378,7 +468,7 @@ export default function AdminPage() {
     setIsSaving(false);
     setLandmarkModalOpen(false);
     await loadData();
-    alert('City landmark saved successfully!');
+    showToast(`City location "${editingLandmark.name}" saved with GPS coordinates!`, 'success', 'Landmark Added');
   };
 
   // Prompt and Execute Deletions
@@ -417,8 +507,10 @@ export default function AdminPage() {
         await deleteCityLandmark(deleteModal.id);
       }
       await loadData();
+      showToast(`${deleteModal.title} removed successfully.`, 'info', 'Deleted');
     } catch (err) {
       console.error('Delete failed:', err);
+      showToast('Failed to delete item.', 'error');
     } finally {
       setIsDeleting(false);
       setDeleteModal(null);
@@ -934,35 +1026,78 @@ export default function AdminPage() {
                       <span>Record Payment / Clear Cash</span>
                     </button>
 
-                    {/* Documents Preview Thumbnails */}
-                    <div className="flex gap-2 pt-2 border-t border-slate-200 text-[10px]">
-                      {cap.cnic_front_url && (
-                        <button
-                          onClick={() => setPreviewDocUrl(cap.cnic_front_url!)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-200 flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3 text-emerald-600" />
-                          <span>CNIC</span>
-                        </button>
-                      )}
-                      {cap.license_url && (
-                        <button
-                          onClick={() => setPreviewDocUrl(cap.license_url!)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-200 flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3 text-emerald-600" />
-                          <span>License</span>
-                        </button>
-                      )}
-                      {cap.vehicle_photo_url && (
-                        <button
-                          onClick={() => setPreviewDocUrl(cap.vehicle_photo_url!)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-200 flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3 text-emerald-600" />
-                          <span>Vehicle</span>
-                        </button>
-                      )}
+                    {/* Documents Preview Thumbnails Gallery */}
+                    <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+                        Driver Documents & Verification Photos:
+                      </span>
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* CNIC Front */}
+                        <div className="space-y-1">
+                          {cap.cnic_front_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocUrl(cap.cnic_front_url!)}
+                              className="w-full h-16 rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition relative group cursor-pointer bg-slate-100 block"
+                              title="Click to view CNIC"
+                            >
+                              <img src={cap.cnic_front_url} alt="CNIC Front" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                <Eye className="w-3.5 h-3.5" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                              No CNIC
+                            </div>
+                          )}
+                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">CNIC Card</span>
+                        </div>
+
+                        {/* License */}
+                        <div className="space-y-1">
+                          {cap.license_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocUrl(cap.license_url!)}
+                              className="w-full h-16 rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition relative group cursor-pointer bg-slate-100 block"
+                              title="Click to view License"
+                            >
+                              <img src={cap.license_url} alt="License" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                <Eye className="w-3.5 h-3.5" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                              No License
+                            </div>
+                          )}
+                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">License</span>
+                        </div>
+
+                        {/* Vehicle Photo */}
+                        <div className="space-y-1">
+                          {cap.vehicle_photo_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocUrl(cap.vehicle_photo_url!)}
+                              className="w-full h-16 rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition relative group cursor-pointer bg-slate-100 block"
+                              title="Click to view Vehicle Photo"
+                            >
+                              <img src={cap.vehicle_photo_url} alt="Vehicle" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                <Eye className="w-3.5 h-3.5" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                              No Photo
+                            </div>
+                          )}
+                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">Vehicle</span>
+                        </div>
+                      </div>
                     </div>
 
                     {/* Approve / Reject Actions */}
@@ -1408,6 +1543,8 @@ export default function AdminPage() {
                       lng: 63.0544,
                       is_active: true
                     });
+                    setMapsUrlInput('');
+                    setDetectedMapsInfo(null);
                     setLandmarkModalOpen(true);
                   }}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto"
@@ -2027,16 +2164,85 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Direct Banner Image File Uploader (Manual URL Removed) */}
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Image URL</label>
-                <input
-                  type="url"
-                  required
-                  placeholder="https://..."
-                  value={editingPromo.image_url}
-                  onChange={(e) => setEditingPromo({ ...editingPromo, image_url: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px]"
-                />
+                <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Banner Image (Upload File)</span>
+                  {editingPromo.image_url && (
+                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Image Attached
+                    </span>
+                  )}
+                </label>
+
+                {editingPromo.image_url ? (
+                  <div className="space-y-2">
+                    <div className="relative h-36 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 group">
+                      <img
+                        src={editingPromo.image_url}
+                        alt="Banner Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                        <label className="bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-xl shadow cursor-pointer">
+                          Change Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const base64 = await fileToBase64(file);
+                                  setEditingPromo(prev => ({ ...prev, image_url: base64 }));
+                                  showToast('Banner image updated successfully!', 'success', 'Image Uploaded');
+                                } catch (err) {
+                                  showToast('Failed to read image file.', 'error');
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setEditingPromo(prev => ({ ...prev, image_url: '' }))}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-slate-900 block">Click to upload banner image</span>
+                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (No URL needed)</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const base64 = await fileToBase64(file);
+                            setEditingPromo(prev => ({ ...prev, image_url: base64 }));
+                            showToast('Banner image loaded successfully!', 'success', 'Image Ready');
+                          } catch (err) {
+                            showToast('Failed to read image file.', 'error');
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -2111,6 +2317,49 @@ export default function AdminPage() {
             </div>
 
             <form onSubmit={handleSaveLandmarkSubmit} className="space-y-3 text-xs">
+              
+              {/* Google Maps Link / Coordinates Auto-Detector */}
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-2xl p-3 space-y-2">
+                <label className="block font-bold text-emerald-900 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Paste Google Maps Link (Auto-detect Lat/Lng & Place Name)</span>
+                  </span>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    Smart Parser
+                  </span>
+                </label>
+                
+                <input
+                  type="text"
+                  placeholder="Paste Google Maps URL (e.g. https://www.google.com/maps/place/... or coordinates)"
+                  value={mapsUrlInput}
+                  onChange={(e) => handleMapsUrlChange(e.target.value)}
+                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                />
+
+                {detectedMapsInfo && (
+                  <div className="bg-white border border-emerald-200 rounded-xl p-2 text-[11px] text-emerald-800 flex items-center justify-between shadow-xs">
+                    <span className="flex items-center gap-1.5 truncate mr-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                      <span className="truncate">
+                        Auto-detected: <strong>{detectedMapsInfo.lat.toFixed(5)}, {detectedMapsInfo.lng.toFixed(5)}</strong>
+                        {detectedMapsInfo.placeName && ` • "${detectedMapsInfo.placeName}"`}
+                      </span>
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps?q=${detectedMapsInfo.lat},${detectedMapsInfo.lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-emerald-700 hover:underline font-bold flex items-center gap-0.5 text-[10px] flex-shrink-0"
+                    >
+                      <span>Preview</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Landmark / Place Name (English)</label>
                 <input
@@ -2275,6 +2524,9 @@ export default function AdminPage() {
           settings={settings}
         />
       )}
+
+      {/* Modern UI Toast Notifications (No localhost browser alert popups) */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
     </div>
   );

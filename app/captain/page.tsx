@@ -16,9 +16,11 @@ import {
   updateBookingStatus, 
   toggleCaptainOnline,
   uploadFileToStorage,
-  getCaptainFinancialSummary
+  getCaptainFinancialSummary,
+  getSiteSettings
 } from '@/lib/db';
-import { Captain, Booking, ServiceType } from '@/lib/types';
+import { Captain, Booking, ServiceType, SiteSettings } from '@/lib/types';
+import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   UserPlus, 
   Bike, 
@@ -53,6 +55,8 @@ export default function CaptainHubPage() {
   
   // Current Session
   const [currentCaptain, setCurrentCaptain] = useState<Captain | null>(null);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [financialSummary, setFinancialSummary] = useState<{
     totalTrips: number;
     grossFares: number;
@@ -62,24 +66,24 @@ export default function CaptainHubPage() {
     totalSettled: number;
     netBalanceDue: number;
     isCleared: boolean;
+    recentSettlements: any[];
   } | null>(null);
-  
-  // Registration Form State
+
+  // Form State
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [cnic, setCnic] = useState('');
   const [city, setCity] = useState('Turbat');
   const [serviceType, setServiceType] = useState<ServiceType>('bike');
-  const [vehicleName, setVehicleName] = useState('Honda CD-70');
-  const [modelYear, setModelYear] = useState('2022');
+  const [vehicleName, setVehicleName] = useState('');
   const [numberPlate, setNumberPlate] = useState('');
+  const [modelYear, setModelYear] = useState('');
   
-  // File Uploads
+  // Verification Document Files
   const [cnicFile, setCnicFile] = useState<File | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredCaptain, setRegisteredCaptain] = useState<Captain | null>(null);
 
@@ -91,6 +95,8 @@ export default function CaptainHubPage() {
   const [liveBookings, setLiveBookings] = useState<Booking[]>([]);
 
   const loadData = async () => {
+    const s = await getSiteSettings();
+    setSiteSettings(s);
     const bks = await getBookings();
     setLiveBookings(bks);
     const caps = await getCaptains();
@@ -119,23 +125,33 @@ export default function CaptainHubPage() {
         setFinancialSummary(fin);
       }
     };
+    const handleSettings = (e: any) => {
+      if (e.detail) setSiteSettings(e.detail);
+    };
+
     window.addEventListener('olak_captain_auth_changed', handleAuth);
     window.addEventListener('olak_bookings_updated', loadData);
     window.addEventListener('olak_captains_updated', loadData);
     window.addEventListener('olak_settlements_updated', loadData);
+    window.addEventListener('olak_settings_updated', handleSettings);
 
     return () => {
       window.removeEventListener('olak_captain_auth_changed', handleAuth);
       window.removeEventListener('olak_bookings_updated', loadData);
       window.removeEventListener('olak_captains_updated', loadData);
       window.removeEventListener('olak_settlements_updated', loadData);
+      window.removeEventListener('olak_settings_updated', handleSettings);
     };
   }, []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName || !phone || !cnic || !numberPlate) {
-      alert(isUrdu ? 'تمام ضروری فیلڈز مکمل کریں۔' : 'Please fill all required fields.');
+      setToast({
+        type: 'error',
+        title: 'Incomplete Details',
+        message: isUrdu ? 'تمام ضروری فیلڈز مکمل کریں۔' : 'Please fill all required fields.'
+      });
       return;
     }
 
@@ -167,6 +183,11 @@ export default function CaptainHubPage() {
       setRegisteredCaptain(captain);
       setCurrentCaptain(captain);
       setIsSubmitting(false);
+      setToast({
+        type: 'success',
+        title: 'Captain Registered!',
+        message: isUrdu ? 'آپ کی رجسٹریشن کامیابی سے مکمل ہو گئی ہے۔' : 'Your captain profile has been created successfully!'
+      });
 
       try {
         confetti({
@@ -179,7 +200,11 @@ export default function CaptainHubPage() {
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
-      alert('Registration failed. Please try again.');
+      setToast({
+        type: 'error',
+        title: 'Registration Error',
+        message: 'Registration failed. Please try again.'
+      });
     }
   };
 
@@ -193,9 +218,13 @@ export default function CaptainHubPage() {
       const fin = await getCaptainFinancialSummary(logged.id);
       setFinancialSummary(fin);
       setActiveTab('workplace');
-      setLoginError('');
+      setToast({
+        type: 'success',
+        title: 'Welcome Back',
+        message: `Logged in as Captain ${logged.full_name}`
+      });
     } else {
-      setLoginError(isUrdu ? 'یہ موبائل نمبر رجسٹرڈ نہیں ہے۔ برائے مہربانی پہلے رجسٹر ہوں۔' : 'Phone number not found. Please register first.');
+      setLoginError(isUrdu ? 'کوئی منظور شدہ کیپٹن نہیں ملا۔' : 'No captain account found. Please register.');
     }
   };
 
@@ -203,7 +232,11 @@ export default function CaptainHubPage() {
     logoutCaptain();
     setCurrentCaptain(null);
     setFinancialSummary(null);
-    setActiveTab('login');
+    setToast({
+      type: 'info',
+      title: 'Logged Out',
+      message: 'You have logged out of Captain Hub.'
+    });
   };
 
   const handleToggleOnline = async () => {
@@ -216,21 +249,33 @@ export default function CaptainHubPage() {
     if (!currentCaptain) return;
     await updateBookingStatus(bookingId, 'assigned', currentCaptain.id);
     await loadData();
+    setToast({
+      type: 'success',
+      title: 'Ride Accepted',
+      message: 'You have accepted the passenger request!'
+    });
   };
 
   const handleStatusProgress = async (bookingId: string, nextStatus: any) => {
     await updateBookingStatus(bookingId, nextStatus);
     await loadData();
+    setToast({
+      type: 'info',
+      title: 'Status Updated',
+      message: `Trip status updated to ${nextStatus}`
+    });
   };
 
-  // Driver Analytics Calculations
+  // Driver Analytics Calculations - DYNAMIC FROM ADMIN SETTINGS
   const captainTrips = liveBookings.filter(b => b.assigned_captain_id === currentCaptain?.id);
   const completedTrips = captainTrips.filter(b => b.booking_status === 'completed');
   const activeAssignedTrip = captainTrips.find(b => b.booking_status !== 'completed' && b.booking_status !== 'cancelled');
 
   const grossEarnings = completedTrips.reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
-  const platformFee = Math.round(grossEarnings * 0.10);
+  const commissionRate = siteSettings?.commission_percentage ?? 10;
+  const platformFee = Math.round(grossEarnings * (commissionRate / 100));
   const netEarnings = grossEarnings - platformFee;
+  const captainSharePercent = 100 - commissionRate;
 
   const availablePendingBookings = liveBookings.filter(b => b.booking_status === 'pending');
 
@@ -403,16 +448,16 @@ export default function CaptainHubPage() {
                         <span className="text-xs font-bold text-emerald-600">PKR</span>
                         <span className="text-xl sm:text-2xl font-black text-emerald-700">{netEarnings}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">90% of Total Fares</span>
+                      <span className="text-[10px] text-slate-500">{captainSharePercent}% of Total Fares</span>
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">10% Platform Fee</span>
+                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">{commissionRate}% Platform Fee</span>
                       <div className="flex items-baseline gap-1 mt-1">
                         <span className="text-xs text-amber-600 font-bold">PKR</span>
                         <span className="text-xl sm:text-2xl font-black text-amber-700">{platformFee}</span>
                       </div>
-                      <span className="text-[10px] text-slate-500">Commission for OLAK</span>
+                      <span className="text-[10px] text-slate-500">Commission for OLAK ({commissionRate}%)</span>
                     </div>
 
                     <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
@@ -888,6 +933,9 @@ export default function CaptainHubPage() {
 
         </div>
       </main>
+
+      {/* Modern UI Toast Notifications (No native browser alerts) */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
       <Footer />
     </div>
