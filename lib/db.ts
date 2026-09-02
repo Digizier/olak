@@ -1113,19 +1113,27 @@ export const updateCaptainProfile = async (id: string, updates: Partial<Captain>
 
 export const updateCaptainStatus = async (id: string, status: CaptainStatus): Promise<void> => {
   const captains = await getCaptains();
-  const updated = captains.map(c => c.id === id ? { ...c, status } : c);
+  const target = captains.find(c => c.id === id);
+  const updated = captains.map(c => c.id === id ? { ...c, status, is_online: status === 'approved' ? c.is_online : false } : c);
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(updated));
     const current = getCurrentCaptain();
-    if (current && current.id === id) {
-      setCurrentCaptain({ ...current, status });
+    if (current && (
+      current.id === id || 
+      (target && (current.phone === target.phone || current.vehicle_number_plate === target.vehicle_number_plate))
+    )) {
+      const updatedCur = { ...current, status, is_online: status === 'approved' ? current.is_online : false };
+      setCurrentCaptain(updatedCur);
     }
     dispatchCustomEvent('olak_captains_updated', updated);
   }
 
   try {
-    const { error } = await supabase.from('captains').update({ status }).eq('id', id);
+    const { error } = await supabase.from('captains').update({ 
+      status,
+      is_online: status === 'approved' ? undefined : false
+    }).eq('id', id);
     if (error) console.warn('Supabase captain status update warning:', error.message);
   } catch (err) {
     console.error('Remote DB captain status update error:', err);

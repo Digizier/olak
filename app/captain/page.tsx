@@ -51,7 +51,9 @@ import {
   CreditCard,
   Edit3,
   Camera,
-  X
+  X,
+  Ban,
+  RefreshCw
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -167,6 +169,21 @@ export default function CaptainHubPage() {
     }
   };
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await loadData();
+    setTimeout(() => {
+      setIsRefreshing(false);
+      setToast({
+        type: 'success',
+        title: isUrdu ? 'معلومات تازہ ہو گئیں' : 'Data Refreshed',
+        message: isUrdu ? 'دستیاب سواریاں، بکنگز اور بیلنس اپڈیٹ ہو گئے۔' : 'Live rides, bookings, and clearance balance updated.'
+      });
+    }, 500);
+  };
+
   const loadData = async () => {
     const s = await getSiteSettings();
     setSiteSettings(s);
@@ -175,13 +192,19 @@ export default function CaptainHubPage() {
     const caps = await getCaptains();
     const cur = getCurrentCaptain();
     if (cur) {
-      const refreshed = caps.find(c => c.id === cur.id);
+      const refreshed = caps.find(c => 
+        c.id === cur.id || 
+        (c.phone && cur.phone && c.phone.replace(/\D/g, '') === cur.phone.replace(/\D/g, '')) ||
+        (c.vehicle_number_plate && cur.vehicle_number_plate && c.vehicle_number_plate.toUpperCase() === cur.vehicle_number_plate.toUpperCase())
+      );
       if (refreshed) {
         setCurrentCaptain(refreshed);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('olak_current_captain', JSON.stringify(refreshed));
+        }
         const fin = await getCaptainFinancialSummary(refreshed.id);
         setFinancialSummary(fin);
       } else {
-        // KEEP cur session even if remote fetch is pending
         setCurrentCaptain(cur);
         const fin = await getCaptainFinancialSummary(cur.id);
         setFinancialSummary(fin);
@@ -329,12 +352,52 @@ export default function CaptainHubPage() {
 
   const handleToggleOnline = async () => {
     if (!currentCaptain) return;
+    if (currentCaptain.status === 'rejected') {
+      setToast({
+        type: 'error',
+        title: isUrdu ? 'اکاؤنٹ مسترد ہے' : 'Account Rejected',
+        message: isUrdu 
+          ? 'آپ کا اکاؤنٹ ایڈمن کی جانب سے مسترد کیا گیا ہے۔ آپ آن لائن نہیں جا سکتے۔' 
+          : 'Your captain account has been rejected by administration. You cannot go online.'
+      });
+      return;
+    }
+    if (currentCaptain.status !== 'approved') {
+      setToast({
+        type: 'error',
+        title: isUrdu ? 'منظوری زیر التواء ہے' : 'Approval Pending',
+        message: isUrdu ? 'آپ کا اکاؤنٹ ابھی تک منظور نہیں ہوا۔' : 'Your account is pending admin approval.'
+      });
+      return;
+    }
     await toggleCaptainOnline(currentCaptain.id, !currentCaptain.is_online);
-    setCurrentCaptain({ ...currentCaptain, is_online: !currentCaptain.is_online });
+    const updated = { ...currentCaptain, is_online: !currentCaptain.is_online };
+    setCurrentCaptain(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('olak_current_captain', JSON.stringify(updated));
+    }
   };
 
   const handleAcceptRide = async (bookingId: string) => {
     if (!currentCaptain) return;
+    if (currentCaptain.status === 'rejected') {
+      setToast({
+        type: 'error',
+        title: isUrdu ? 'اکاؤنٹ مسترد ہے' : 'Account Rejected',
+        message: isUrdu 
+          ? 'آپ کا اکاؤنٹ ایڈمن نے مسترد کیا ہے۔ آپ سواری قبول نہیں کر سکتے۔' 
+          : 'Your captain account has been rejected by admin. You cannot accept rides.'
+      });
+      return;
+    }
+    if (currentCaptain.status !== 'approved') {
+      setToast({
+        type: 'error',
+        title: isUrdu ? 'منظوری درکار ہے' : 'Approval Required',
+        message: isUrdu ? 'صرف منظور شدہ کیپٹن سواری قبول کر سکتے ہیں۔' : 'Only approved captains can accept rides.'
+      });
+      return;
+    }
     await updateBookingStatus(bookingId, 'assigned', currentCaptain.id);
     await loadData();
     setToast({
@@ -459,6 +522,52 @@ export default function CaptainHubPage() {
                     </button>
                   </div>
                 </div>
+              ) : currentCaptain.status === 'rejected' ? (
+                /* REJECTED / SUSPENDED CAPTAIN BANNER */
+                <div className="bg-white border-2 border-red-300 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-lg animate-fadeIn">
+                  <div className="w-16 h-16 bg-red-100 text-red-700 rounded-full flex items-center justify-center mx-auto border border-red-200">
+                    <Ban className="w-8 h-8" />
+                  </div>
+                  <span className="text-xs font-black uppercase tracking-wider text-red-800 bg-red-50 px-3.5 py-1 rounded-full border border-red-200">
+                    {isUrdu ? 'درخواست مسترد شدہ / معطل' : 'Application Status: Rejected / Blocked'}
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+                    {isUrdu ? `محترم کیپٹن ${currentCaptain.full_name}، آپ کی درخواست مسترد کی گئی ہے` : `Captain ${currentCaptain.full_name}, Application Rejected`}
+                  </h3>
+                  <p className="text-xs sm:text-sm text-red-700 max-w-xl mx-auto leading-relaxed font-semibold">
+                    {isUrdu 
+                      ? 'آپ کی ڈرائیور رجسٹریشن یا دستاویزات اولاک تربت ایڈمنسٹریشن کی جانب سے مسترد کی گئی ہیں۔ آپ سواریاں قبول نہیں کر سکتے اور نہ ہی آن لائن جا سکتے ہیں۔ معلومات کی درستگی کے لیے نیچے دیے گئے بٹن سے دوبارہ دستاویزات جمع کریں یا دفتر سے رابطہ کریں۔' 
+                      : 'Your driver registration or documents have been rejected by the OLAK Turbat administration desk. You are not authorized to accept passenger rides or go online. You can edit and update your vehicle documents below to re-submit for review.'}
+                  </p>
+                  
+                  <div className="bg-red-50/60 p-4 rounded-2xl border border-red-200 max-w-md mx-auto text-xs text-left space-y-1.5 text-slate-800">
+                    <p>Vehicle: <strong>{currentCaptain.vehicle_name} ({currentCaptain.vehicle_number_plate})</strong></p>
+                    <p>Phone: <strong>{currentCaptain.phone}</strong></p>
+                    <p>Account Status: <span className="font-bold text-red-700 uppercase">Rejected by Admin</span></p>
+                    <p>Turbat Head Office: <strong>Near City Thana, Thana Road, Turbat (+92 335 0455599)</strong></p>
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(currentCaptain)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-6 py-3 rounded-2xl shadow-sm cursor-pointer transition transform active:scale-95"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span>{isUrdu ? 'دستاویزات درست کر کے دوبارہ بھیجیں' : 'Edit Application & Re-Submit Documents'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleManualRefresh}
+                      disabled={isRefreshing}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-5 py-3 rounded-2xl cursor-pointer transition"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshing ? (isUrdu ? 'تازہ کاری ہو رہی ہے...' : 'Checking...') : (isUrdu ? 'اسٹیٹس چیک کریں (Refresh)' : 'Check Status (Refresh)')}</span>
+                    </button>
+                  </div>
+                </div>
               ) : currentCaptain.status === 'pending' ? (
                 /* Pending Admin Approval Banner */
                 <div className="bg-white border border-amber-300 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
@@ -491,6 +600,16 @@ export default function CaptainHubPage() {
                       <Edit3 className="w-4 h-4" />
                       <span>{isUrdu ? 'درخواست میں ترمیم کریں' : 'Edit Application Details'}</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={handleManualRefresh}
+                      disabled={isRefreshing}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-5 py-3 rounded-2xl cursor-pointer transition"
+                    >
+                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshing ? (isUrdu ? 'تازہ کاری ہو رہی ہے...' : 'Checking...') : (isUrdu ? 'اسٹیٹس چیک کریں (Refresh)' : 'Check Status (Refresh)')}</span>
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -518,6 +637,17 @@ export default function CaptainHubPage() {
                     </div>
 
                     <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        title="Refresh Workplace"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        <span>{isRefreshing ? '...' : (isUrdu ? 'تازہ کریں' : 'Refresh')}</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => openEditModal(currentCaptain)}
@@ -672,14 +802,26 @@ export default function CaptainHubPage() {
 
                   {/* AVAILABLE PENDING RIDES QUEUE */}
                   <div className="space-y-3 sm:space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
                         <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
                         <span>{isUrdu ? 'تربت میں دستیاب سواریاں و پارسل' : 'Live Available Bookings in Turbat'}</span>
                       </h3>
-                      <span className="text-xs text-slate-500">
-                        {availablePendingBookings.length} Requests Available
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleManualRefresh}
+                          disabled={isRefreshing}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-2xs transition cursor-pointer transform active:scale-95 disabled:opacity-50"
+                          title="Refresh Available Bookings"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          <span>{isRefreshing ? (isUrdu ? 'تازہ کاری...' : 'Refreshing...') : (isUrdu ? 'تازہ کریں (Refresh)' : 'Refresh Rides')}</span>
+                        </button>
+                        <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                          {availablePendingBookings.length} Requests
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
