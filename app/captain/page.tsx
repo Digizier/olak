@@ -12,6 +12,8 @@ import {
   loginCaptain, 
   logoutCaptain, 
   getCurrentCaptain, 
+  updateCaptainProfile,
+  fileToBase64,
   getBookings, 
   updateBookingStatus, 
   toggleCaptainOnline,
@@ -19,6 +21,7 @@ import {
   getCaptainFinancialSummary,
   getSiteSettings
 } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { Captain, Booking, ServiceType, SiteSettings } from '@/lib/types';
 import { Toast, ToastMessage } from '@/components/Toast';
 import { 
@@ -45,7 +48,10 @@ import {
   MessageCircle, 
   LogOut, 
   User, 
-  CreditCard
+  CreditCard,
+  Edit3,
+  Camera,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -95,6 +101,72 @@ export default function CaptainHubPage() {
   // Live Workplace & Trips State
   const [liveBookings, setLiveBookings] = useState<Booking[]>([]);
 
+  // Edit Captain Profile / Application State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingData, setEditingData] = useState<Partial<Captain>>({});
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editDriverPhotoFile, setEditDriverPhotoFile] = useState<File | null>(null);
+  const [editCnicFile, setEditCnicFile] = useState<File | null>(null);
+  const [editLicenseFile, setEditLicenseFile] = useState<File | null>(null);
+  const [editVehicleFile, setEditVehicleFile] = useState<File | null>(null);
+
+  const openEditModal = (cap: Captain) => {
+    setEditingData({ ...cap });
+    setEditDriverPhotoFile(null);
+    setEditCnicFile(null);
+    setEditLicenseFile(null);
+    setEditVehicleFile(null);
+    setEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentCaptain || !editingData.full_name || !editingData.phone) {
+      setToast({ 
+        type: 'error', 
+        title: 'Missing Fields', 
+        message: isUrdu ? 'نام اور موبائل نمبر درج کریں۔' : 'Full Name and Phone Number are required.' 
+      });
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      let driverPhoto = editingData.profile_photo_url || '';
+      let cnicPhoto = editingData.cnic_front_url || '';
+      let licensePhoto = editingData.license_url || '';
+      let vehiclePhoto = editingData.vehicle_photo_url || '';
+
+      if (editDriverPhotoFile) driverPhoto = await fileToBase64(editDriverPhotoFile);
+      if (editCnicFile) cnicPhoto = await fileToBase64(editCnicFile);
+      if (editLicenseFile) licensePhoto = await fileToBase64(editLicenseFile);
+      if (editVehicleFile) vehiclePhoto = await fileToBase64(editVehicleFile);
+
+      const updated = await updateCaptainProfile(currentCaptain.id, {
+        ...editingData,
+        profile_photo_url: driverPhoto,
+        cnic_front_url: cnicPhoto,
+        license_url: licensePhoto,
+        vehicle_photo_url: vehiclePhoto,
+      });
+
+      if (updated) {
+        setCurrentCaptain(updated);
+        setToast({
+          type: 'success',
+          title: isUrdu ? 'پروفائل اپڈیٹ ہو گئی' : 'Profile Updated',
+          message: isUrdu ? 'آپ کی معلومات کامیابی سے محفوظ کر لی گئی ہیں۔' : 'Your details have been updated successfully!'
+        });
+        setEditModalOpen(false);
+      }
+    } catch (err) {
+      console.error('Update profile error:', err);
+      setToast({ type: 'error', title: 'Update Error', message: 'Failed to update profile.' });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const loadData = async () => {
     const s = await getSiteSettings();
     setSiteSettings(s);
@@ -108,12 +180,12 @@ export default function CaptainHubPage() {
         setCurrentCaptain(refreshed);
         const fin = await getCaptainFinancialSummary(refreshed.id);
         setFinancialSummary(fin);
+      } else {
+        // KEEP cur session even if remote fetch is pending
+        setCurrentCaptain(cur);
+        const fin = await getCaptainFinancialSummary(cur.id);
+        setFinancialSummary(fin);
       }
-    } else if (caps.length > 0) {
-      const approved = caps.find(c => c.status === 'approved') || caps[0];
-      setCurrentCaptain(approved);
-      const fin = await getCaptainFinancialSummary(approved.id);
-      setFinancialSummary(fin);
     }
   };
 
@@ -136,12 +208,24 @@ export default function CaptainHubPage() {
     window.addEventListener('olak_settlements_updated', loadData);
     window.addEventListener('olak_settings_updated', handleSettings);
 
+    // Supabase 0ms Real-Time Listener
+    const channel = supabase
+      .channel('captain-portal-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => {
+        loadData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        loadData();
+      })
+      .subscribe();
+
     return () => {
       window.removeEventListener('olak_captain_auth_changed', handleAuth);
       window.removeEventListener('olak_bookings_updated', loadData);
       window.removeEventListener('olak_captains_updated', loadData);
       window.removeEventListener('olak_settlements_updated', loadData);
       window.removeEventListener('olak_settings_updated', handleSettings);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -397,6 +481,17 @@ export default function CaptainHubPage() {
                     <p>Phone: <strong>{currentCaptain.phone}</strong></p>
                     <p>Head Office: <strong>Near City Thana, Turbat</strong></p>
                   </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditModal(currentCaptain)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-6 py-3 rounded-2xl shadow-sm cursor-pointer transition transform active:scale-95"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span>{isUrdu ? 'درخواست میں ترمیم کریں' : 'Edit Application Details'}</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 /* APPROVED CAPTAIN LIVE DASHBOARD */
@@ -422,17 +517,29 @@ export default function CaptainHubPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={handleToggleOnline}
-                      className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer ${
-                        currentCaptain.is_online
-                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
-                          : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                      }`}
-                    >
-                      <Power className="w-4 h-4" />
-                      <span>{currentCaptain.is_online ? 'ONLINE (Accepting Rides)' : 'OFFLINE (Tap to Go Online)'}</span>
-                    </button>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(currentCaptain)}
+                        className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        title="Edit Profile"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{isUrdu ? 'پروفائل میں ترمیم' : 'Edit Profile'}</span>
+                      </button>
+
+                      <button
+                        onClick={handleToggleOnline}
+                        className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer ${
+                          currentCaptain.is_online
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
+                            : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                        }`}
+                      >
+                        <Power className="w-4 h-4" />
+                        <span>{currentCaptain.is_online ? 'ONLINE (Accepting Rides)' : 'OFFLINE (Tap to Go Online)'}</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* REAL-TIME DRIVER FINANCIAL ANALYTICS & CASH CLEARANCE STRIP */}
@@ -955,6 +1062,267 @@ export default function CaptainHubPage() {
 
       {/* Modern UI Toast Notifications (No native browser alerts) */}
       <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {/* EDIT CAPTAIN APPLICATION / PROFILE MODAL */}
+      {editModalOpen && currentCaptain && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 max-w-2xl w-full space-y-5 shadow-2xl relative my-auto animate-scaleIn max-h-[92vh] overflow-y-auto">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-emerald-600" />
+                  <span>{isUrdu ? 'کیپٹن معلومات میں ترمیم کریں' : 'Edit Captain Profile & Application'}</span>
+                </h3>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  {isUrdu ? 'اپنی ذاتی معلومات، گاڑی کی تفصیلات یا دستاویزات تبدیل کریں۔' : 'Update your personal details, vehicle specs, or document photos.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-full transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              
+              {/* Personal Info Grid */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">1. Personal Information</h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingData.full_name || ''}
+                      onChange={(e) => setEditingData({ ...editingData, full_name: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">CNIC Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingData.cnic_number || ''}
+                      onChange={(e) => setEditingData({ ...editingData, cnic_number: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Phone Number *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingData.phone || ''}
+                      onChange={(e) => setEditingData({ ...editingData, phone: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">WhatsApp Number</label>
+                    <input
+                      type="text"
+                      value={editingData.whatsapp_number || ''}
+                      onChange={(e) => setEditingData({ ...editingData, whatsapp_number: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">City / Base Location</label>
+                    <input
+                      type="text"
+                      value={editingData.city || 'Turbat'}
+                      onChange={(e) => setEditingData({ ...editingData, city: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle Specs Grid */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">2. Vehicle Specifications</h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Service Category</label>
+                    <select
+                      value={editingData.service_type || 'bike'}
+                      onChange={(e) => setEditingData({ ...editingData, service_type: e.target.value as any })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                    >
+                      <option value="bike">Bike / موٹرسائیکل</option>
+                      <option value="rickshaw">Rickshaw / رکشہ</option>
+                      <option value="car">Car Ride / گاڑی</option>
+                      <option value="delivery">Parcel Delivery / ڈلیوری</option>
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block font-bold text-slate-700 mb-1">Vehicle Make & Model *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Honda 125 or Suzuki Bolan"
+                      value={editingData.vehicle_name || ''}
+                      onChange={(e) => setEditingData({ ...editingData, vehicle_name: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">Model Year</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 2023"
+                      value={editingData.vehicle_model_year || ''}
+                      onChange={(e) => setEditingData({ ...editingData, vehicle_model_year: e.target.value })}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Vehicle Number Plate *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. TRB-1234"
+                    value={editingData.vehicle_number_plate || ''}
+                    onChange={(e) => setEditingData({ ...editingData, vehicle_number_plate: e.target.value.toUpperCase() })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono font-black uppercase tracking-wider"
+                  />
+                </div>
+              </div>
+
+              {/* Photos & Documents Grid */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <h4 className="font-black text-slate-800 text-xs uppercase tracking-wider">3. Photos & Documents (Optional to change)</h4>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                  {/* Driver Photo */}
+                  <div className="border border-slate-200 bg-white rounded-xl p-2.5 text-center space-y-2 flex flex-col justify-between">
+                    <span className="font-bold text-slate-800 block text-[10px]">Driver Photo</span>
+                    <div className="h-20 w-full rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-200">
+                      {editDriverPhotoFile ? (
+                        <span className="text-[10px] text-emerald-700 font-bold">New file chosen</span>
+                      ) : editingData.profile_photo_url ? (
+                        <img src={editingData.profile_photo_url} alt="Driver" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-lg cursor-pointer block text-[10px]">
+                      Change
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setEditDriverPhotoFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+
+                  {/* CNIC Photo */}
+                  <div className="border border-slate-200 bg-white rounded-xl p-2.5 text-center space-y-2 flex flex-col justify-between">
+                    <span className="font-bold text-slate-800 block text-[10px]">CNIC Document</span>
+                    <div className="h-20 w-full rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-200">
+                      {editCnicFile ? (
+                        <span className="text-[10px] text-emerald-700 font-bold">New file chosen</span>
+                      ) : editingData.cnic_front_url ? (
+                        <img src={editingData.cnic_front_url} alt="CNIC" className="w-full h-full object-cover" />
+                      ) : (
+                        <CreditCard className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-lg cursor-pointer block text-[10px]">
+                      Change
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setEditCnicFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+
+                  {/* License Photo */}
+                  <div className="border border-slate-200 bg-white rounded-xl p-2.5 text-center space-y-2 flex flex-col justify-between">
+                    <span className="font-bold text-slate-800 block text-[10px]">Driving License</span>
+                    <div className="h-20 w-full rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-200">
+                      {editLicenseFile ? (
+                        <span className="text-[10px] text-emerald-700 font-bold">New file chosen</span>
+                      ) : editingData.license_url ? (
+                        <img src={editingData.license_url} alt="License" className="w-full h-full object-cover" />
+                      ) : (
+                        <ShieldCheck className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-lg cursor-pointer block text-[10px]">
+                      Change
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setEditLicenseFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+
+                  {/* Vehicle Photo */}
+                  <div className="border border-slate-200 bg-white rounded-xl p-2.5 text-center space-y-2 flex flex-col justify-between">
+                    <span className="font-bold text-slate-800 block text-[10px]">Vehicle Photo</span>
+                    <div className="h-20 w-full rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-200">
+                      {editVehicleFile ? (
+                        <span className="text-[10px] text-emerald-700 font-bold">New file chosen</span>
+                      ) : editingData.vehicle_photo_url ? (
+                        <img src={editingData.vehicle_photo_url} alt="Vehicle" className="w-full h-full object-cover" />
+                      ) : (
+                        <Car className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <label className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded-lg cursor-pointer block text-[10px]">
+                      Change
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setEditVehicleFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Form Action Buttons */}
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setEditModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl shadow-md cursor-pointer transition"
+                >
+                  {isSavingEdit ? 'Saving...' : (isUrdu ? 'تبدیلیاں محفوظ کریں' : 'Save Changes')}
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </div>

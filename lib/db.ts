@@ -882,33 +882,88 @@ export const deleteDriverPromoCard = async (id: string): Promise<void> => {
 // ==========================================
 // 6. CAPTAINS MODULE
 // ==========================================
+export const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch {}
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
+const serializeCaptainForSupabase = (captain: Partial<Captain>) => {
+  const { profile_photo_url, ...rest } = captain as any;
+  return {
+    ...rest,
+    // Store profile_photo_url in cnic_back_url column in Supabase captains table
+    cnic_back_url: profile_photo_url || captain.cnic_back_url || null,
+  };
+};
+
+const deserializeCaptainFromSupabase = (row: any): Captain => {
+  return {
+    ...row,
+    profile_photo_url: row.profile_photo_url || row.cnic_back_url || '',
+  };
+};
+
 export const getCaptains = async (): Promise<Captain[]> => {
   if (typeof window === 'undefined') return [];
 
+  let localCaptains: Captain[] = [];
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.CAPTAINS);
-    const localCaptains: Captain[] = cached ? JSON.parse(cached) : [];
+    if (cached) localCaptains = JSON.parse(cached);
+  } catch {}
 
+  try {
     const { data, error } = await supabase
       .from('captains')
-      .select('id, full_name, phone, whatsapp_number, cnic_number, city, service_type, vehicle_name, vehicle_model_year, vehicle_number_plate, cnic_front_url, cnic_back_url, license_url, vehicle_photo_url, status, is_online, total_trips_completed, total_earnings, rating, created_at')
+      .select('*')
       .order('created_at', { ascending: false });
 
-    if (data && !error) {
-      localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(data));
-      return data as Captain[];
-    }
+    if (!error && data) {
+      const remoteCaptains: Captain[] = data.map(deserializeCaptainFromSupabase);
 
-    return localCaptains;
+      const map = new Map<string, Captain>();
+      remoteCaptains.forEach(c => map.set(c.id, c));
+
+      // Auto-merge local captains so they never disappear on refresh
+      localCaptains.forEach(loc => {
+        if (!map.has(loc.id)) {
+          map.set(loc.id, loc);
+          try {
+            const row = serializeCaptainForSupabase(loc);
+            supabase.from('captains').insert(row).then(({ error: insErr }) => {
+              if (insErr) console.warn('Background captain sync warning:', insErr.message);
+            });
+          } catch {}
+        } else {
+          const rem = map.get(loc.id)!;
+          if (!rem.profile_photo_url && loc.profile_photo_url) {
+            rem.profile_photo_url = loc.profile_photo_url;
+          }
+        }
+      });
+
+      const merged = Array.from(map.values());
+      localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(merged));
+      return merged;
+    }
   } catch (err) {
-    console.warn('Error fetching captains:', err);
-    return [];
+    console.warn('Error fetching captains from Supabase:', err);
   }
+
+  return localCaptains;
 };
 
 export const createCaptain = async (captainData: Omit<Captain, 'id' | 'created_at' | 'status' | 'is_online' | 'total_trips_completed' | 'total_earnings' | 'rating'>): Promise<Captain> => {
   const newCaptain: Captain = {
-    id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cap-${Date.now()}`,
+    id: generateUUID(),
     ...captainData,
     status: 'pending',
     is_online: false,
@@ -919,7 +974,7 @@ export const createCaptain = async (captainData: Omit<Captain, 'id' | 'created_a
   };
 
   const existing = await getCaptains();
-  const updated = [newCaptain, ...existing];
+  const updated = [newCaptain, ...existing.filter(c => c.id !== newCaptain.id)];
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(updated));
@@ -928,12 +983,50 @@ export const createCaptain = async (captainData: Omit<Captain, 'id' | 'created_a
   }
 
   try {
-    await supabase.from('captains').insert(newCaptain);
+    const row = serializeCaptainForSupabase(newCaptain);
+    const { data, error } = await supabase.from('captains').insert(row).select();
+    if (error) {
+      console.warn('Supabase captain insert warning:', error.message);
+    } else if (data && data[0]) {
+      console.log('Captain inserted to Supabase successfully:', data[0].id);
+    }
   } catch (err) {
     console.error('Remote DB captain insert error:', err);
   }
 
   return newCaptain;
+};
+
+export const updateCaptainProfile = async (id: string, updates: Partial<Captain>): Promise<Captain | null> => {
+  const captains = await getCaptains();
+  const existing = captains.find(c => c.id === id);
+  if (!existing) return null;
+
+  const updatedCaptain: Captain = {
+    ...existing,
+    ...updates,
+  };
+
+  const updatedList = captains.map(c => c.id === id ? updatedCaptain : c);
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(updatedList));
+    const current = getCurrentCaptain();
+    if (current && current.id === id) {
+      setCurrentCaptain(updatedCaptain);
+    }
+    dispatchCustomEvent('olak_captains_updated', updatedList);
+  }
+
+  try {
+    const row = serializeCaptainForSupabase(updatedCaptain);
+    const { error } = await supabase.from('captains').update(row).eq('id', id);
+    if (error) console.warn('Supabase captain update warning:', error.message);
+  } catch (err) {
+    console.error('Remote DB captain profile update error:', err);
+  }
+
+  return updatedCaptain;
 };
 
 export const updateCaptainStatus = async (id: string, status: CaptainStatus): Promise<void> => {
@@ -942,11 +1035,16 @@ export const updateCaptainStatus = async (id: string, status: CaptainStatus): Pr
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CAPTAINS, JSON.stringify(updated));
+    const current = getCurrentCaptain();
+    if (current && current.id === id) {
+      setCurrentCaptain({ ...current, status });
+    }
     dispatchCustomEvent('olak_captains_updated', updated);
   }
 
   try {
-    await supabase.from('captains').update({ status }).eq('id', id);
+    const { error } = await supabase.from('captains').update({ status }).eq('id', id);
+    if (error) console.warn('Supabase captain status update warning:', error.message);
   } catch (err) {
     console.error('Remote DB captain status update error:', err);
   }

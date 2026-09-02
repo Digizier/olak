@@ -39,6 +39,7 @@ import {
   fileToBase64,
   uploadFileToStorage
 } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { 
   SiteSettings, 
   PricingRate, 
@@ -358,6 +359,21 @@ export default function AdminPage() {
     window.addEventListener('olak_settlements_updated', handleUpdate);
     window.addEventListener('olak_settings_updated', handleUpdate);
     window.addEventListener('olak_landmarks_updated', handleUpdate);
+
+    // 0ms Supabase Real-Time Broadcast
+    const channel = supabase
+      .channel('admin-portal-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => {
+        handleUpdate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        handleUpdate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_settlements' }, () => {
+        handleUpdate();
+      })
+      .subscribe();
+
     return () => {
       window.removeEventListener('olak_bookings_updated', handleUpdate);
       window.removeEventListener('olak_captains_updated', handleUpdate);
@@ -368,6 +384,7 @@ export default function AdminPage() {
       window.removeEventListener('olak_settlements_updated', handleUpdate);
       window.removeEventListener('olak_settings_updated', handleUpdate);
       window.removeEventListener('olak_landmarks_updated', handleUpdate);
+      supabase.removeChannel(channel);
     };
   }, []);
 
