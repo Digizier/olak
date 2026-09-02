@@ -226,3 +226,85 @@ export interface ActivityAlert {
     dropoff?: string;
   };
 }
+
+export interface ServiceMetric {
+  service: string;
+  label: string;
+  trips: number;
+  revenue: number;
+  percentage: number;
+}
+
+export interface CaptainLeaderboardItem {
+  id: string;
+  name: string;
+  phone: string;
+  vehicle: string;
+  plate: string;
+  trips: number;
+  grossRevenue: number;
+  commissionPaid: number;
+  netEarnings: number;
+  rating: number;
+}
+
+export interface CustomerLeaderboardItem {
+  id?: string;
+  name: string;
+  phone: string;
+  trips: number;
+  totalSpent: number;
+  avgFare: number;
+  lastTripDate: string;
+}
+
+export interface RoutePopularityItem {
+  route: string;
+  pickup: string;
+  dropoff: string;
+  count: number;
+  totalRevenue: number;
+}
+
+export interface AdvancedAnalyticsSummary {
+  dateRange: {
+    startDate: string;
+    endDate: string;
+    label: string;
+    daysCount: number;
+  };
+  financials: {
+    grossVolume: number;
+    platformCommission: number;
+    commissionRate: number;
+    driverEarnings: number;
+    clearedCash: number;
+    pendingClearance: number;
+    averageOrderValue: number;
+    cashPaymentsTotal: number;
+    onlinePaymentsTotal: number;
+  };
+  trips: {
+    total: number;
+    completed: number;
+    inProgress: number;
+    pending: number;
+    cancelled: number;
+    completionRate: number;
+    cancellationRate: number;
+    totalDistanceKm: number;
+    avgDistanceKm: number;
+  };
+  users: {
+    totalCustomers: number;
+    newCustomersInRange: number;
+    activeBookingCustomers: number;
+    totalCaptains: number;
+    newCaptainsInRange: number;
+    approvedCaptains: number;
+  };
+  services: ServiceMetric[];
+  topCaptains: CaptainLeaderboardItem[];
+  topCustomers: CustomerLeaderboardItem[];
+  popularRoutes: RoutePopularityItem[];
+}

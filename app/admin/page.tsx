@@ -38,7 +38,8 @@ import {
   calculateTripFare,
   fileToBase64,
   uploadFileToStorage,
-  getTodayActivityAlerts
+  getTodayActivityAlerts,
+  getDetailedAnalytics
 } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -47,7 +48,7 @@ import {
   IntercityRoute, 
   Captain, 
   Booking, 
-  Customer,
+  Customer, 
   BookingStatus, 
   CaptainStatus, 
   ServiceType, 
@@ -55,7 +56,8 @@ import {
   DriverSettlement,
   CityLandmark,
   DriverPromoCard,
-  ActivityAlert
+  ActivityAlert,
+  AdvancedAnalyticsSummary
 } from '@/lib/types';
 import { 
   INITIAL_SITE_SETTINGS, 
@@ -66,6 +68,7 @@ import {
   INITIAL_DRIVER_PROMOS
 } from '@/lib/constants';
 import { PrintableReceipt } from '@/components/PrintableReceipt';
+import { AnalyticsReportModal } from '@/components/AnalyticsReportModal';
 import { Toast, ToastMessage } from '@/components/Toast';
 import { 
   Lock, 
@@ -111,7 +114,14 @@ import {
   Ban, 
   Layers,
   Bell,
-  BellRing
+  BellRing,
+  Calendar,
+  BarChart3,
+  PieChart,
+  Award,
+  FileText,
+  ArrowUpRight,
+  Sparkles
 } from 'lucide-react';
 
 interface DeleteModalState {
@@ -228,6 +238,65 @@ export default function AdminPage() {
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success', title?: string) => {
     setToast({ message, type, title });
   };
+
+  // Advanced Analytics & Financials State
+  const getThirtyDaysAgo = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  };
+  const getTodayStr = () => new Date().toISOString().split('T')[0];
+
+  const [analyticsStartDate, setAnalyticsStartDate] = useState<string>(getThirtyDaysAgo);
+  const [analyticsEndDate, setAnalyticsEndDate] = useState<string>(getTodayStr);
+  const [analyticsPreset, setAnalyticsPreset] = useState<'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'all'>('30days');
+  const [isAnalyticsReportOpen, setIsAnalyticsReportOpen] = useState(false);
+
+  const applyAnalyticsPreset = (preset: 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'all') => {
+    setAnalyticsPreset(preset);
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    if (preset === 'today') {
+      setAnalyticsStartDate(todayStr);
+      setAnalyticsEndDate(todayStr);
+    } else if (preset === 'yesterday') {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      const yStr = y.toISOString().split('T')[0];
+      setAnalyticsStartDate(yStr);
+      setAnalyticsEndDate(yStr);
+    } else if (preset === '7days') {
+      const d7 = new Date();
+      d7.setDate(d7.getDate() - 7);
+      setAnalyticsStartDate(d7.toISOString().split('T')[0]);
+      setAnalyticsEndDate(todayStr);
+    } else if (preset === '30days') {
+      const d30 = new Date();
+      d30.setDate(d30.getDate() - 30);
+      setAnalyticsStartDate(d30.toISOString().split('T')[0]);
+      setAnalyticsEndDate(todayStr);
+    } else if (preset === 'this_month') {
+      const mStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      setAnalyticsStartDate(mStart.toISOString().split('T')[0]);
+      setAnalyticsEndDate(todayStr);
+    } else if (preset === 'all') {
+      setAnalyticsStartDate('2025-01-01');
+      setAnalyticsEndDate(todayStr);
+    }
+  };
+
+  const detailedAnalytics = React.useMemo(() => {
+    return getDetailedAnalytics(
+      bookings,
+      captains,
+      customers,
+      settlements,
+      settings.commission_percentage,
+      analyticsStartDate,
+      analyticsEndDate
+    );
+  }, [bookings, captains, customers, settlements, settings.commission_percentage, analyticsStartDate, analyticsEndDate]);
 
   // Google Maps URL Auto-Extractor for Landmarks
   const [mapsUrlInput, setMapsUrlInput] = useState('');
@@ -2588,62 +2657,428 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 8: ANALYTICS & REPORTS */}
+        {/* TAB 8: ADVANCED ANALYTICS & FINANCIAL AUDIT HUB */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-3 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">Trips by Service</span>
-                <div className="space-y-2 text-xs">
-                  {['bike', 'car', 'rickshaw', 'delivery', 'intercity'].map(s => {
-                    const count = bookings.filter(b => b.service_type === s).length;
-                    return (
-                      <div key={s} className="flex justify-between items-center text-slate-700">
-                        <span className="capitalize">{s}</span>
-                        <span className="font-bold text-slate-900">{count} ({bookings.length > 0 ? Math.round((count/bookings.length)*100) : 0}%)</span>
-                      </div>
-                    );
-                  })}
+
+            {/* Header & Date Range Selector Control Bar */}
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-emerald-600" />
+                      <span>Advanced Analytics & Financials Intelligence</span>
+                    </h3>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Live real-time operational auditing across all ride bookings, driver earnings, and revenue streams.
+                  </p>
                 </div>
+
+                {/* 1-Click Executive PDF Report Button */}
+                <button
+                  onClick={() => setIsAnalyticsReportOpen(true)}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 sm:px-5 py-2.5 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition cursor-pointer shrink-0"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Generate Executive PDF Report</span>
+                </button>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-3 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">Trip Status Distribution</span>
-                <div className="space-y-2 text-xs">
-                  {['completed', 'pending', 'assigned', 'in_progress', 'cancelled'].map(s => {
-                    const count = bookings.filter(b => b.booking_status === s).length;
-                    return (
-                      <div key={s} className="flex justify-between items-center text-slate-700">
-                        <span className="capitalize">{s.replace('_', ' ')}</span>
-                        <span className="font-bold text-slate-900">{count}</span>
-                      </div>
-                    );
-                  })}
+              {/* Date Range Selection Controls */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                
+                {/* Custom Date Pickers */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                    <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="font-bold">From:</span>
+                    <input
+                      type="date"
+                      value={analyticsStartDate}
+                      onChange={(e) => {
+                        setAnalyticsStartDate(e.target.value);
+                        setAnalyticsPreset('all');
+                      }}
+                      className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:border-emerald-500 focus:outline-none shadow-xs"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs text-slate-700">
+                    <span className="font-bold">To:</span>
+                    <input
+                      type="date"
+                      value={analyticsEndDate}
+                      onChange={(e) => {
+                        setAnalyticsEndDate(e.target.value);
+                        setAnalyticsPreset('all');
+                      }}
+                      className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-900 focus:border-emerald-500 focus:outline-none shadow-xs"
+                    />
+                  </div>
                 </div>
+
+                {/* Quick Date Presets */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Presets:</span>
+                  {[
+                    { key: 'today', label: 'Today' },
+                    { key: 'yesterday', label: 'Yesterday' },
+                    { key: '7days', label: 'Last 7 Days' },
+                    { key: '30days', label: 'Last 30 Days' },
+                    { key: 'this_month', label: 'This Month' },
+                    { key: 'all', label: 'All Time' },
+                  ].map((p) => (
+                    <button
+                      key={p.key}
+                      onClick={() => applyAnalyticsPreset(p.key as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                        analyticsPreset === p.key
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-3xl p-6 space-y-3 shadow-sm">
-                <span className="text-xs font-bold uppercase text-slate-500">Financial Summary</span>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Gross Booking Value:</span>
-                    <span className="font-bold text-slate-900">PKR {totalRevenue.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Platform Commission Rate:</span>
-                    <span className="font-bold text-emerald-700">{settings.commission_percentage}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Total Cleared by Drivers:</span>
-                    <span className="font-bold text-teal-700">PKR {totalSettledCash.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between pt-2 border-t border-slate-200 text-sm">
-                    <span className="font-bold text-emerald-700">Net Platform Profit:</span>
-                    <span className="font-black text-emerald-700">PKR {platformCommission.toLocaleString()}</span>
-                  </div>
-                </div>
+              {/* Active Period Summary Badge */}
+              <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>Audited Range: <strong className="text-slate-800">{detailedAnalytics.dateRange.label}</strong> ({detailedAnalytics.dateRange.daysCount} days)</span>
+                </span>
+                <span>
+                  Showing <strong>{detailedAnalytics.trips.total}</strong> total operations recorded
+                </span>
               </div>
+
             </div>
+
+            {/* 6 Executive KPI Metric Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              
+              {/* 1. Gross Volume */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Gross Ride Volume (GMV)</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <DollarSign className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-slate-950">
+                  PKR {detailedAnalytics.financials.grossVolume.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>Average Fare / Trip:</span>
+                  <strong className="text-slate-800">PKR {detailedAnalytics.financials.averageOrderValue}</strong>
+                </div>
+              </div>
+
+              {/* 2. Platform Commission */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Platform Profit / Fee</span>
+                  <div className="w-8 h-8 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-700">
+                  PKR {detailedAnalytics.financials.platformCommission.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>Commission Rate:</span>
+                  <span className="bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-md text-[11px]">
+                    {detailedAnalytics.financials.commissionRate}% platform share
+                  </span>
+                </div>
+              </div>
+
+              {/* 3. Driver Earnings */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Driver Take-Home Pay</span>
+                  <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-blue-900">
+                  PKR {detailedAnalytics.financials.driverEarnings.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>Distributed to:</span>
+                  <strong className="text-slate-800">{captains.length} registered captains</strong>
+                </div>
+              </div>
+
+              {/* 4. Cash Clearance */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Settled vs Pending Cash</span>
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-purple-950">
+                  PKR {detailedAnalytics.financials.clearedCash.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>Pending Driver Balance:</span>
+                  <strong className="text-red-600">PKR {detailedAnalytics.financials.pendingClearance.toLocaleString()}</strong>
+                </div>
+              </div>
+
+              {/* 5. Trip Volume & Conversion */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Trip Conversion Success</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-emerald-800">
+                  {detailedAnalytics.trips.completionRate}%
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>Completed Trips:</span>
+                  <strong className="text-slate-800">{detailedAnalytics.trips.completed} of {detailedAnalytics.trips.total}</strong>
+                </div>
+              </div>
+
+              {/* 6. Active Customers & Signups */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase text-slate-500">Active Riders & Growth</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Users className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="text-2xl font-black text-slate-900">
+                  {detailedAnalytics.users.activeBookingCustomers}
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
+                  <span>New Signups in Range:</span>
+                  <strong className="text-emerald-700">+{detailedAnalytics.users.newCustomersInRange} passengers</strong>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Service Category Performance & Funnel Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Service Category Performance Matrix */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <PieChart className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-sm font-black text-slate-900">Service Category Matrix</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">Revenue & Volume</span>
+                </div>
+
+                <div className="space-y-3">
+                  {detailedAnalytics.services.map((s) => (
+                    <div key={s.service} className="space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="font-bold text-slate-800">{s.label}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-500">{s.trips} trips ({s.percentage}%)</span>
+                          <strong className="text-slate-900">PKR {s.revenue.toLocaleString()}</strong>
+                        </div>
+                      </div>
+                      {/* Visual Progress Bar */}
+                      <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                          style={{ width: `${s.percentage}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Operations & Trip Funnel Status */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-teal-600" />
+                    <h4 className="text-sm font-black text-slate-900">Trip Funnel & Fleet Operations</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">Status Distribution</span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  {/* Completed */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-emerald-800">Completed Trips</span>
+                      <strong className="text-emerald-700">{detailedAnalytics.trips.completed} ({detailedAnalytics.trips.completionRate}%)</strong>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${detailedAnalytics.trips.completionRate}%` }}></div>
+                    </div>
+                  </div>
+
+                  {/* In Progress */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-blue-800">In Progress / Dispatched</span>
+                      <strong className="text-blue-700">{detailedAnalytics.trips.inProgress}</strong>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500 rounded-full" style={{ width: `${detailedAnalytics.trips.total > 0 ? (detailedAnalytics.trips.inProgress / detailedAnalytics.trips.total) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+
+                  {/* Pending */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-amber-800">Pending Assignment</span>
+                      <strong className="text-amber-700">{detailedAnalytics.trips.pending}</strong>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${detailedAnalytics.trips.total > 0 ? (detailedAnalytics.trips.pending / detailedAnalytics.trips.total) * 100 : 0}%` }}></div>
+                    </div>
+                  </div>
+
+                  {/* Cancelled */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-rose-800">Cancelled Trips</span>
+                      <strong className="text-rose-700">{detailedAnalytics.trips.cancelled} ({detailedAnalytics.trips.cancellationRate}%)</strong>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-rose-500 rounded-full" style={{ width: `${detailedAnalytics.trips.cancellationRate}%` }}></div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-600">
+                    <span>Total Estimated Distance:</span>
+                    <strong className="text-slate-900">~{detailedAnalytics.trips.totalDistanceKm} KM (Avg ~{detailedAnalytics.trips.avgDistanceKm} KM/ride)</strong>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Top Captains Leaderboard & Top Customers Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+              {/* Top Captains Leaderboard */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Award className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-sm font-black text-slate-900">Top Captains Leaderboard</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">By Completed Trips</span>
+                </div>
+
+                {detailedAnalytics.topCaptains.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400">
+                    No completed trips recorded in this date range.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 text-xs">
+                    {detailedAnalytics.topCaptains.slice(0, 5).map((cap, idx) => (
+                      <div key={cap.id || idx} className="py-2.5 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] ${
+                            idx === 0 ? 'bg-amber-400 text-slate-950 font-bold' : idx === 1 ? 'bg-slate-300 text-slate-900' : idx === 2 ? 'bg-amber-700 text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <span className="font-bold text-slate-900 block">{cap.name}</span>
+                            <span className="text-[11px] text-slate-500">{cap.vehicle} ({cap.plate})</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-black text-emerald-700 block">{cap.trips} trips</span>
+                          <span className="text-[11px] text-slate-500">Net: PKR {cap.netEarnings.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Top High-Value Customers */}
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-teal-600" />
+                    <h4 className="text-sm font-black text-slate-900">High-Value Passengers</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">By Total Spend</span>
+                </div>
+
+                {detailedAnalytics.topCustomers.length === 0 ? (
+                  <div className="text-center py-6 text-xs text-slate-400">
+                    No passenger activity recorded in this date range.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 text-xs">
+                    {detailedAnalytics.topCustomers.slice(0, 5).map((cust, idx) => (
+                      <div key={cust.phone || idx} className="py-2.5 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-slate-900 block">{cust.name}</span>
+                          <span className="text-[11px] text-slate-500">{cust.phone} • {cust.trips} bookings</span>
+                        </div>
+
+                        <div className="text-right">
+                          <strong className="text-slate-900 block">PKR {cust.totalSpent.toLocaleString()}</strong>
+                          <span className="text-[11px] text-slate-500">Avg PKR {cust.avgFare}/trip</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Popular Routes Demand Section */}
+            {detailedAnalytics.popularRoutes.length > 0 && (
+              <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Navigation className="w-4 h-4 text-emerald-600" />
+                    <h4 className="text-sm font-black text-slate-900">High-Demand Turbat Routes</h4>
+                  </div>
+                  <span className="text-xs text-slate-500">Most requested city journeys</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                  {detailedAnalytics.popularRoutes.slice(0, 6).map((r, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-1">
+                      <div className="flex items-center justify-between text-xs font-bold text-slate-900">
+                        <span className="truncate pr-2">{r.pickup}</span>
+                        <span className="text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-md shrink-0">
+                          {r.count} rides
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <span>➔</span>
+                        <span className="truncate">{r.dropoff}</span>
+                      </div>
+                      <div className="text-[10px] text-slate-400 pt-0.5">
+                        Generated PKR {r.totalRevenue.toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
@@ -3559,6 +3994,15 @@ export default function AdminPage() {
           captain={captains.find(c => c.id === selectedBookingForPrint.assigned_captain_id)}
           settings={settings}
           onClose={() => setSelectedBookingForPrint(null)}
+        />
+      )}
+
+      {/* Official Executive Analytics & Financial Audit Report Modal */}
+      {isAnalyticsReportOpen && (
+        <AnalyticsReportModal
+          analytics={detailedAnalytics}
+          settings={settings}
+          onClose={() => setIsAnalyticsReportOpen(false)}
         />
       )}
 

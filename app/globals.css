@@ -51,14 +51,17 @@ body {
     visibility: hidden !important;
   }
 
-  /* Expose only the invoice card and its contents */
+  /* Expose only the invoice or report card and its contents */
   #printable-receipt-card,
-  #printable-receipt-card * {
+  #printable-receipt-card *,
+  #analytics-report-card,
+  #analytics-report-card * {
     visibility: visible !important;
   }
 
-  /* Position invoice at the top-left of page 1 */
-  #printable-receipt-card {
+  /* Position invoice or report at the top-left of page 1 */
+  #printable-receipt-card,
+  #analytics-report-card {
     position: fixed !important;
     left: 0 !important;
     top: 0 !important;

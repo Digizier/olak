@@ -13,7 +13,8 @@ import {
   CityLandmark,
   ServiceType,
   DriverPromoCard,
-  ActivityAlert
+  ActivityAlert,
+  AdvancedAnalyticsSummary
 } from './types';
 import { 
   INITIAL_PRICING_RATES, 
@@ -1840,4 +1841,228 @@ export const getTodayActivityAlerts = (
   alerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   return alerts;
+};
+
+// ==========================================
+// 13. ADVANCED ANALYTICS & FINANCIAL AUDIT ENGINE
+// ==========================================
+export const getDetailedAnalytics = (
+  bookings: Booking[],
+  captains: Captain[],
+  customers: Customer[],
+  settlements: DriverSettlement[],
+  commissionPercentage: number,
+  startDateStr: string,
+  endDateStr: string
+): AdvancedAnalyticsSummary => {
+  const start = new Date(startDateStr);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(endDateStr);
+  end.setHours(23, 59, 59, 999);
+
+  const daysCount = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+  // 1. Filter Bookings in date range
+  const rangeBookings = bookings.filter(b => {
+    const d = new Date(b.created_at);
+    return d >= start && d <= end;
+  });
+
+  // 2. Filter Captains in range
+  const newCaptainsInRange = captains.filter(c => {
+    const d = new Date(c.created_at);
+    return d >= start && d <= end;
+  }).length;
+
+  // 3. Filter Customers in range
+  const newCustomersInRange = customers.filter(c => {
+    const d = new Date(c.created_at);
+    return d >= start && d <= end;
+  }).length;
+
+  // 4. Filter Settlements in range
+  const rangeSettlements = settlements.filter(s => {
+    const d = new Date(s.created_at);
+    return d >= start && d <= end;
+  });
+
+  // Financial calculations
+  const grossVolume = rangeBookings.reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
+  const platformCommission = Math.round(grossVolume * (commissionPercentage / 100));
+  const driverEarnings = Math.max(0, grossVolume - platformCommission);
+  const clearedCash = rangeSettlements.reduce((sum, s) => sum + Number(s.amount), 0);
+  const pendingClearance = Math.max(0, platformCommission - clearedCash);
+  const averageOrderValue = rangeBookings.length > 0 ? Math.round(grossVolume / rangeBookings.length) : 0;
+
+  const cashPaymentsTotal = rangeBookings
+    .filter(b => !b.payment_method || b.payment_method.toLowerCase() === 'cash')
+    .reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
+  const onlinePaymentsTotal = rangeBookings
+    .filter(b => b.payment_method && b.payment_method.toLowerCase() !== 'cash')
+    .reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
+
+  // Trips breakdown
+  const completed = rangeBookings.filter(b => b.booking_status === 'completed').length;
+  const inProgress = rangeBookings.filter(b => b.booking_status === 'in_progress' || b.booking_status === 'assigned' || b.booking_status === 'arrived').length;
+  const pending = rangeBookings.filter(b => b.booking_status === 'pending').length;
+  const cancelled = rangeBookings.filter(b => b.booking_status === 'cancelled').length;
+  const total = rangeBookings.length;
+
+  const completionRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const cancellationRate = total > 0 ? Math.round((cancelled / total) * 100) : 0;
+
+  const totalDistanceKm = Math.round(rangeBookings.reduce((sum, b) => sum + (b.estimated_distance_km || 0), 0) * 10) / 10;
+  const avgDistanceKm = total > 0 ? Math.round((totalDistanceKm / total) * 10) / 10 : 0;
+
+  // Services Breakdown
+  const serviceKeys: Array<{ key: string; label: string }> = [
+    { key: 'bike', label: 'OLAK Bike' },
+    { key: 'rickshaw', label: 'OLAK Rickshaw' },
+    { key: 'car', label: 'OLAK Car' },
+    { key: 'delivery', label: 'Parcel Delivery' },
+    { key: 'intercity', label: 'Intercity Travel' },
+  ];
+
+  const services = serviceKeys.map(s => {
+    const sBookings = rangeBookings.filter(b => b.service_type === s.key);
+    const rev = sBookings.reduce((sum, b) => sum + (b.final_fare || b.estimated_fare), 0);
+    return {
+      service: s.key,
+      label: s.label,
+      trips: sBookings.length,
+      revenue: rev,
+      percentage: total > 0 ? Math.round((sBookings.length / total) * 100) : 0,
+    };
+  });
+
+  // Top Captains Leaderboard
+  const captainMap = new Map<string, { trips: number; revenue: number }>();
+  for (const b of rangeBookings) {
+    if (b.assigned_captain_id && b.booking_status === 'completed') {
+      const existing = captainMap.get(b.assigned_captain_id) || { trips: 0, revenue: 0 };
+      existing.trips += 1;
+      existing.revenue += (b.final_fare || b.estimated_fare);
+      captainMap.set(b.assigned_captain_id, existing);
+    }
+  }
+
+  const topCaptains: any[] = [];
+  for (const [capId, stat] of captainMap.entries()) {
+    const cap = captains.find(c => c.id === capId);
+    if (cap) {
+      const comm = Math.round(stat.revenue * (commissionPercentage / 100));
+      topCaptains.push({
+        id: cap.id,
+        name: cap.full_name,
+        phone: cap.phone,
+        vehicle: cap.vehicle_name,
+        plate: cap.vehicle_number_plate,
+        trips: stat.trips,
+        grossRevenue: stat.revenue,
+        commissionPaid: comm,
+        netEarnings: stat.revenue - comm,
+        rating: cap.rating || 5.0,
+      });
+    }
+  }
+  topCaptains.sort((a, b) => b.trips - a.trips || b.grossRevenue - a.grossRevenue);
+
+  // Top Customers Leaderboard
+  const customerMap = new Map<string, { name: string; phone: string; trips: number; spent: number; lastDate: string }>();
+  for (const b of rangeBookings) {
+    const phone = b.customer_phone;
+    const existing = customerMap.get(phone) || { 
+      name: b.customer_name, 
+      phone, 
+      trips: 0, 
+      spent: 0, 
+      lastDate: b.created_at 
+    };
+    existing.trips += 1;
+    existing.spent += (b.final_fare || b.estimated_fare);
+    if (new Date(b.created_at) > new Date(existing.lastDate)) {
+      existing.lastDate = b.created_at;
+    }
+    customerMap.set(phone, existing);
+  }
+
+  const topCustomers = Array.from(customerMap.values()).map(c => ({
+    name: c.name,
+    phone: c.phone,
+    trips: c.trips,
+    totalSpent: c.spent,
+    avgFare: Math.round(c.spent / c.trips),
+    lastTripDate: new Date(c.lastDate).toLocaleDateString('en-GB'),
+  }));
+  topCustomers.sort((a, b) => b.totalSpent - a.totalSpent || b.trips - a.trips);
+
+  // Popular Routes
+  const routeMap = new Map<string, { pickup: string; dropoff: string; count: number; rev: number }>();
+  for (const b of rangeBookings) {
+    const key = `${b.pickup_location} ➔ ${b.dropoff_location}`;
+    const existing = routeMap.get(key) || {
+      pickup: b.pickup_location,
+      dropoff: b.dropoff_location,
+      count: 0,
+      rev: 0,
+    };
+    existing.count += 1;
+    existing.rev += (b.final_fare || b.estimated_fare);
+    routeMap.set(key, existing);
+  }
+
+  const popularRoutes = Array.from(routeMap.entries()).map(([route, r]) => ({
+    route,
+    pickup: r.pickup,
+    dropoff: r.dropoff,
+    count: r.count,
+    totalRevenue: r.rev,
+  }));
+  popularRoutes.sort((a, b) => b.count - a.count || b.totalRevenue - a.totalRevenue);
+
+  const activeBookingCustomers = customerMap.size;
+
+  return {
+    dateRange: {
+      startDate: startDateStr,
+      endDate: endDateStr,
+      label: `${new Date(startDateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} to ${new Date(endDateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`,
+      daysCount,
+    },
+    financials: {
+      grossVolume,
+      platformCommission,
+      commissionRate: commissionPercentage,
+      driverEarnings,
+      clearedCash,
+      pendingClearance,
+      averageOrderValue,
+      cashPaymentsTotal,
+      onlinePaymentsTotal,
+    },
+    trips: {
+      total,
+      completed,
+      inProgress,
+      pending,
+      cancelled,
+      completionRate,
+      cancellationRate,
+      totalDistanceKm,
+      avgDistanceKm,
+    },
+    users: {
+      totalCustomers: customers.length,
+      newCustomersInRange,
+      activeBookingCustomers,
+      totalCaptains: captains.length,
+      newCaptainsInRange,
+      approvedCaptains: captains.filter(c => c.status === 'approved').length,
+    },
+    services,
+    topCaptains: topCaptains.slice(0, 10),
+    topCustomers: topCustomers.slice(0, 10),
+    popularRoutes: popularRoutes.slice(0, 10),
+  };
 };
