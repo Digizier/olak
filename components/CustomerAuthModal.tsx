@@ -97,6 +97,14 @@ export const CustomerAuthModal: React.FC<CustomerAuthModalProps> = ({
     try {
       const customer = await loginCustomer(loginIdentifier.trim());
       if (customer) {
+        if (customer.status === 'suspended' || customer.is_blocked) {
+          setIsLoading(false);
+          setErrorMsg(isUrdu 
+            ? 'آپ کا اکاؤنٹ انتظامیہ کی جانب سے معطل کیا گیا ہے۔ معلومات کے لیے اولاک سپورٹ سے رابطہ کریں۔' 
+            : 'Your passenger account has been temporarily suspended by administration due to policy violations. Please contact OLAK support.'
+          );
+          return;
+        }
         setIsLoading(false);
         onSuccess(customer);
       } else {

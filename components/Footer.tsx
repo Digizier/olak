@@ -29,7 +29,7 @@ export const Footer = () => {
           {/* Col 1: Brand Info */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <OlakLogo size="lg" textColor="text-white" innerCircleColor="#0f172a" />
+              <OlakLogo size="lg" variant="light" />
             </div>
 
             <p className={`text-xs sm:text-sm text-slate-300 leading-relaxed ${isUrdu ? 'font-urdu' : ''}`}>

@@ -20,9 +20,13 @@ import {
   deleteBooking,
   getCustomers,
   deleteCustomer,
+  toggleCustomerStatus,
   getPromotions,
   savePromotion,
   deletePromotion,
+  getDriverPromoCards,
+  saveDriverPromoCard,
+  deleteDriverPromoCard,
   getDriverSettlements,
   recordDriverSettlement,
   deleteDriverSettlement,
@@ -47,14 +51,16 @@ import {
   ServiceType,
   PromotionBanner,
   DriverSettlement,
-  CityLandmark
+  CityLandmark,
+  DriverPromoCard
 } from '@/lib/types';
 import { 
   INITIAL_SITE_SETTINGS, 
   INITIAL_PRICING_RATES, 
   INITIAL_INTERCITY_ROUTES,
   INITIAL_PROMOTIONS,
-  TURBAT_LANDMARKS
+  TURBAT_LANDMARKS,
+  INITIAL_DRIVER_PROMOS
 } from '@/lib/constants';
 import { PrintableReceipt } from '@/components/PrintableReceipt';
 import { Toast, ToastMessage } from '@/components/Toast';
@@ -98,12 +104,14 @@ import {
   Receipt,
   UploadCloud,
   Check,
-  RotateCcw
+  RotateCcw,
+  Ban,
+  Layers
 } from 'lucide-react';
 
 interface DeleteModalState {
   isOpen: boolean;
-  type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement' | 'landmark';
+  type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'driver_promo' | 'settlement' | 'landmark';
   id: string;
   title: string;
   subtitle: string;
@@ -188,6 +196,21 @@ export default function AdminPage() {
     image_url: '',
     link_url: '/#fares',
     badge: 'Special Deal',
+    is_active: true,
+  });
+
+  // Home Driver Recruitment Promos State
+  const [driverPromos, setDriverPromos] = useState<DriverPromoCard[]>(INITIAL_DRIVER_PROMOS);
+  const [promoSubTab, setPromoSubTab] = useState<'carousel' | 'driver_cards'>('carousel');
+  const [driverPromoModalOpen, setDriverPromoModalOpen] = useState(false);
+  const [editingDriverPromo, setEditingDriverPromo] = useState<Partial<DriverPromoCard>>({
+    category_badge: 'Motorcycle 70cc / 125cc',
+    title: '',
+    title_urdu: '',
+    image_url: '',
+    bullets: ['', '', ''],
+    cta_text: 'Register Now',
+    cta_link: '/captain/',
     is_active: true,
   });
 
@@ -279,7 +302,7 @@ export default function AdminPage() {
   // Load All Data
   const loadData = async () => {
     try {
-      const [st, bk, cp, cust, pr, ir, prm, stl, lm] = await Promise.all([
+      const [st, bk, cp, cust, pr, ir, prm, stl, lm, dp] = await Promise.all([
         getSiteSettings(),
         getBookings(),
         getCaptains(),
@@ -289,6 +312,7 @@ export default function AdminPage() {
         getPromotions(),
         getDriverSettlements(),
         getCityLandmarks(),
+        getDriverPromoCards(),
       ]);
       setSettings(st);
       setBookings(bk);
@@ -306,6 +330,11 @@ export default function AdminPage() {
         setLandmarks(lm);
       } else {
         setLandmarks(TURBAT_LANDMARKS);
+      }
+      if (dp && dp.length > 0) {
+        setDriverPromos(dp);
+      } else {
+        setDriverPromos(INITIAL_DRIVER_PROMOS);
       }
     } catch (err) {
       console.error('Admin data load error:', err);
@@ -386,9 +415,17 @@ export default function AdminPage() {
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    await saveSiteSettings(settings);
-    setIsSaving(false);
-    showToast('Platform settings and commission rates updated successfully!', 'success', 'System Settings Saved');
+    try {
+      const saved = await saveSiteSettings(settings);
+      setSettings(saved);
+      await loadData();
+      showToast('Platform settings and identity updated successfully!', 'success', 'System Settings Saved');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save settings.', 'error', 'Error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePrint = (bk: Booking) => {
@@ -409,14 +446,15 @@ export default function AdminPage() {
     const due = Math.max(0, comm - paid);
     
     setSettleAmount(due);
-    setSettleNotes(`Cleared cash commission for ${captainBookings.length} completed trips`);
+    setSettleMethod('cash');
+    setSettleNotes('');
     setSettleModalOpen(true);
   };
 
   const handleRecordSettlementSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCaptainForSettle || settleAmount <= 0) {
-      showToast('Please specify a valid payment amount.', 'error', 'Invalid Amount');
+      showToast('Please enter a valid payment amount.', 'error', 'Invalid Amount');
       return;
     }
 
@@ -424,14 +462,14 @@ export default function AdminPage() {
     await recordDriverSettlement({
       captain_id: selectedCaptainForSettle.id,
       captain_name: selectedCaptainForSettle.full_name,
-      amount: settleAmount,
+      amount: Number(settleAmount),
       payment_method: settleMethod,
       notes: settleNotes,
     });
     setIsSaving(false);
     setSettleModalOpen(false);
     await loadData();
-    showToast(`Cash payment of PKR ${settleAmount} recorded for Captain ${selectedCaptainForSettle.full_name}!`, 'success', 'Payment Recorded');
+    showToast(`Cleared PKR ${Number(settleAmount).toLocaleString()} for ${selectedCaptainForSettle.full_name}!`, 'success', 'Payment Recorded');
   };
 
   // Intercity Route Handlers
@@ -457,11 +495,38 @@ export default function AdminPage() {
       return;
     }
     setIsSaving(true);
-    await savePromotion(editingPromo);
-    setIsSaving(false);
-    setPromoModalOpen(false);
-    await loadData();
-    showToast('Promotional banner saved and published successfully!', 'success', 'Promotion Saved');
+    try {
+      await savePromotion(editingPromo);
+      setPromoModalOpen(false);
+      await loadData();
+      showToast('Promotional banner saved and published successfully!', 'success', 'Promotion Saved');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save promotional banner.', 'error', 'Save Error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Home Driver Recruitment Promo Handlers
+  const handleSaveDriverPromoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDriverPromo.title || !editingDriverPromo.image_url) {
+      showToast('Please provide a title and upload an image.', 'error', 'Missing Information');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await saveDriverPromoCard(editingDriverPromo);
+      setDriverPromoModalOpen(false);
+      await loadData();
+      showToast('Driver recruitment card saved and updated on home page!', 'success', 'Banner Saved');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save driver promo card.', 'error', 'Save Error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // City Landmark Handlers
@@ -481,7 +546,7 @@ export default function AdminPage() {
 
   // Prompt and Execute Deletions
   const triggerDelete = (
-    type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'settlement' | 'landmark', 
+    type: 'booking' | 'captain' | 'customer' | 'route' | 'promo' | 'driver_promo' | 'settlement' | 'landmark', 
     id: string, 
     title: string, 
     subtitle: string
@@ -509,6 +574,8 @@ export default function AdminPage() {
         await deleteIntercityRoute(deleteModal.id);
       } else if (deleteModal.type === 'promo') {
         await deletePromotion(deleteModal.id);
+      } else if (deleteModal.type === 'driver_promo') {
+        await deleteDriverPromoCard(deleteModal.id);
       } else if (deleteModal.type === 'settlement') {
         await deleteDriverSettlement(deleteModal.id);
       } else if (deleteModal.type === 'landmark') {
@@ -1039,7 +1106,29 @@ export default function AdminPage() {
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
                         Driver Documents & Verification Photos:
                       </span>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                        {/* Driver Photo */}
+                        <div className="space-y-1">
+                          {cap.profile_photo_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewDocUrl(cap.profile_photo_url!)}
+                              className="w-full h-16 rounded-xl overflow-hidden border border-slate-200 hover:border-emerald-500 transition relative group cursor-pointer bg-slate-100 block"
+                              title="Click to view Driver Photo"
+                            >
+                              <img src={cap.profile_photo_url} alt="Driver Profile" className="w-full h-full object-cover group-hover:scale-105 transition" />
+                              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white">
+                                <Eye className="w-3.5 h-3.5" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-semibold text-center px-1">
+                              No Photo
+                            </div>
+                          )}
+                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">Driver Photo</span>
+                        </div>
+
                         {/* CNIC Front */}
                         <div className="space-y-1">
                           {cap.cnic_front_url ? (
@@ -1055,11 +1144,11 @@ export default function AdminPage() {
                               </div>
                             </button>
                           ) : (
-                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-semibold">
                               No CNIC
                             </div>
                           )}
-                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">CNIC Card</span>
+                          <span className="text-[9px] font-bold text-slate-600 block text-center truncate">CNIC</span>
                         </div>
 
                         {/* License */}
@@ -1077,7 +1166,7 @@ export default function AdminPage() {
                               </div>
                             </button>
                           ) : (
-                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-semibold">
                               No License
                             </div>
                           )}
@@ -1099,8 +1188,8 @@ export default function AdminPage() {
                               </div>
                             </button>
                           ) : (
-                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[10px] text-slate-400 font-semibold">
-                              No Photo
+                            <div className="w-full h-16 rounded-xl border border-dashed border-slate-200 bg-slate-50 flex items-center justify-center text-[9px] text-slate-400 font-semibold">
+                              No Vehicle
                             </div>
                           )}
                           <span className="text-[9px] font-bold text-slate-600 block text-center truncate">Vehicle</span>
@@ -1281,50 +1370,95 @@ export default function AdminPage() {
                     <th className="px-4 py-3">Contact Phone</th>
                     <th className="px-4 py-3">Email Address</th>
                     <th className="px-4 py-3">Registered Date</th>
+                    <th className="px-4 py-3">Account Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {filteredCustomers.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50 transition">
-                      <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[10px]">
-                          {c.full_name.charAt(0)}
-                        </div>
-                        <span>{c.full_name}</span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-800">{c.phone}</td>
-                      <td className="px-4 py-3 text-slate-500">{c.email}</td>
-                      <td className="px-4 py-3 text-slate-400">
-                        {new Date(c.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-right space-x-1.5">
-                        <a
-                          href={`https://wa.me/${c.phone.replace(/\D/g, '')}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg border border-emerald-200"
-                          title="WhatsApp Customer"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                        </a>
-
-                        {/* DELETE CUSTOMER BUTTON */}
-                        <button
-                          onClick={() => triggerDelete(
-                            'customer', 
-                            c.id, 
-                            `Delete Customer ${c.full_name}?`, 
-                            `Are you sure you want to delete customer ${c.full_name}?`
+                  {filteredCustomers.map((c) => {
+                    const isSuspended = c.status === 'suspended' || c.is_blocked;
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSuspended ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {c.full_name.charAt(0)}
+                          </div>
+                          <span className={isSuspended ? 'line-through text-slate-400' : ''}>{c.full_name}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-800">{c.phone}</td>
+                        <td className="px-4 py-3 text-slate-500">{c.email}</td>
+                        <td className="px-4 py-3 text-slate-400">
+                          {new Date(c.created_at).toLocaleDateString()}
+                        </td>
+                        <td className="px-4 py-3">
+                          {isSuspended ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200">
+                              <Ban className="w-3 h-3" />
+                              <span>Suspended / Blocked</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Active</span>
+                            </span>
                           )}
-                          className="inline-flex p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
-                          title="Delete Customer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-4 py-3 text-right space-x-1.5 whitespace-nowrap">
+                          {isSuspended ? (
+                            <button
+                              onClick={async () => {
+                                await toggleCustomerStatus(c.id, 'active');
+                                await loadData();
+                                showToast(`Customer ${c.full_name} unblocked & activated.`, 'success', 'Account Activated');
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-200 transition text-[11px] font-bold cursor-pointer"
+                              title="Unblock / Reactivate Customer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Unblock</span>
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                await toggleCustomerStatus(c.id, 'suspended');
+                                await loadData();
+                                showToast(`Customer ${c.full_name} suspended due to rude behavior.`, 'info', 'Customer Suspended');
+                              }}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-red-600 text-amber-700 hover:text-white rounded-lg border border-amber-200 hover:border-red-600 transition text-[11px] font-bold cursor-pointer"
+                              title="Suspend or Temporary Block Rude Customer"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              <span>Suspend / Block</span>
+                            </button>
+                          )}
+
+                          <a
+                            href={`https://wa.me/${c.phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded-lg border border-emerald-200"
+                            title="WhatsApp Customer"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
+                          </a>
+
+                          {/* DELETE CUSTOMER BUTTON */}
+                          <button
+                            onClick={() => triggerDelete(
+                              'customer', 
+                              c.id, 
+                              `Delete Customer ${c.full_name}?`, 
+                              `Are you sure you want to permanently delete customer ${c.full_name}?`
+                            )}
+                            className="inline-flex p-1.5 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg border border-red-200 transition cursor-pointer"
+                            title="Delete Customer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 
@@ -1918,75 +2052,210 @@ export default function AdminPage() {
         })()}
 
         {/* TAB 7: ADS & PROMOTION BANNERS MANAGER */}
+        {/* TAB 7: ADS & PROMOTION BANNERS MANAGER */}
         {activeTab === 'promotions' && (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 className="text-lg font-black text-slate-900">Ads & Promotion Banners Hub</h3>
-                <p className="text-xs text-slate-500">Manage promotional banners displayed on the home page carousel</p>
+                <p className="text-xs text-slate-500">Manage promotional hero banners & home page driver recruitment cards</p>
               </div>
 
+              {promoSubTab === 'carousel' ? (
+                <button
+                  onClick={() => {
+                    setEditingPromo({
+                      title: '',
+                      subtitle: '',
+                      image_url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80',
+                      link_url: '/#fares',
+                      badge: 'Special Offer',
+                      is_active: true,
+                    });
+                    setPromoModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ Add New Hero Banner</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setEditingDriverPromo({
+                      category_badge: 'Motorcycle / Car / Bolan',
+                      title: 'Register Driver Account',
+                      title_urdu: 'اپنی سواری رجسٹر کروائیں',
+                      image_url: '/assets/bike-poster.jpg',
+                      bullets: [
+                        'Daily Cash Earnings on Every Trip',
+                        'Only 10% Platform Fee — Keep 90%',
+                        'Flexible Hours — Work When You Want'
+                      ],
+                      cta_text: 'Register Captain',
+                      cta_link: '/captain/',
+                      is_active: true,
+                    });
+                    setDriverPromoModalOpen(true);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>+ Add Driver Recruitment Banner</span>
+                </button>
+              )}
+            </div>
+
+            {/* Sub-Tabs Selector */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
               <button
-                onClick={() => {
-                  setEditingPromo({
-                    title: '',
-                    subtitle: '',
-                    image_url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80',
-                    link_url: '/#fares',
-                    badge: 'Special Offer',
-                    is_active: true,
-                  });
-                  setPromoModalOpen(true);
-                }}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                type="button"
+                onClick={() => setPromoSubTab('carousel')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  promoSubTab === 'carousel' 
+                    ? 'bg-slate-900 text-white shadow-sm' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
               >
-                <PlusCircle className="w-4 h-4" />
-                <span>+ Add New Promo Banner</span>
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>Top Hero Carousel Banners ({promotions.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPromoSubTab('driver_cards')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+                  promoSubTab === 'driver_cards' 
+                    ? 'bg-slate-900 text-white shadow-sm' 
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Home Driver Cards ("Register Your Bike or Car") ({driverPromos.length})</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {promotions.map((promo) => (
-                <div key={promo.id} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between">
-                  <div className="relative h-44 w-full bg-slate-900">
-                    <img src={promo.image_url} alt={promo.title} className="w-full h-full object-cover" />
-                    <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full uppercase">
-                      {promo.badge || 'PROMO'}
+            {/* Sub-Tab 1: Carousel Hero Banners */}
+            {promoSubTab === 'carousel' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {promotions.map((promo) => (
+                  <div key={promo.id} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between">
+                    <div className="relative h-44 w-full bg-slate-900">
+                      <img src={promo.image_url} alt={promo.title} className="w-full h-full object-cover" />
+                      <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full uppercase">
+                        {promo.badge || 'PROMO'}
+                      </div>
+                      <div className="absolute top-3 right-3 bg-black/60 text-white font-bold text-[10px] px-2 py-0.5 rounded backdrop-blur">
+                        {promo.is_active ? 'Active' : 'Disabled'}
+                      </div>
                     </div>
-                    <div className="absolute top-3 right-3 bg-black/60 text-white font-bold text-[10px] px-2 py-0.5 rounded backdrop-blur">
-                      {promo.is_active ? 'Active' : 'Disabled'}
+
+                    <div className="p-5 space-y-2">
+                      <h4 className="font-black text-slate-900 text-base">{promo.title}</h4>
+                      <p className="text-xs text-slate-600">{promo.subtitle}</p>
+                      <p className="text-[11px] text-slate-400 font-mono">Link: {promo.link_url}</p>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                      <button
+                        onClick={() => {
+                          setEditingPromo(promo);
+                          setPromoModalOpen(true);
+                        }}
+                        className="text-xs font-bold text-slate-700 hover:text-emerald-600 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Banner</span>
+                      </button>
+
+                      <button
+                        onClick={() => triggerDelete('promo', promo.id, `Delete Banner: ${promo.title}?`, 'This will remove it from the home page.')}
+                        className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  <div className="p-5 space-y-2">
-                    <h4 className="font-black text-slate-900 text-base">{promo.title}</h4>
-                    <p className="text-xs text-slate-600">{promo.subtitle}</p>
-                    <p className="text-[11px] text-slate-400 font-mono">Link: {promo.link_url}</p>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                    <button
-                      onClick={() => {
-                        setEditingPromo(promo);
-                        setPromoModalOpen(true);
-                      }}
-                      className="text-xs font-bold text-slate-700 hover:text-emerald-600 flex items-center gap-1"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Edit Banner</span>
-                    </button>
-
-                    <button
-                      onClick={() => triggerDelete('promo', promo.id, `Delete Banner: ${promo.title}?`, 'This will remove it from the home page.')}
-                      className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
+            {/* Sub-Tab 2: Driver Recruitment Promos */}
+            {promoSubTab === 'driver_cards' && (
+              <div className="space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs text-emerald-900 flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">Live Home Page Driver Recruitment Section</span>
+                    <span>These cards appear under the "Register Your Bike or Car With OLAK" section on the home page. You can edit images, badges, bullet descriptions, and registration CTA links, or delete and add new vehicle categories at any time.</span>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {driverPromos.map((card) => (
+                    <div key={card.id} className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between">
+                      <div className="relative h-48 w-full bg-slate-900">
+                        <img src={card.image_url} alt={card.title} className="w-full h-full object-cover" />
+                        <div className="absolute top-3 left-3 bg-emerald-500 text-slate-950 font-black text-[10px] px-2.5 py-1 rounded-full uppercase">
+                          {card.category_badge || 'Driver'}
+                        </div>
+                        <div className="absolute top-3 right-3 bg-black/60 text-white font-bold text-[10px] px-2 py-0.5 rounded backdrop-blur">
+                          {card.is_active ? 'Active' : 'Disabled'}
+                        </div>
+                      </div>
+
+                      <div className="p-5 space-y-3">
+                        <div>
+                          <h4 className="font-black text-slate-900 text-base">{card.title}</h4>
+                          {card.title_urdu && (
+                            <p className="text-sm font-bold text-emerald-700 font-urdu mt-0.5">{card.title_urdu}</p>
+                          )}
+                        </div>
+
+                        {card.bullets && card.bullets.length > 0 && (
+                          <div className="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-slate-600">
+                            {card.bullets.map((b, i) => (
+                              <div key={i} className="flex items-center gap-1.5">
+                                <Check className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+                                <span>{b}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="text-[11px] text-slate-500 flex justify-between items-center">
+                          <span>CTA Button: <strong className="text-slate-800">{card.cta_text}</strong></span>
+                          <span className="font-mono text-[10px] bg-slate-100 px-2 py-0.5 rounded">{card.cta_link}</span>
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                        <button
+                          onClick={() => {
+                            setEditingDriverPromo(card);
+                            setDriverPromoModalOpen(true);
+                          }}
+                          className="text-xs font-bold text-slate-700 hover:text-emerald-600 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Card</span>
+                        </button>
+
+                        <button
+                          onClick={() => triggerDelete('driver_promo', card.id, `Delete Driver Card: ${card.title}?`, 'This will remove this banner card from the home page.')}
+                          className="text-xs font-bold text-red-600 hover:text-red-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Delete Card</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
 
@@ -2529,7 +2798,211 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* CITY LANDMARK / LOCATION MODAL */}
+      {/* DRIVER RECRUITMENT BANNER MODAL */}
+      {driverPromoModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-scaleIn max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-slate-900 text-base">Driver Recruitment Banner Card</h3>
+                <p className="text-[11px] text-slate-500">Manage card shown under "Register Your Bike or Car With OLAK"</p>
+              </div>
+              <button onClick={() => setDriverPromoModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveDriverPromoSubmit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Category Badge</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Motorcycle 70cc / 125cc"
+                    value={editingDriverPromo.category_badge || ''}
+                    onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, category_badge: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">CTA Button Text</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Register Bike Captain"
+                    value={editingDriverPromo.cta_text || ''}
+                    onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, cta_text: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Card Title (English)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Register Your Bike Captain Account"
+                  value={editingDriverPromo.title || ''}
+                  onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, title: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Card Title (Urdu)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. اپنی بائیک رجسٹر کروائیں — آزادی سے کمائیں"
+                  value={editingDriverPromo.title_urdu || ''}
+                  onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, title_urdu: e.target.value })}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-urdu"
+                  dir="rtl"
+                />
+              </div>
+
+              {/* Banner Image Uploader */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Card Background / Vehicle Photo (Upload File)</span>
+                  {editingDriverPromo.image_url && (
+                    <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Image Attached
+                    </span>
+                  )}
+                </label>
+
+                {editingDriverPromo.image_url ? (
+                  <div className="space-y-2">
+                    <div className="relative h-36 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 group">
+                      <img
+                        src={editingDriverPromo.image_url}
+                        alt="Card Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                        <label className="bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold px-3 py-1.5 rounded-xl shadow cursor-pointer">
+                          Change Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const base64 = await fileToBase64(file);
+                                  setEditingDriverPromo(prev => ({ ...prev, image_url: base64 }));
+                                  showToast('Card image updated successfully!', 'success', 'Image Uploaded');
+                                } catch (err) {
+                                  showToast('Failed to read image file.', 'error');
+                                }
+                              }
+                            }}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setEditingDriverPromo(prev => ({ ...prev, image_url: '' }))}
+                          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-emerald-50/40 transition">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                      <UploadCloud className="w-5 h-5" />
+                    </div>
+                    <div className="text-center">
+                      <span className="text-xs font-bold text-slate-900 block">Click to upload banner photo</span>
+                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (Auto-optimized)</span>
+                    </div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          try {
+                            const base64 = await fileToBase64(file);
+                            setEditingDriverPromo(prev => ({ ...prev, image_url: base64 }));
+                            showToast('Card image loaded successfully!', 'success', 'Image Ready');
+                          } catch (err) {
+                            showToast('Failed to read image file.', 'error');
+                          }
+                        }
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Bullet Descriptions */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700">Feature Bullet Points (Shown on Card)</label>
+                {[0, 1, 2].map((idx) => (
+                  <input
+                    key={idx}
+                    type="text"
+                    placeholder={`Feature / Benefit point ${idx + 1}`}
+                    value={(editingDriverPromo.bullets && editingDriverPromo.bullets[idx]) || ''}
+                    onChange={(e) => {
+                      const currentBullets = [...(editingDriverPromo.bullets || ['', '', ''])];
+                      currentBullets[idx] = e.target.value;
+                      setEditingDriverPromo({ ...editingDriverPromo, bullets: currentBullets });
+                    }}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800"
+                  />
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Registration Target Link</label>
+                  <input
+                    type="text"
+                    value={editingDriverPromo.cta_link || '/captain/'}
+                    onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, cta_link: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 font-mono text-[11px]"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-5">
+                  <input
+                    type="checkbox"
+                    id="driver_active_check"
+                    checked={editingDriverPromo.is_active !== false}
+                    onChange={(e) => setEditingDriverPromo({ ...editingDriverPromo, is_active: e.target.checked })}
+                    className="w-4 h-4 text-emerald-600 rounded"
+                  />
+                  <label htmlFor="driver_active_check" className="font-bold text-slate-700 text-xs">Visible on Home Page</label>
+                </div>
+              </div>
+
+              <div className="pt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDriverPromoModalOpen(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl cursor-pointer shadow-sm transition"
+                >
+                  Save Card Banner
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {landmarkModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-scaleIn">

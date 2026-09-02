@@ -1,4 +1,4 @@
-import { PricingRate, IntercityRoute, SiteSettings, PromotionBanner, CityLandmark } from './types';
+import { PricingRate, IntercityRoute, SiteSettings, PromotionBanner, CityLandmark, DriverPromoCard } from './types';
 
 export const TURBAT_LANDMARKS: CityLandmark[] = [
   { id: 'lm-1', name: 'City Thana, Thana Road', nameUrdu: 'سٹی تھانہ، تھانہ روڈ', name_urdu: 'سٹی تھانہ، تھانہ روڈ', area: 'Central Turbat', lat: 26.0031, lng: 63.0544, is_active: true },
@@ -253,3 +253,36 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   is_booking_active: true,
   admin_pin: 'admin123',
 };
+
+export const INITIAL_DRIVER_PROMOS: DriverPromoCard[] = [
+  {
+    id: 'driver-promo-bike',
+    category_badge: 'Motorcycle 70cc / 125cc',
+    title: 'Register Your Bike Captain Account',
+    title_urdu: 'اپنی بائیک رجسٹر کروائیں — آزادی سے کمائیں',
+    image_url: '/assets/bike-poster.jpg',
+    bullets: [
+      'Daily Cash Earnings on Every Trip',
+      'Only 10% Platform Fee — Keep 90%',
+      'Flexible Hours — Work When You Want'
+    ],
+    cta_text: 'Register Bike Captain',
+    cta_link: '/captain/',
+    is_active: true,
+  },
+  {
+    id: 'driver-promo-car',
+    category_badge: 'Car / Bolan / Rickshaw',
+    title: 'Register Commercial Car, Bolan or Rickshaw',
+    title_urdu: 'آسان سفر، آسان کمائی — آپ کا اعتماد',
+    image_url: '/assets/car-poster.jpg',
+    bullets: [
+      'City Rides, Airport Pickups & Intercity Trips',
+      'Respectful & Dignified Family Commuters',
+      'Quick Online Verification in 24 Hours'
+    ],
+    cta_text: 'Register Car / Rickshaw',
+    cta_link: '/captain/',
+    is_active: true,
+  },
+];

@@ -36,6 +36,8 @@ export interface Customer {
   phone: string;
   password_hash?: string;
   total_rides: number;
+  status?: 'active' | 'suspended';
+  is_blocked?: boolean;
   created_at: string;
 }
 
@@ -88,6 +90,7 @@ export interface Captain {
   cnic_back_url?: string;
   license_url?: string;
   vehicle_photo_url?: string;
+  profile_photo_url?: string;
   status: CaptainStatus;
   is_online: boolean;
   total_trips_completed: number;
@@ -140,6 +143,19 @@ export interface PromotionBanner {
   badge?: string;
   is_active: boolean;
   created_at: string;
+}
+
+export interface DriverPromoCard {
+  id: string;
+  category_badge: string;
+  title: string;
+  title_urdu: string;
+  image_url: string;
+  bullets: string[];
+  cta_text: string;
+  cta_link: string;
+  is_active: boolean;
+  created_at?: string;
 }
 
 export interface DriverSettlement {

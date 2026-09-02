@@ -11,14 +11,16 @@ import {
   PromotionBanner,
   DriverSettlement,
   CityLandmark,
-  ServiceType
+  ServiceType,
+  DriverPromoCard
 } from './types';
 import { 
   INITIAL_PRICING_RATES, 
   INITIAL_INTERCITY_ROUTES, 
   INITIAL_SITE_SETTINGS,
   INITIAL_PROMOTIONS,
-  INITIAL_LANDMARKS
+  INITIAL_LANDMARKS,
+  INITIAL_DRIVER_PROMOS
 } from './constants';
 
 const STORAGE_KEYS = {
@@ -31,6 +33,7 @@ const STORAGE_KEYS = {
   INTERCITY: 'olak_cached_intercity_routes',
   SETTINGS: 'olak_cached_site_settings',
   PROMOTIONS: 'olak_cached_promotions',
+  DRIVER_PROMOS: 'olak_cached_driver_promos',
   SETTLEMENTS: 'olak_cached_driver_settlements',
   LANDMARKS: 'olak_cached_landmarks',
 };
@@ -49,17 +52,27 @@ export const getSiteSettings = async (): Promise<SiteSettings> => {
   
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-    const fallback = cached ? JSON.parse(cached) : INITIAL_SITE_SETTINGS;
+    let fallback = INITIAL_SITE_SETTINGS;
+    if (cached) {
+      try {
+        fallback = { ...INITIAL_SITE_SETTINGS, ...JSON.parse(cached) };
+      } catch {}
+    }
 
-    const { data, error } = await supabase
-      .from('site_settings')
-      .select('id, company_name, company_name_urdu, tagline, tagline_urdu, phone, whatsapp, email, address, address_urdu, operating_cities, commission_percentage, is_booking_active, admin_pin')
-      .eq('id', 'olak_settings')
-      .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('*')
+        .eq('id', 'olak_settings')
+        .maybeSingle();
 
-    if (data && !error) {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(data));
-      return data as SiteSettings;
+      if (data && !error) {
+        const merged = { ...fallback, ...data };
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+        return merged as SiteSettings;
+      }
+    } catch (e) {
+      // Supabase offline fallback
     }
 
     return fallback;
@@ -70,7 +83,14 @@ export const getSiteSettings = async (): Promise<SiteSettings> => {
 };
 
 export const saveSiteSettings = async (settings: Partial<SiteSettings>): Promise<SiteSettings> => {
-  const current = await getSiteSettings();
+  // Read current cached settings from localStorage first to prevent stale overwrite
+  let current = INITIAL_SITE_SETTINGS;
+  if (typeof window !== 'undefined') {
+    const cached = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+    if (cached) {
+      try { current = { ...INITIAL_SITE_SETTINGS, ...JSON.parse(cached) }; } catch {}
+    }
+  }
   const updated: SiteSettings = { ...current, ...settings };
 
   if (typeof window !== 'undefined') {
@@ -80,9 +100,20 @@ export const saveSiteSettings = async (settings: Partial<SiteSettings>): Promise
 
   try {
     await supabase.from('site_settings').upsert({
-      ...updated,
       id: 'olak_settings',
-      updated_at: new Date().toISOString(),
+      company_name: updated.company_name,
+      company_name_urdu: updated.company_name_urdu,
+      tagline: updated.tagline,
+      tagline_urdu: updated.tagline_urdu,
+      phone: updated.phone,
+      whatsapp: updated.whatsapp,
+      email: updated.email,
+      address: updated.address,
+      address_urdu: updated.address_urdu,
+      operating_cities: updated.operating_cities,
+      commission_percentage: updated.commission_percentage,
+      is_booking_active: updated.is_booking_active,
+      admin_pin: updated.admin_pin,
     });
   } catch (err) {
     console.error('Remote DB save error for settings:', err);
@@ -217,6 +248,40 @@ export const deleteCustomer = async (id: string): Promise<void> => {
   } catch (err) {
     console.error('Remote DB customer delete error:', err);
   }
+};
+
+export const toggleCustomerStatus = async (id: string, newStatus: 'active' | 'suspended'): Promise<Customer[]> => {
+  const all = await getCustomers();
+  const updated = all.map(c => {
+    if (c.id === id) {
+      return {
+        ...c,
+        status: newStatus,
+        is_blocked: newStatus === 'suspended',
+      };
+    }
+    return c;
+  });
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updated));
+    const current = getCurrentCustomer();
+    if (current && current.id === id) {
+      setCurrentCustomer({ ...current, status: newStatus, is_blocked: newStatus === 'suspended' });
+    }
+    dispatchCustomEvent('olak_customers_updated', updated);
+  }
+
+  try {
+    await supabase.from('customers').update({ 
+      status: newStatus, 
+      is_blocked: newStatus === 'suspended' 
+    }).eq('id', id);
+  } catch (err) {
+    console.error('Remote DB customer status update error:', err);
+  }
+
+  return updated;
 };
 
 // ==========================================
@@ -561,19 +626,53 @@ export const getPromotions = async (): Promise<PromotionBanner[]> => {
 
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
-    const fallback = cached ? JSON.parse(cached) : INITIAL_PROMOTIONS;
-
-    const { data, error } = await supabase
-      .from('promotions')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (data && !error && data.length > 0) {
-      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(data));
-      return data as PromotionBanner[];
+    let loadedPromos: PromotionBanner[] = [];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedPromos = parsed;
+        }
+      } catch {
+        loadedPromos = [];
+      }
     }
 
-    return fallback;
+    try {
+      const { data, error } = await supabase
+        .from('promotions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (data && !error && data.length > 0) {
+        const sbIds = new Set(data.map((d: any) => d.id));
+        const localOnly = loadedPromos.filter(p => !sbIds.has(p.id));
+        loadedPromos = [...data as PromotionBanner[], ...localOnly];
+      }
+    } catch {}
+
+    // Exclude deleted promo ids
+    let deletedIds: string[] = [];
+    try {
+      const raw = localStorage.getItem('olak_deleted_promo_ids');
+      if (raw) deletedIds = JSON.parse(raw);
+    } catch {}
+
+    const existingIds = new Set(loadedPromos.map(p => p.id));
+    const merged = [...loadedPromos];
+
+    for (const defPromo of INITIAL_PROMOTIONS) {
+      if (!existingIds.has(defPromo.id) && !deletedIds.includes(defPromo.id)) {
+        merged.push(defPromo);
+      }
+    }
+
+    const filtered = merged.filter(p => !deletedIds.includes(p.id));
+    try {
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(filtered));
+    } catch {}
+
+    return filtered;
   } catch (err) {
     console.warn('Error fetching promotions:', err);
     return INITIAL_PROMOTIONS;
@@ -588,7 +687,11 @@ export const savePromotion = async (promoData: Partial<PromotionBanner>): Promis
     updatedPromo = { ...all.find(p => p.id === promoData.id)!, ...promoData } as PromotionBanner;
     const updated = all.map(p => p.id === updatedPromo.id ? updatedPromo : p);
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      try {
+        localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      } catch (quotaErr) {
+        console.warn('LocalStorage quota warning in savePromotion:', quotaErr);
+      }
       dispatchCustomEvent('olak_promotions_updated', updated);
     }
   } else {
@@ -604,7 +707,11 @@ export const savePromotion = async (promoData: Partial<PromotionBanner>): Promis
     };
     const updated = [updatedPromo, ...all];
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      try {
+        localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+      } catch (quotaErr) {
+        console.warn('LocalStorage quota warning in savePromotion:', quotaErr);
+      }
       dispatchCustomEvent('olak_promotions_updated', updated);
     }
   }
@@ -623,7 +730,18 @@ export const deletePromotion = async (id: string): Promise<void> => {
   const updated = all.filter(p => p.id !== id);
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+    try {
+      const raw = localStorage.getItem('olak_deleted_promo_ids');
+      const deletedIds: string[] = raw ? JSON.parse(raw) : [];
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('olak_deleted_promo_ids', JSON.stringify(deletedIds));
+      }
+    } catch {}
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(updated));
+    } catch {}
     dispatchCustomEvent('olak_promotions_updated', updated);
   }
 
@@ -632,6 +750,133 @@ export const deletePromotion = async (id: string): Promise<void> => {
   } catch (err) {
     console.error('Remote promotion delete error:', err);
   }
+};
+
+// ==========================================
+// 5B. DRIVER RECRUITMENT PROMO CARDS MODULE
+// ==========================================
+export const getDriverPromoCards = async (): Promise<DriverPromoCard[]> => {
+  if (typeof window === 'undefined') return INITIAL_DRIVER_PROMOS;
+
+  try {
+    const cached = localStorage.getItem(STORAGE_KEYS.DRIVER_PROMOS);
+    let loadedCards: DriverPromoCard[] = [];
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          loadedCards = parsed;
+        }
+      } catch {
+        loadedCards = [];
+      }
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('driver_promos')
+        .select('*')
+        .order('id', { ascending: true });
+
+      if (data && !error && data.length > 0) {
+        const sbIds = new Set(data.map((d: any) => d.id));
+        const localOnly = loadedCards.filter(c => !sbIds.has(c.id));
+        loadedCards = [...data as DriverPromoCard[], ...localOnly];
+      }
+    } catch {}
+
+    let deletedIds: string[] = [];
+    try {
+      const raw = localStorage.getItem('olak_deleted_driver_promo_ids');
+      if (raw) deletedIds = JSON.parse(raw);
+    } catch {}
+
+    const existingIds = new Set(loadedCards.map(c => c.id));
+    const merged = [...loadedCards];
+
+    for (const defCard of INITIAL_DRIVER_PROMOS) {
+      if (!existingIds.has(defCard.id) && !deletedIds.includes(defCard.id)) {
+        merged.push(defCard);
+      }
+    }
+
+    const filtered = merged.filter(c => !deletedIds.includes(c.id));
+    try {
+      localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(filtered));
+    } catch {}
+
+    return filtered;
+  } catch (err) {
+    console.warn('Error fetching driver promo cards:', err);
+    return INITIAL_DRIVER_PROMOS;
+  }
+};
+
+export const saveDriverPromoCard = async (cardData: Partial<DriverPromoCard>): Promise<DriverPromoCard> => {
+  const all = await getDriverPromoCards();
+  let updatedCard: DriverPromoCard;
+
+  if (cardData.id && all.some(c => c.id === cardData.id)) {
+    updatedCard = { ...all.find(c => c.id === cardData.id)!, ...cardData } as DriverPromoCard;
+    const updated = all.map(c => c.id === updatedCard.id ? updatedCard : c);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(updated));
+      } catch (e) {}
+      dispatchCustomEvent('olak_driver_promos_updated', updated);
+    }
+  } else {
+    updatedCard = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `driver-promo-${Date.now()}`,
+      category_badge: cardData.category_badge || 'Motorcycle 70cc / 125cc',
+      title: cardData.title || 'Register Driver Account',
+      title_urdu: cardData.title_urdu || 'اپنی سواری رجسٹر کروائیں',
+      image_url: cardData.image_url || '/assets/bike-poster.jpg',
+      bullets: cardData.bullets || ['Daily Cash Earnings', 'Only 10% Fee', 'Flexible Hours'],
+      cta_text: cardData.cta_text || 'Register Captain',
+      cta_link: cardData.cta_link || '/captain/',
+      is_active: cardData.is_active !== undefined ? cardData.is_active : true,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...all, updatedCard];
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(updated));
+      } catch (e) {}
+      dispatchCustomEvent('olak_driver_promos_updated', updated);
+    }
+  }
+
+  try {
+    await supabase.from('driver_promos').upsert(updatedCard);
+  } catch {}
+
+  return updatedCard;
+};
+
+export const deleteDriverPromoCard = async (id: string): Promise<void> => {
+  const all = await getDriverPromoCards();
+  const updated = all.filter(c => c.id !== id);
+
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('olak_deleted_driver_promo_ids');
+      const deletedIds: string[] = raw ? JSON.parse(raw) : [];
+      if (!deletedIds.includes(id)) {
+        deletedIds.push(id);
+        localStorage.setItem('olak_deleted_driver_promo_ids', JSON.stringify(deletedIds));
+      }
+    } catch {}
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(updated));
+    } catch {}
+    dispatchCustomEvent('olak_driver_promos_updated', updated);
+  }
+
+  try {
+    await supabase.from('driver_promos').delete().eq('id', id);
+  } catch {}
 };
 
 // ==========================================
@@ -1041,13 +1286,61 @@ export const deleteBooking = async (id: string): Promise<void> => {
 // ==========================================
 // 9. STORAGE & FILE UPLOADS
 // ==========================================
-export const fileToBase64 = (file: File): Promise<string> => {
+export const compressAndResizeImage = (file: File, maxWidth = 1200, quality = 0.75): Promise<string> => {
   return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = err => reject(err);
+      return;
+    }
+
     const reader = new FileReader();
     reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(event.target?.result as string);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      img.onerror = () => resolve(event.target?.result as string);
+    };
+    reader.onerror = err => reject(err);
   });
+};
+
+export const fileToBase64 = async (file: File): Promise<string> => {
+  try {
+    return await compressAndResizeImage(file, 1200, 0.75);
+  } catch {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
+  }
 };
 
 export const uploadFileToStorage = async (file: File, folder = 'documents'): Promise<string> => {

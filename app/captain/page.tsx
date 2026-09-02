@@ -81,6 +81,7 @@ export default function CaptainHubPage() {
   const [modelYear, setModelYear] = useState('');
   
   // Verification Document Files
+  const [driverPhotoFile, setDriverPhotoFile] = useState<File | null>(null);
   const [cnicFile, setCnicFile] = useState<File | null>(null);
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
@@ -157,10 +158,12 @@ export default function CaptainHubPage() {
 
     setIsSubmitting(true);
     try {
+      let driverPhotoUrl = '';
       let cnicUrl = '';
       let licenseUrl = '';
       let vehicleUrl = '';
 
+      if (driverPhotoFile) driverPhotoUrl = await uploadFileToStorage(driverPhotoFile, 'captains');
       if (cnicFile) cnicUrl = await uploadFileToStorage(cnicFile, 'cnic');
       if (licenseFile) licenseUrl = await uploadFileToStorage(licenseFile, 'licenses');
       if (vehiclePhotoFile) vehicleUrl = await uploadFileToStorage(vehiclePhotoFile, 'vehicles');
@@ -178,6 +181,7 @@ export default function CaptainHubPage() {
         cnic_front_url: cnicUrl,
         license_url: licenseUrl,
         vehicle_photo_url: vehicleUrl,
+        profile_photo_url: driverPhotoUrl,
       });
 
       setRegisteredCaptain(captain);
@@ -873,10 +877,23 @@ export default function CaptainHubPage() {
                         Verification Photos (Uploaded to Supabase)
                       </span>
                       
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
+                          <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
+                          <span className="text-[11px] font-bold text-slate-700 block">Driver Photo</span>
+                          <span className="text-[9px] text-slate-400 block">(کیپٹن کی تصویر)</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={(e) => setDriverPhotoFile(e.target.files?.[0] || null)}
+                            className="text-[10px] text-slate-500 mt-1 max-w-full"
+                          />
+                        </div>
+
                         <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
                           <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                           <span className="text-[11px] font-bold text-slate-700 block">CNIC Photo</span>
+                          <span className="text-[9px] text-slate-400 block">(شناختی کارڈ)</span>
                           <input 
                             type="file" 
                             accept="image/*" 
@@ -888,6 +905,7 @@ export default function CaptainHubPage() {
                         <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
                           <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                           <span className="text-[11px] font-bold text-slate-700 block">Driving License</span>
+                          <span className="text-[9px] text-slate-400 block">(ڈرائیونگ لائسنس)</span>
                           <input 
                             type="file" 
                             accept="image/*" 
@@ -899,6 +917,7 @@ export default function CaptainHubPage() {
                         <div className="border border-dashed border-slate-300 hover:border-emerald-500 rounded-2xl p-3 bg-slate-50 text-center">
                           <Upload className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
                           <span className="text-[11px] font-bold text-slate-700 block">Vehicle Photo</span>
+                          <span className="text-[9px] text-slate-400 block">(گاڑی / بائیک)</span>
                           <input 
                             type="file" 
                             accept="image/*" 

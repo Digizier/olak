@@ -1,18 +1,42 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLanguage } from '@/lib/LanguageContext';
+import { getDriverPromoCards } from '@/lib/db';
+import { DriverPromoCard } from '@/lib/types';
+import { INITIAL_DRIVER_PROMOS } from '@/lib/constants';
 import { 
   UserPlus, 
   CheckCircle2, 
-  ArrowRight,
-  Sparkles
+  ArrowRight, 
+  Sparkles 
 } from 'lucide-react';
 
 export const CaptainPromoSection = () => {
   const { t, isUrdu } = useLanguage();
+  const [cards, setCards] = useState<DriverPromoCard[]>(INITIAL_DRIVER_PROMOS);
+
+  useEffect(() => {
+    getDriverPromoCards().then((res) => {
+      if (res && res.length > 0) setCards(res);
+    });
+
+    const handleUpdate = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setCards(e.detail);
+      } else {
+        getDriverPromoCards().then(setCards);
+      }
+    };
+
+    window.addEventListener('olak_driver_promos_updated', handleUpdate);
+    return () => window.removeEventListener('olak_driver_promos_updated', handleUpdate);
+  }, []);
+
+  const activeCards = cards.filter(c => c.is_active);
+  if (activeCards.length === 0) return null;
 
   return (
     <section className="py-16 sm:py-24 bg-slate-50 relative overflow-hidden border-t border-slate-200">
@@ -34,99 +58,56 @@ export const CaptainPromoSection = () => {
           </p>
         </div>
 
-        {/* Dual Banner Promo Showcase Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          
-          {/* Card 1: Bike Captain Banner */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 hover:border-emerald-500 transition-all duration-300 shadow-md flex flex-col justify-between space-y-6">
-            <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-200">
-              <Image
-                src="/assets/bike-poster.jpg"
-                alt="OLAK Bike Captain Registration"
-                fill
-                className="object-cover hover:scale-105 transition-all duration-500"
-                unoptimized
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
-              <div className="absolute bottom-4 left-4 right-4 text-left">
-                <span className="text-xs font-bold bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-full uppercase">
-                  Motorcycle 70cc / 125cc
-                </span>
-                <h4 className="text-lg font-black text-white mt-1">اپنی بائیک رجسٹر کروائیں — آزادی سے کمائیں</h4>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-sm text-slate-700">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'روزانہ کی بنیاد پر نقد کمائی (Daily Cash Income)' : 'Daily Cash Earnings on Every Trip'}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'صرف 10% کمیشن — باقی 90% آپ کی اپنی کمائی' : 'Only 10% Platform Fee — Keep 90%'}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'جب دل چاہے آن لائن ہوں اور سواریاں لیں' : 'Flexible Hours — Work When You Want'}</span>
-              </div>
-            </div>
-
-            <Link
-              href="/captain/"
-              prefetch={false}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-md transition text-center"
+        {/* Dynamic Banner Promo Showcase Grid */}
+        <div className={`grid grid-cols-1 ${activeCards.length > 1 ? 'lg:grid-cols-2' : 'max-w-2xl mx-auto'} gap-8 items-stretch`}>
+          {activeCards.map((card, idx) => (
+            <div 
+              key={card.id || idx}
+              className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 hover:border-emerald-500 transition-all duration-300 shadow-md flex flex-col justify-between space-y-6"
             >
-              <UserPlus className="w-4 h-4" />
-              <span>{isUrdu ? 'بائیک کیپٹن رجسٹر کریں' : 'Register Bike Captain'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          {/* Card 2: Car & Rickshaw Captain Banner */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 hover:border-emerald-500 transition-all duration-300 shadow-md flex flex-col justify-between space-y-6">
-            <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-200">
-              <Image
-                src="/assets/car-poster.jpg"
-                alt="OLAK Car & Commercial Registration"
-                fill
-                className="object-cover hover:scale-105 transition-all duration-500"
-                unoptimized
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
-              <div className="absolute bottom-4 left-4 right-4 text-left">
-                <span className="text-xs font-bold bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-full uppercase">
-                  Car / Bolan / Rickshaw
-                </span>
-                <h4 className="text-lg font-black text-white mt-1">آسان سفر، آسان کمائی — آپ کا اعتماد</h4>
+              <div className="relative h-64 sm:h-72 w-full rounded-2xl overflow-hidden border border-slate-200 bg-slate-900">
+                <Image
+                  src={card.image_url}
+                  alt={card.title}
+                  fill
+                  className="object-cover hover:scale-105 transition-all duration-500"
+                  unoptimized
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
+                <div className="absolute bottom-4 left-4 right-4 text-left">
+                  {card.category_badge && (
+                    <span className="text-xs font-bold bg-emerald-500 text-slate-950 px-2.5 py-1 rounded-full uppercase inline-block">
+                      {card.category_badge}
+                    </span>
+                  )}
+                  <h4 className={`text-lg font-black text-white mt-1.5 ${isUrdu ? 'font-urdu' : ''}`}>
+                    {isUrdu && card.title_urdu ? card.title_urdu : card.title}
+                  </h4>
+                </div>
               </div>
+
+              {card.bullets && card.bullets.length > 0 && (
+                <div className="space-y-3 text-sm text-slate-700 flex-1">
+                  {card.bullets.map((bullet, bIdx) => (
+                    <div key={bIdx} className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                      <span>{bullet}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Link
+                href={card.cta_link || '/captain/'}
+                prefetch={false}
+                className={`w-full ${idx === 0 ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-900 hover:bg-emerald-600'} text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-md transition text-center`}
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>{card.cta_text || 'Register Captain'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
-
-            <div className="space-y-3 text-sm text-slate-700">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'تربت سٹی، ایئرپورٹ اور انٹرسٹی ہائی وے سواریاں' : 'City Rides, Airport Pickups & Intercity Trips'}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'فیملی اور معزز مسافروں کے ساتھ باوقار روزگار' : 'Respectful & Dignified Family Commuters'}</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                <span>{isUrdu ? 'آسان رجسٹریشن — فوری منظوری 24 گھنٹوں میں' : 'Quick Online Verification in 24 Hours'}</span>
-              </div>
-            </div>
-
-            <Link
-              href="/captain/"
-              prefetch={false}
-              className="w-full bg-slate-900 hover:bg-emerald-600 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-md transition text-center"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>{isUrdu ? 'کار یا رکشہ رجسٹر کریں' : 'Register Car / Rickshaw'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
+          ))}
         </div>
 
       </div>

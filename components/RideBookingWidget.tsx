@@ -149,6 +149,17 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       return;
     }
 
+    if (activeCustomer.status === 'suspended' || activeCustomer.is_blocked) {
+      setToast({
+        type: 'error',
+        title: isUrdu ? 'اکاؤنٹ معطل ہے' : 'Account Suspended',
+        message: isUrdu
+          ? 'آپ کا مسافر اکاؤنٹ انتظامیہ کی جانب سے معطل کیا گیا ہے۔ معلومات کے لیے اولاک سپورٹ سے رابطہ کریں۔'
+          : 'Your passenger account is temporarily suspended by admin due to policy violations. Please contact OLAK support.'
+      });
+      return;
+    }
+
     // ALREADY logged in -> Immediately place and accept booking without any login prompt!
     await executeBooking(activeCustomer.full_name || customerName, activeCustomer.phone || customerPhone);
   };
