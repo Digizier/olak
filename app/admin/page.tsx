@@ -461,9 +461,6 @@ export default function AdminPage() {
 
   const handlePrint = (bk: Booking) => {
     setSelectedBookingForPrint(bk);
-    setTimeout(() => {
-      window.print();
-    }, 200);
   };
 
   // Settlement Handlers
@@ -3555,12 +3552,13 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Hidden Printable Invoice Component */}
+      {/* Official Printable & PDF Invoice Modal */}
       {selectedBookingForPrint && (
         <PrintableReceipt
           booking={selectedBookingForPrint}
           captain={captains.find(c => c.id === selectedBookingForPrint.assigned_captain_id)}
           settings={settings}
+          onClose={() => setSelectedBookingForPrint(null)}
         />
       )}
 

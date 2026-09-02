@@ -44,31 +44,51 @@ body {
   box-shadow: 0 0 10px rgba(0, 208, 132, 0.15);
 }
 
-/* Print Invoice Styling */
+/* Print Invoice Styling - High-Fidelity Official Full Color Print & PDF */
 @media print {
-  body {
-    background: #ffffff !important;
-    color: #000000 !important;
-  }
-  
-  .no-print, header, nav, footer, button, .no-print-area {
-    display: none !important;
+  /* Hide every normal screen element */
+  body * {
+    visibility: hidden !important;
   }
 
-  .print-only {
-    display: block !important;
-    background: #ffffff !important;
-    color: #000000 !important;
+  /* Expose only the invoice card and its contents */
+  #printable-receipt-card,
+  #printable-receipt-card * {
+    visibility: visible !important;
   }
 
-  #printable-receipt {
-    display: block !important;
+  /* Position invoice at the top-left of page 1 */
+  #printable-receipt-card {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
-    padding: 20px !important;
+    padding: 16px !important;
     background: #ffffff !important;
-    color: #000000 !important;
     box-shadow: none !important;
     border: none !important;
+    display: block !important;
+    z-index: 9999999 !important;
+  }
+
+  /* Guarantee modal chrome and control buttons are completely removed */
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Force browsers (Chrome, Edge, Safari, Firefox) to print all colors and background fills */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
   }
 }

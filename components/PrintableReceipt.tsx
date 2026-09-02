@@ -2,118 +2,315 @@
 
 import React from 'react';
 import { Booking, Captain, SiteSettings } from '@/lib/types';
+import { 
+  Printer, 
+  X, 
+  CheckCircle2, 
+  MapPin, 
+  Navigation, 
+  ShieldCheck, 
+  Phone, 
+  Clock, 
+  Calendar
+} from 'lucide-react';
 
 interface Props {
   booking: Booking;
   captain?: Captain | null;
   settings: SiteSettings;
+  onClose: () => void;
 }
 
-export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings }) => {
+export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings, onClose }) => {
+  const triggerPrint = () => {
+    window.print();
+  };
+
+  const bookingDate = new Date(booking.created_at);
+  const formattedDate = bookingDate.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+  const formattedTime = bookingDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  const totalFare = booking.final_fare || booking.estimated_fare;
+  const isDelivery = booking.service_type === 'delivery';
+
   return (
-    <div id="printable-receipt" className="hidden print:block bg-white text-black p-8 font-sans max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="border-b-2 border-black pb-4 mb-6 flex justify-between items-start">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight">{settings.company_name}</h1>
-          <p className="text-sm font-semibold">{settings.tagline_urdu}</p>
-          <p className="text-xs text-gray-600 mt-1">{settings.address}</p>
-          <p className="text-xs text-gray-600">Helpline: {settings.phone} | WhatsApp: {settings.whatsapp}</p>
-        </div>
-        <div className="text-right">
-          <span className="text-xs uppercase tracking-wider text-gray-500 block font-bold">Official Trip Receipt</span>
-          <span className="text-2xl font-black text-black font-mono">{booking.booking_code}</span>
-          <span className="text-xs text-gray-600 block mt-1">
-            Date: {new Date(booking.created_at).toLocaleDateString()} {new Date(booking.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
-        </div>
-      </div>
-
-      {/* Customer & Captain Info Grid */}
-      <div className="grid grid-cols-2 gap-6 border-b border-gray-300 pb-4 mb-6 text-sm">
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Customer Details</h4>
-          <p className="font-bold text-black">{booking.customer_name}</p>
-          <p className="text-gray-700">Phone: {booking.customer_phone}</p>
-          <p className="text-gray-700">Service: <span className="uppercase font-semibold">{booking.service_type}</span></p>
-        </div>
-
-        <div>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Assigned Captain</h4>
-          {captain ? (
-            <div>
-              <p className="font-bold text-black">{captain.full_name}</p>
-              <p className="text-gray-700">Vehicle: {captain.vehicle_name} ({captain.vehicle_number_plate})</p>
-              <p className="text-gray-700">Phone: {captain.phone}</p>
-            </div>
-          ) : (
-            <p className="text-gray-600 italic">Self / On-demand Dispatch</p>
-          )}
-        </div>
-      </div>
-
-      {/* Route Info */}
-      <div className="border-b border-gray-300 pb-4 mb-6 text-sm space-y-2">
-        <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Route & Location Details</h4>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Pickup Location:</span>
-          <span className="font-semibold text-black">{booking.pickup_location}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Dropoff Destination:</span>
-          <span className="font-semibold text-black">{booking.dropoff_location}</span>
-        </div>
-        {booking.delivery_parcel_type && (
-          <div className="flex justify-between">
-            <span className="text-gray-600">Parcel Content:</span>
-            <span className="font-semibold text-black">{booking.delivery_parcel_type} ({booking.delivery_weight_kg} KG)</span>
+    <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto print:p-0 print:bg-white print:static">
+      
+      {/* Modal Container */}
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col my-auto print:border-none print:shadow-none print:max-w-none print:rounded-none">
+        
+        {/* Top Control Bar (Hidden on Print & PDF) */}
+        <div className="no-print bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs font-bold text-slate-200">Official Trip Invoice Preview</span>
+            <span className="text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-md font-bold">
+              {booking.booking_code}
+            </span>
           </div>
-        )}
-      </div>
 
-      {/* Itemized Fare Table */}
-      <div className="mb-8">
-        <table className="w-full text-left text-sm border-collapse">
-          <thead>
-            <tr className="border-b-2 border-black">
-              <th className="py-2">Description</th>
-              <th className="py-2 text-center">Distance</th>
-              <th className="py-2 text-right">Amount (PKR)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-gray-200">
-              <td className="py-2.5 font-semibold capitalize">
-                OLAK {booking.service_type} Ride Service Charge
-              </td>
-              <td className="py-2.5 text-center">~{booking.estimated_distance_km} KM</td>
-              <td className="py-2.5 text-right font-bold">
-                PKR {booking.final_fare || booking.estimated_fare}
-              </td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-black font-bold text-base">
-              <td colSpan={2} className="py-3 text-right">Grand Total:</td>
-              <td className="py-3 text-right font-black">
-                PKR {booking.final_fare || booking.estimated_fare}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={triggerPrint}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              title="Print to printer or save as PDF"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print / Save PDF</span>
+            </button>
 
-      {/* Footer Notes & Official Stamp */}
-      <div className="border-t border-gray-300 pt-4 flex justify-between items-end text-xs text-gray-600">
-        <div>
-          <p className="font-semibold text-black">Thank you for riding with OLAK Mobility!</p>
-          <p>This is a computer-generated official receipt.</p>
-          <p>Turbat City, Balochistan • Safe & Reliable Transport</p>
+            <button
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
+              title="Close Preview"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <div className="border border-dashed border-gray-400 p-3 rounded text-center w-36">
-          <span className="block text-[10px] uppercase font-bold text-gray-500">OLAK Dispatch</span>
-          <span className="font-bold text-black text-xs">VERIFIED STAMP</span>
+
+        {/* Printable Receipt Card Body */}
+        <div 
+          id="printable-receipt-card"
+          className="p-6 sm:p-8 bg-white text-slate-900 space-y-6 print:p-4 print:space-y-5"
+          style={{ WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' }}
+        >
+          
+          {/* Header Strip with Official OLAK Logo */}
+          <div className="flex items-start justify-between border-b-2 border-emerald-600 pb-5">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-3">
+                {/* Official OLAK Logo */}
+                <img 
+                  src="/assets/olak-logo.png" 
+                  alt="OLAK" 
+                  className="h-9 sm:h-11 w-auto object-contain"
+                />
+                <div className="border-s-2 border-slate-200 ps-2.5">
+                  <span className="text-xs font-black text-emerald-700 font-urdu block">اولاک تربت</span>
+                  <span className="text-[10px] text-slate-500 font-urdu block">سفر ہر قدم آسان</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-600 font-medium">
+                {settings.address || 'Main Commercial Center, Turbat, Balochistan'}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                Helpline: <strong className="text-slate-800">{settings.phone}</strong> | WhatsApp: <strong className="text-slate-800">{settings.whatsapp}</strong>
+              </p>
+            </div>
+
+            <div className="text-right space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full inline-block">
+                Official Trip Invoice
+              </span>
+              <div className="text-xl sm:text-2xl font-black font-mono text-slate-950 tracking-tight">
+                {booking.booking_code}
+              </div>
+              <div className="text-[11px] text-slate-500 flex items-center justify-end gap-1 font-medium">
+                <Calendar className="w-3 h-3 text-slate-400" />
+                <span>{formattedDate}</span>
+                <span className="text-slate-300">•</span>
+                <Clock className="w-3 h-3 text-slate-400" />
+                <span>{formattedTime}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Passenger & Captain Information Two-Column Grid */}
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 rounded-2xl p-4 border border-slate-200 print:bg-slate-50 print:border-slate-200">
+            {/* Passenger */}
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Passenger / Customer
+              </span>
+              <p className="text-sm font-black text-slate-900 leading-tight">
+                {booking.customer_name}
+              </p>
+              <p className="text-xs text-slate-600 flex items-center gap-1 font-medium">
+                <Phone className="w-3 h-3 text-emerald-600" />
+                <span>{booking.customer_phone}</span>
+              </p>
+              <div className="pt-1">
+                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100/70 border border-emerald-200 px-2 py-0.5 rounded-md uppercase">
+                  Service: {booking.service_type}
+                </span>
+              </div>
+            </div>
+
+            {/* Captain */}
+            <div className="space-y-1 border-s border-slate-200 ps-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                Assigned Captain / Driver
+              </span>
+              {captain ? (
+                <>
+                  <p className="text-sm font-black text-slate-900 leading-tight">
+                    {captain.full_name}
+                  </p>
+                  <p className="text-xs text-slate-600 font-medium">
+                    {captain.vehicle_name} • <span className="font-mono font-bold text-slate-800">{captain.vehicle_number_plate}</span>
+                  </p>
+                  <p className="text-xs text-slate-600 flex items-center gap-1 font-medium">
+                    <Phone className="w-3 h-3 text-emerald-600" />
+                    <span>{captain.phone}</span>
+                  </p>
+                </>
+              ) : (
+                <div className="pt-1">
+                  <p className="text-xs font-semibold text-slate-700">Self / On-demand Dispatch</p>
+                  <p className="text-[11px] text-slate-500">Turbat Operations Fleet</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Route & Destination Details */}
+          <div className="space-y-2.5 bg-white rounded-2xl p-4 border border-slate-200">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Route & Destination Log
+              </span>
+              <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                Est. Distance: ~{booking.estimated_distance_km} KM
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-start gap-2">
+                <MapPin className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Pickup Location</span>
+                  <span className="font-bold text-slate-900">{booking.pickup_location}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <Navigation className="w-4 h-4 text-teal-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Dropoff Destination</span>
+                  <span className="font-bold text-slate-900">{booking.dropoff_location}</span>
+                </div>
+              </div>
+
+              {isDelivery && (
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-slate-700">
+                  <span><strong>Parcel Type:</strong> {booking.delivery_parcel_type || 'General Goods'} ({booking.delivery_weight_kg || 1} KG)</span>
+                  {booking.delivery_receiver_phone && (
+                    <span><strong>Receiver:</strong> {booking.delivery_receiver_phone}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Itemized Fare Billing Table */}
+          <div className="rounded-2xl border border-slate-200 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-700 font-bold uppercase text-[10px] border-b border-slate-200 print:bg-slate-100">
+                <tr>
+                  <th className="px-4 py-2.5">Billing Description</th>
+                  <th className="px-4 py-2.5 text-center">Distance / Units</th>
+                  <th className="px-4 py-2.5 text-center">Payment</th>
+                  <th className="px-4 py-2.5 text-right">Amount (PKR)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                <tr>
+                  <td className="px-4 py-3">
+                    <span className="font-bold text-slate-900 block">
+                      OLAK {booking.service_type.toUpperCase()} Mobility Service
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      Standard verified passenger & courier fare
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center font-medium text-slate-700">
+                    ~{booking.estimated_distance_km} KM
+                  </td>
+                  <td className="px-4 py-3 text-center uppercase font-bold text-slate-600">
+                    {booking.payment_method || 'CASH'}
+                  </td>
+                  <td className="px-4 py-3 text-right font-black text-slate-900 text-sm">
+                    PKR {totalFare}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot className="bg-emerald-50/80 border-t-2 border-emerald-600 text-slate-900 font-bold print:bg-emerald-50">
+                <tr>
+                  <td colSpan={3} className="px-4 py-3 text-right text-xs font-black uppercase text-emerald-950">
+                    Total Amount Due / ادا شدہ رقم:
+                  </td>
+                  <td className="px-4 py-3 text-right font-black text-base text-emerald-700 whitespace-nowrap">
+                    PKR {totalFare}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {/* Verification Stamp & Computer Generated Disclaimer */}
+          <div className="pt-3 border-t border-slate-200 flex items-end justify-between">
+            <div className="space-y-1 max-w-sm text-[10px] text-slate-500 leading-relaxed">
+              <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Verified OLAK Electronic Receipt</span>
+              </div>
+              <p>Thank you for choosing OLAK ({settings.company_name}) for your journey across Turbat.</p>
+              <p>This is a computer-generated official receipt and requires no physical signature.</p>
+              <p className="font-urdu text-[11px] text-slate-600">اولاک موبائل ایپ اور ویب سائٹ — سفر ہر قدم آسان</p>
+            </div>
+
+            {/* Official Stamp Box */}
+            <div className="border-2 border-dashed border-emerald-600/80 bg-emerald-50/60 rounded-2xl p-3 text-center w-40 shrink-0 print:border-emerald-600">
+              <div className="w-5 h-5 mx-auto text-emerald-600 mb-0.5">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <span className="block text-[9px] uppercase font-black tracking-wider text-emerald-800">
+                OLAK TURBAT
+              </span>
+              <span className="block text-[8px] font-bold text-emerald-700">
+                VERIFIED DISPATCH
+              </span>
+              <span className="block text-[7px] text-slate-400 font-mono mt-0.5">
+                STATUS: {booking.booking_status.toUpperCase()}
+              </span>
+            </div>
+          </div>
+
         </div>
+
+        {/* Bottom Action Footer (Hidden on Print & PDF) */}
+        <div className="no-print bg-slate-50 px-6 py-4 border-t border-slate-200 flex items-center justify-between">
+          <span className="text-xs text-slate-500">
+            Click <strong>Print / Save PDF</strong> to send to your printer or export an A4 PDF document.
+          </span>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-200 transition cursor-pointer"
+            >
+              Close
+            </button>
+
+            <button
+              onClick={triggerPrint}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print / Save PDF</span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
   );
