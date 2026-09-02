@@ -251,7 +251,7 @@ export const INITIAL_SITE_SETTINGS: SiteSettings = {
   ],
   commission_percentage: 10.0,
   is_booking_active: true,
-  admin_pin: 'admin123',
+  admin_pin: 'admin@olak1234@#&678',
 };
 
 export const INITIAL_DRIVER_PROMOS: DriverPromoCard[] = [

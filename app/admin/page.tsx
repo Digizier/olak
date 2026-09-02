@@ -92,6 +92,7 @@ import {
   Truck, 
   Package, 
   Eye, 
+  EyeOff,
   MapPin, 
   ExternalLink, 
   DollarSign, 
@@ -137,6 +138,8 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+  const [showSettingsPin, setShowSettingsPin] = useState(false);
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
@@ -471,10 +474,25 @@ export default function AdminPage() {
     };
   }, []);
 
+  // Master Security Backup Password
+  const MASTER_SECONDARY_PASSWORD = 'admin@olak1234@#&678';
+
   // Handle PIN Login
   const handlePinLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === settings.admin_pin || pinInput === 'admin123') {
+    const entered = pinInput.trim();
+
+    // Explicitly reject old insecure password 'admin123'
+    if (entered === 'admin123') {
+      setPinError(true);
+      return;
+    }
+
+    // Accept configured Master Admin PIN (if not admin123) OR second master super-admin password
+    const isConfiguredPinValid = Boolean(settings.admin_pin && settings.admin_pin !== 'admin123' && entered === settings.admin_pin.trim());
+    const isMasterPasswordValid = entered === MASTER_SECONDARY_PASSWORD;
+
+    if (isConfiguredPinValid || isMasterPasswordValid) {
       setIsAuthenticated(true);
       localStorage.setItem('olak_admin_authenticated', 'true');
       setPinError(false);
@@ -783,22 +801,32 @@ export default function AdminPage() {
 
           <div>
             <h2 className="text-2xl font-black text-slate-900">OLAK Command Center</h2>
-            <p className="text-xs text-slate-500 mt-1">Enter Master Authorization PIN to access admin desk</p>
+            <p className="text-xs text-slate-500 mt-1">Enter Master Security Password to access admin desk</p>
           </div>
 
           <form onSubmit={handlePinLogin} className="space-y-4">
-            <input
-              type="password"
-              required
-              autoFocus
-              placeholder="Enter PIN (Default: admin123)"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-4 py-3 text-center text-slate-900 tracking-widest text-lg font-mono focus:outline-none"
-            />
+            <div className="relative">
+              <input
+                type={showPin ? "text" : "password"}
+                required
+                autoFocus
+                placeholder="Enter Master Password / PIN"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-4 py-3 text-center text-slate-900 tracking-wider text-base font-mono focus:outline-none pr-11"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1.5 transition cursor-pointer"
+                title={showPin ? "Hide password" : "Show password"}
+              >
+                {showPin ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
 
             {pinError && (
-              <p className="text-xs text-red-600 font-bold">Incorrect PIN. Please try again.</p>
+              <p className="text-xs text-red-600 font-bold">Incorrect Master PIN / Password. Please try again.</p>
             )}
 
             <button
@@ -3159,13 +3187,27 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="block text-slate-700 font-bold mb-1">Master Admin PIN</label>
-                <input
-                  type="text"
-                  value={settings.admin_pin}
-                  onChange={(e) => setSettings({ ...settings, admin_pin: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-slate-900 font-mono"
-                />
+                <label className="block text-slate-700 font-bold mb-1">Master Admin PIN / Password</label>
+                <div className="relative">
+                  <input
+                    type={showSettingsPin ? "text" : "password"}
+                    value={settings.admin_pin}
+                    onChange={(e) => setSettings({ ...settings, admin_pin: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 focus:border-emerald-500 rounded-xl px-3 py-2.5 text-slate-900 font-mono pr-10 focus:outline-none"
+                    placeholder="Enter Master PIN"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSettingsPin(!showSettingsPin)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1 transition cursor-pointer"
+                    title={showSettingsPin ? "Hide password" : "Show password"}
+                  >
+                    {showSettingsPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Secondary Master Key <code className="bg-slate-100 text-slate-700 px-1 py-0.5 rounded font-mono font-bold">admin@olak1234@#&678</code> is also permanently active.
+                </p>
               </div>
             </div>
 

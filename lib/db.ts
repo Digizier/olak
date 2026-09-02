@@ -70,6 +70,9 @@ export const getSiteSettings = async (): Promise<SiteSettings> => {
 
       if (data && !error) {
         const merged = { ...fallback, ...data };
+        if (merged.admin_pin === 'admin123') {
+          merged.admin_pin = 'admin@olak1234@#&678';
+        }
         localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
         return merged as SiteSettings;
       }
@@ -77,6 +80,9 @@ export const getSiteSettings = async (): Promise<SiteSettings> => {
       // Supabase offline fallback
     }
 
+    if (fallback.admin_pin === 'admin123') {
+      fallback.admin_pin = 'admin@olak1234@#&678';
+    }
     return fallback;
   } catch (err) {
     console.warn('Error fetching site settings, using fallback:', err);
