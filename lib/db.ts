@@ -12,7 +12,8 @@ import {
   DriverSettlement,
   CityLandmark,
   ServiceType,
-  DriverPromoCard
+  DriverPromoCard,
+  ActivityAlert
 } from './types';
 import { 
   INITIAL_PRICING_RATES, 
@@ -1617,4 +1618,226 @@ export const uploadFileToStorage = async (file: File, folder = 'documents'): Pro
       return URL.createObjectURL(file);
     }
   }
+};
+
+// ==========================================
+// 12. LIVE TODAY ACTIVITY ALERTS MODULE
+// ==========================================
+export const getTodayActivityAlerts = (
+  customData?: {
+    bookings?: Booking[];
+    captains?: Captain[];
+    customers?: Customer[];
+    settlements?: DriverSettlement[];
+  }
+): ActivityAlert[] => {
+  const todayDateStr = new Date().toDateString();
+
+  const allBookings = customData?.bookings || [];
+  const allCaptains = customData?.captains || [];
+  const allCustomers = customData?.customers || [];
+  const allSettlements = customData?.settlements || [];
+
+  const alerts: ActivityAlert[] = [];
+
+  const isToday = (dateStr?: string) => {
+    if (!dateStr) return false;
+    try {
+      return new Date(dateStr).toDateString() === todayDateStr;
+    } catch {
+      return false;
+    }
+  };
+
+  const formatTime = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
+
+  // 1. Process Bookings for today
+  for (const b of allBookings) {
+    if (isToday(b.created_at)) {
+      alerts.push({
+        id: `alert-bk-new-${b.id}`,
+        type: 'booking_new',
+        category: 'booking',
+        title: `New ${b.service_type.toUpperCase()} Booking (${b.booking_code})`,
+        subtitle: `${b.customer_name} requested a ride: ${b.pickup_location} ➔ ${b.dropoff_location}`,
+        timestamp: b.created_at,
+        timeFormatted: formatTime(b.created_at),
+        statusBadge: {
+          text: b.booking_status.toUpperCase(),
+          color: b.booking_status === 'pending' ? 'amber' : b.booking_status === 'completed' ? 'emerald' : 'blue',
+        },
+        iconName: b.service_type === 'bike' ? 'Bike' : b.service_type === 'delivery' ? 'Package' : 'Car',
+        metadata: {
+          code: b.booking_code,
+          customerName: b.customer_name,
+          customerPhone: b.customer_phone,
+          fare: b.final_fare || b.estimated_fare,
+          service: b.service_type,
+          pickup: b.pickup_location,
+          dropoff: b.dropoff_location,
+        },
+      });
+    }
+
+    if (b.updated_at && isToday(b.updated_at) && b.updated_at !== b.created_at) {
+      if (b.booking_status === 'completed') {
+        alerts.push({
+          id: `alert-bk-done-${b.id}`,
+          type: 'booking_completed',
+          category: 'booking',
+          title: `Trip Completed (${b.booking_code})`,
+          subtitle: `Ride successfully completed for ${b.customer_name}. Fare collected: PKR ${b.final_fare || b.estimated_fare}`,
+          timestamp: b.updated_at,
+          timeFormatted: formatTime(b.updated_at),
+          statusBadge: { text: 'COMPLETED', color: 'emerald' },
+          iconName: 'CheckCircle',
+          metadata: {
+            code: b.booking_code,
+            customerName: b.customer_name,
+            customerPhone: b.customer_phone,
+            fare: b.final_fare || b.estimated_fare,
+            service: b.service_type,
+          },
+        });
+      } else if (b.booking_status === 'cancelled') {
+        alerts.push({
+          id: `alert-bk-cancel-${b.id}`,
+          type: 'booking_cancelled',
+          category: 'booking',
+          title: `Trip Cancelled (${b.booking_code})`,
+          subtitle: `Ride cancelled. Reason: ${b.cancellation_reason || 'Cancelled by customer/captain'}`,
+          timestamp: b.updated_at,
+          timeFormatted: formatTime(b.updated_at),
+          statusBadge: { text: 'CANCELLED', color: 'rose' },
+          iconName: 'Ban',
+          metadata: {
+            code: b.booking_code,
+            customerName: b.customer_name,
+            customerPhone: b.customer_phone,
+          },
+        });
+      } else if (b.booking_status === 'assigned' || b.booking_status === 'in_progress') {
+        alerts.push({
+          id: `alert-bk-assign-${b.id}`,
+          type: 'booking_assigned',
+          category: 'booking',
+          title: `Captain Dispatched for ${b.booking_code}`,
+          subtitle: `Trip in progress with passenger ${b.customer_name}`,
+          timestamp: b.updated_at,
+          timeFormatted: formatTime(b.updated_at),
+          statusBadge: { text: b.booking_status === 'in_progress' ? 'IN PROGRESS' : 'ASSIGNED', color: 'blue' },
+          iconName: 'Navigation',
+          metadata: {
+            code: b.booking_code,
+            customerName: b.customer_name,
+            customerPhone: b.customer_phone,
+            captainName: b.assigned_captain?.full_name,
+            captainPhone: b.assigned_captain?.phone,
+          },
+        });
+      }
+    }
+  }
+
+  // 2. Process Captains for today
+  for (const c of allCaptains) {
+    if (isToday(c.created_at)) {
+      alerts.push({
+        id: `alert-cap-reg-${c.id}`,
+        type: 'captain_registered',
+        category: 'captain',
+        title: `New Driver Registration: ${c.full_name}`,
+        subtitle: `Registered with ${c.vehicle_name} (${c.vehicle_number_plate}) - CNIC: ${c.cnic_number}`,
+        timestamp: c.created_at,
+        timeFormatted: formatTime(c.created_at),
+        statusBadge: {
+          text: c.status.toUpperCase(),
+          color: c.status === 'approved' ? 'emerald' : c.status === 'rejected' ? 'rose' : 'amber',
+        },
+        iconName: 'Users',
+        metadata: {
+          captainName: c.full_name,
+          captainPhone: c.phone,
+          service: c.service_type,
+        },
+      });
+    }
+
+    if (c.updated_at && isToday(c.updated_at) && c.updated_at !== c.created_at) {
+      alerts.push({
+        id: `alert-cap-status-${c.id}`,
+        type: 'captain_status',
+        category: 'captain',
+        title: `Captain Status Updated: ${c.full_name}`,
+        subtitle: `Application status updated to ${c.status.toUpperCase()} in admin desk`,
+        timestamp: c.updated_at,
+        timeFormatted: formatTime(c.updated_at),
+        statusBadge: {
+          text: c.status.toUpperCase(),
+          color: c.status === 'approved' ? 'emerald' : c.status === 'rejected' ? 'rose' : 'amber',
+        },
+        iconName: 'ShieldCheck',
+        metadata: {
+          captainName: c.full_name,
+          captainPhone: c.phone,
+        },
+      });
+    }
+  }
+
+  // 3. Process Customers for today
+  for (const cust of allCustomers) {
+    if (isToday(cust.created_at)) {
+      alerts.push({
+        id: `alert-cust-reg-${cust.id}`,
+        type: 'customer_registered',
+        category: 'customer',
+        title: `New Customer Signup: ${cust.full_name}`,
+        subtitle: `Phone: ${cust.phone}${cust.email ? ` | ${cust.email}` : ''}`,
+        timestamp: cust.created_at,
+        timeFormatted: formatTime(cust.created_at),
+        statusBadge: {
+          text: cust.is_suspended ? 'SUSPENDED' : 'ACTIVE',
+          color: cust.is_suspended ? 'rose' : 'emerald',
+        },
+        iconName: 'UserCheck',
+        metadata: {
+          customerName: cust.full_name,
+          customerPhone: cust.phone,
+        },
+      });
+    }
+  }
+
+  // 4. Process Driver Settlements for today
+  for (const s of allSettlements) {
+    if (isToday(s.created_at)) {
+      alerts.push({
+        id: `alert-settle-${s.id}`,
+        type: 'settlement',
+        category: 'financial',
+        title: `Cash Clearance Settled: PKR ${s.amount}`,
+        subtitle: `Settlement cleared for Captain ${s.captain_name} via ${s.payment_method}`,
+        timestamp: s.created_at,
+        timeFormatted: formatTime(s.created_at),
+        statusBadge: { text: 'CLEARED', color: 'emerald' },
+        iconName: 'Banknote',
+        metadata: {
+          captainName: s.captain_name,
+          fare: s.amount,
+        },
+      });
+    }
+  }
+
+  // Sort descending: newest activities first
+  alerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  return alerts;
 };

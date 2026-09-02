@@ -37,8 +37,10 @@ export interface Customer {
   password_hash?: string;
   total_rides: number;
   status?: 'active' | 'suspended';
+  is_suspended?: boolean;
   is_blocked?: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface PricingRate {
@@ -97,6 +99,7 @@ export interface Captain {
   total_earnings: number;
   rating: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface Booking {
@@ -187,3 +190,39 @@ export interface SiteSettings {
 }
 
 export type Language = 'en' | 'ur';
+
+export interface ActivityAlert {
+  id: string;
+  type: 
+    | 'booking_new' 
+    | 'booking_assigned' 
+    | 'booking_completed' 
+    | 'booking_cancelled' 
+    | 'captain_registered' 
+    | 'captain_status' 
+    | 'captain_online' 
+    | 'customer_registered' 
+    | 'customer_status' 
+    | 'settlement';
+  category: 'booking' | 'captain' | 'customer' | 'financial';
+  title: string;
+  subtitle: string;
+  timestamp: string;
+  timeFormatted: string;
+  statusBadge: {
+    text: string;
+    color: 'emerald' | 'blue' | 'amber' | 'purple' | 'rose';
+  };
+  iconName: string;
+  metadata?: {
+    code?: string;
+    customerName?: string;
+    customerPhone?: string;
+    captainName?: string;
+    captainPhone?: string;
+    fare?: number;
+    service?: string;
+    pickup?: string;
+    dropoff?: string;
+  };
+}

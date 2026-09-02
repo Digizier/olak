@@ -37,7 +37,8 @@ import {
   calculateRealtimeDistance,
   calculateTripFare,
   fileToBase64,
-  uploadFileToStorage
+  uploadFileToStorage,
+  getTodayActivityAlerts
 } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -49,11 +50,12 @@ import {
   Customer,
   BookingStatus, 
   CaptainStatus, 
-  ServiceType,
+  ServiceType, 
   PromotionBanner,
   DriverSettlement,
   CityLandmark,
-  DriverPromoCard
+  DriverPromoCard,
+  ActivityAlert
 } from '@/lib/types';
 import { 
   INITIAL_SITE_SETTINGS, 
@@ -88,26 +90,28 @@ import {
   Package, 
   Eye, 
   MapPin, 
-  ExternalLink,
-  DollarSign,
-  TrendingUp,
-  UserCheck,
-  User,
-  Clock,
-  Activity,
-  Trash2,
-  Image as ImageIcon,
-  PlusCircle,
-  CreditCard,
-  CheckCircle,
-  Sliders,
-  Tag,
-  Receipt,
-  UploadCloud,
-  Check,
-  RotateCcw,
-  Ban,
-  Layers
+  ExternalLink, 
+  DollarSign, 
+  TrendingUp, 
+  UserCheck, 
+  User, 
+  Clock, 
+  Activity, 
+  Trash2, 
+  Image as ImageIcon, 
+  PlusCircle, 
+  CreditCard, 
+  CheckCircle, 
+  Sliders, 
+  Tag, 
+  Receipt, 
+  UploadCloud, 
+  Check, 
+  RotateCcw, 
+  Ban, 
+  Layers,
+  Bell,
+  BellRing
 } from 'lucide-react';
 
 interface DeleteModalState {
@@ -126,8 +130,12 @@ export default function AdminPage() {
 
   // Active Admin Tab
   const [activeTab, setActiveTab] = useState<
-    'bookings' | 'captains' | 'settlements' | 'customers' | 'pricing' | 'intercity' | 'promotions' | 'analytics' | 'settings'
+    'alerts' | 'bookings' | 'captains' | 'settlements' | 'customers' | 'pricing' | 'intercity' | 'promotions' | 'analytics' | 'settings'
   >('bookings');
+
+  // Live Alerts Filters
+  const [alertCategory, setAlertCategory] = useState<'all' | 'booking' | 'captain' | 'customer' | 'financial'>('all');
+  const [alertSearch, setAlertSearch] = useState('');
 
   // Master Datasets
   const [settings, setSettings] = useState<SiteSettings>(INITIAL_SITE_SETTINGS);
@@ -645,6 +653,28 @@ export default function AdminPage() {
   const activeCaptainsCount = captains.filter(c => c.status === 'approved').length;
   const ongoingTripsCount = bookings.filter(b => b.booking_status === 'assigned' || b.booking_status === 'arrived' || b.booking_status === 'in_progress').length;
 
+  // Today's Live Alerts Feed Calculation
+  const todayAlerts = getTodayActivityAlerts({
+    bookings,
+    captains,
+    customers,
+    settlements,
+  });
+
+  const filteredAlerts = todayAlerts.filter(a => {
+    const matchesCategory = alertCategory === 'all' || a.category === alertCategory;
+    const q = alertSearch.trim().toLowerCase();
+    const matchesSearch = !q || 
+      a.title.toLowerCase().includes(q) || 
+      a.subtitle.toLowerCase().includes(q) ||
+      (a.metadata?.code && a.metadata.code.toLowerCase().includes(q)) ||
+      (a.metadata?.customerName && a.metadata.customerName.toLowerCase().includes(q)) ||
+      (a.metadata?.customerPhone && a.metadata.customerPhone.includes(q)) ||
+      (a.metadata?.captainName && a.metadata.captainName.toLowerCase().includes(q)) ||
+      (a.metadata?.captainPhone && a.metadata.captainPhone.includes(q));
+    return matchesCategory && matchesSearch;
+  });
+
   // Filtered Bookings
   const filteredBookings = bookings.filter(b => {
     const matchesFilter = bookingFilter === 'all' || b.booking_status === bookingFilter || b.service_type === bookingFilter;
@@ -817,6 +847,7 @@ export default function AdminPage() {
         {/* Tab Navigation Bar */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
           {[
+            { id: 'alerts', label: "Live Alerts", icon: Bell, badge: todayAlerts.length, isAlert: true },
             { id: 'bookings', label: 'Live Bookings & Dispatch', icon: Navigation, badge: bookings.filter(b => b.booking_status === 'pending').length },
             { id: 'captains', label: 'Captains & Drivers', icon: Users, badge: pendingCaptainsCount },
             { id: 'settlements', label: 'Driver Cash Clearance', icon: Banknote },
@@ -842,7 +873,9 @@ export default function AdminPage() {
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
                 {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${isSel ? 'bg-white text-emerald-700' : 'bg-red-500 text-white'}`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                    isSel ? 'bg-white text-emerald-700' : (tab as any).isAlert ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
+                  }`}>
                     {tab.badge}
                   </span>
                 )}
@@ -850,6 +883,266 @@ export default function AdminPage() {
             );
           })}
         </div>
+
+        {/* TAB 0: LIVE ALERTS & TODAY'S ACTIVITY FEED */}
+        {activeTab === 'alerts' && (
+          <div className="space-y-5">
+            {/* Top Hub Banner */}
+            <div className="bg-gradient-to-r from-emerald-900 via-slate-900 to-slate-900 text-white rounded-3xl p-5 sm:p-7 shadow-xl relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-80 h-full bg-emerald-500/10 blur-3xl pointer-events-none"></div>
+              
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-3 py-0.5 rounded-full">
+                      Supabase 0ms Live Feed
+                    </span>
+                  </div>
+
+                  <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight">
+                    Today's Live Operations Feed
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-300">
+                    Real-time activity logs for {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} across all Turbat city zones.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={loadData}
+                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg transition cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Sync Live Activity</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Summary Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-5 border-t border-slate-800 mt-5">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-sm">
+                  <div className="flex items-center justify-between text-emerald-400 mb-1">
+                    <span className="text-[11px] font-bold text-slate-300">Total Alerts</span>
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div className="text-2xl font-black text-white">{todayAlerts.length}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Recorded today</div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-sm">
+                  <div className="flex items-center justify-between text-teal-400 mb-1">
+                    <span className="text-[11px] font-bold text-slate-300">Rides & Orders</span>
+                    <Car className="w-4 h-4" />
+                  </div>
+                  <div className="text-2xl font-black text-white">
+                    {todayAlerts.filter(a => a.category === 'booking').length}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">City & Intercity</div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-sm">
+                  <div className="flex items-center justify-between text-blue-400 mb-1">
+                    <span className="text-[11px] font-bold text-slate-300">Driver Actions</span>
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div className="text-2xl font-black text-white">
+                    {todayAlerts.filter(a => a.category === 'captain').length}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Signups & Statuses</div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 backdrop-blur-sm">
+                  <div className="flex items-center justify-between text-purple-400 mb-1">
+                    <span className="text-[11px] font-bold text-slate-300">Customer Logins</span>
+                    <UserCheck className="w-4 h-4" />
+                  </div>
+                  <div className="text-2xl font-black text-white">
+                    {todayAlerts.filter(a => a.category === 'customer').length}
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">New signups & accounts</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Chips & Realtime Search Bar */}
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: 'All Alerts', count: todayAlerts.length },
+                  { id: 'booking', label: 'Bookings & Trips', count: todayAlerts.filter(a => a.category === 'booking').length },
+                  { id: 'captain', label: 'Captains & Drivers', count: todayAlerts.filter(a => a.category === 'captain').length },
+                  { id: 'customer', label: 'Customers', count: todayAlerts.filter(a => a.category === 'customer').length },
+                  { id: 'financial', label: 'Cash Settlements', count: todayAlerts.filter(a => a.category === 'financial').length },
+                ].map((chip) => {
+                  const isSelected = alertCategory === chip.id;
+                  return (
+                    <button
+                      key={chip.id}
+                      onClick={() => setAlertCategory(chip.id as any)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>{chip.label}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isSelected ? 'bg-emerald-700 text-white' : 'bg-slate-100 text-slate-600'
+                      }`}>
+                        {chip.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={alertSearch}
+                  onChange={(e) => setAlertSearch(e.target.value)}
+                  placeholder="Search alert by token, name, phone..."
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-9.5 pr-3 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            {/* Alerts Feed Cards */}
+            <div className="space-y-3">
+              {filteredAlerts.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-3xl p-10 text-center space-y-3 shadow-xs">
+                  <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-100">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-slate-900">
+                      {alertSearch ? 'No alerts matching your search' : 'No activity alerts recorded today yet'}
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+                      {alertSearch 
+                        ? 'Try searching with another passenger name, driver name, or token.' 
+                        : 'Any new ride booking, driver registration, customer signup, or cash clearance happening today will automatically appear here in real time.'}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                filteredAlerts.map((alert) => {
+                  return (
+                    <div
+                      key={alert.id}
+                      className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs hover:shadow-md transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-3.5">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          alert.category === 'booking' ? 'bg-emerald-100 text-emerald-700' :
+                          alert.category === 'captain' ? 'bg-blue-100 text-blue-700' :
+                          alert.category === 'customer' ? 'bg-purple-100 text-purple-700' :
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {alert.category === 'booking' && <Car className="w-5 h-5" />}
+                          {alert.category === 'captain' && <Users className="w-5 h-5" />}
+                          {alert.category === 'customer' && <UserCheck className="w-5 h-5" />}
+                          {alert.category === 'financial' && <Banknote className="w-5 h-5" />}
+                        </div>
+
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs sm:text-sm font-black text-slate-900">
+                              {alert.title}
+                            </span>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              alert.statusBadge.color === 'emerald' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              alert.statusBadge.color === 'blue' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                              alert.statusBadge.color === 'amber' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              alert.statusBadge.color === 'rose' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                              'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}>
+                              {alert.statusBadge.text}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-600 leading-relaxed">
+                            {alert.subtitle}
+                          </p>
+
+                          {/* Metadata Tags */}
+                          <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-500">
+                            {alert.metadata?.code && (
+                              <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
+                                {alert.metadata.code}
+                              </span>
+                            )}
+                            {alert.metadata?.fare && (
+                              <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                                PKR {alert.metadata.fare}
+                              </span>
+                            )}
+                            {alert.metadata?.customerPhone && (
+                              <a href={`tel:${alert.metadata.customerPhone}`} className="hover:text-emerald-600 flex items-center gap-1 font-semibold">
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                <span>{alert.metadata.customerPhone}</span>
+                              </a>
+                            )}
+                            {alert.metadata?.captainPhone && (
+                              <a href={`tel:${alert.metadata.captainPhone}`} className="hover:text-blue-600 flex items-center gap-1 font-semibold">
+                                <Phone className="w-3 h-3 text-blue-600" />
+                                <span>{alert.metadata.captainPhone}</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Action & Timestamp */}
+                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100">
+                        <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{alert.timeFormatted}</span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {alert.category === 'booking' && alert.metadata?.code && (
+                            <button
+                              onClick={() => {
+                                setBookingFilter('all');
+                                setSearchQuery(alert.metadata!.code!);
+                                setActiveTab('bookings');
+                              }}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 transition cursor-pointer"
+                            >
+                              Inspect Booking →
+                            </button>
+                          )}
+                          {alert.category === 'captain' && (
+                            <button
+                              onClick={() => setActiveTab('captains')}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-blue-200 transition cursor-pointer"
+                            >
+                              Inspect Driver →
+                            </button>
+                          )}
+                          {alert.category === 'customer' && (
+                            <button
+                              onClick={() => setActiveTab('customers')}
+                              className="bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-purple-200 transition cursor-pointer"
+                            >
+                              View Customer →
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
 
         {/* TAB 1: BOOKINGS & DISPATCH */}
         {activeTab === 'bookings' && (
