@@ -206,28 +206,86 @@ export const logoutCustomer = () => {
   setCurrentCustomer(null);
 };
 
+const getSuspendedIdentifiers = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem('olak_suspended_customer_ids');
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveSuspendedIdentifiers = (ids: string[]) => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('olak_suspended_customer_ids', JSON.stringify(ids));
+  } catch {}
+};
+
 export const getCustomers = async (): Promise<Customer[]> => {
   if (typeof window === 'undefined') return [];
 
+  let localCustomers: Customer[] = [];
   try {
     const cached = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-    const localCustomers: Customer[] = cached ? JSON.parse(cached) : [];
+    if (cached) localCustomers = JSON.parse(cached);
+  } catch {}
 
+  const suspendedSet = new Set(getSuspendedIdentifiers());
+
+  try {
     const { data, error } = await supabase
       .from('customers')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (data && !error) {
-      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(data));
-      return data as Customer[];
-    }
+      const mapped: Customer[] = data.map((row: any) => {
+        const isSuspended = row.password_hash === 'SUSPENDED' || 
+          row.password_hash === 'BLOCKED' ||
+          suspendedSet.has(row.id) ||
+          suspendedSet.has(row.phone);
 
-    return localCustomers;
+        if (isSuspended) {
+          suspendedSet.add(row.id);
+          suspendedSet.add(row.phone);
+        }
+
+        return {
+          ...row,
+          status: isSuspended ? 'suspended' : 'active',
+          is_blocked: isSuspended,
+        };
+      });
+
+      // Keep any local-only customers
+      const map = new Map<string, Customer>();
+      mapped.forEach(c => map.set(c.id, c));
+      localCustomers.forEach(loc => {
+        if (!map.has(loc.id)) {
+          const isSusp = suspendedSet.has(loc.id) || suspendedSet.has(loc.phone) || loc.status === 'suspended';
+          map.set(loc.id, { ...loc, status: isSusp ? 'suspended' : 'active', is_blocked: isSusp });
+        }
+      });
+
+      saveSuspendedIdentifiers(Array.from(suspendedSet));
+      const merged = Array.from(map.values());
+      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(merged));
+      return merged;
+    }
   } catch (err) {
-    console.warn('Error fetching customers:', err);
-    return [];
+    console.warn('Error fetching customers from Supabase:', err);
   }
+
+  return localCustomers.map(c => {
+    const isSusp = suspendedSet.has(c.id) || suspendedSet.has(c.phone) || c.status === 'suspended';
+    return {
+      ...c,
+      status: isSusp ? 'suspended' : 'active',
+      is_blocked: isSusp,
+    };
+  });
 };
 
 export const deleteCustomer = async (id: string): Promise<void> => {
@@ -251,9 +309,31 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 };
 
 export const toggleCustomerStatus = async (id: string, newStatus: 'active' | 'suspended'): Promise<Customer[]> => {
+  const suspendedSet = new Set(getSuspendedIdentifiers());
   const all = await getCustomers();
+  const target = all.find(c => c.id === id || c.phone === id);
+
+  if (newStatus === 'suspended') {
+    if (target) {
+      suspendedSet.add(target.id);
+      suspendedSet.add(target.phone);
+    } else {
+      suspendedSet.add(id);
+    }
+  } else {
+    if (target) {
+      suspendedSet.delete(target.id);
+      suspendedSet.delete(target.phone);
+    } else {
+      suspendedSet.delete(id);
+    }
+  }
+
+  saveSuspendedIdentifiers(Array.from(suspendedSet));
+
   const updated = all.map(c => {
-    if (c.id === id) {
+    const isTarget = c.id === id || (target && c.id === target.id);
+    if (isTarget) {
       return {
         ...c,
         status: newStatus,
@@ -266,17 +346,19 @@ export const toggleCustomerStatus = async (id: string, newStatus: 'active' | 'su
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(updated));
     const current = getCurrentCustomer();
-    if (current && current.id === id) {
+    if (current && (current.id === id || (target && current.id === target.id))) {
       setCurrentCustomer({ ...current, status: newStatus, is_blocked: newStatus === 'suspended' });
     }
     dispatchCustomEvent('olak_customers_updated', updated);
   }
 
   try {
-    await supabase.from('customers').update({ 
-      status: newStatus, 
-      is_blocked: newStatus === 'suspended' 
-    }).eq('id', id);
+    const password_hash = newStatus === 'suspended' ? 'SUSPENDED' : 'customer_guest';
+    const query = target 
+      ? supabase.from('customers').update({ password_hash }).or(`id.eq.${target.id},phone.eq.${target.phone}`) 
+      : supabase.from('customers').update({ password_hash }).eq('id', id);
+    const { error } = await query;
+    if (error) console.warn('Supabase customer status update warning:', error.message);
   } catch (err) {
     console.error('Remote DB customer status update error:', err);
   }

@@ -22,7 +22,8 @@ import {
   ArrowRight,
   Sparkles,
   Route,
-  UserCheck
+  UserCheck,
+  Ban
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -76,13 +77,24 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       }
     };
 
+    const handleCustomersUpdated = () => {
+      const cur = getCurrentCustomer();
+      if (cur) {
+        setCurrentCustomer(cur);
+        setCustomerName(cur.full_name);
+        setCustomerPhone(cur.phone);
+      }
+    };
+
     window.addEventListener('olak_fares_updated', handleRatesUpdate);
     window.addEventListener('olak_landmarks_updated', handleLandmarksUpdate);
     window.addEventListener('olak_customer_auth_changed', handleCustomerAuth);
+    window.addEventListener('olak_customers_updated', handleCustomersUpdated);
     return () => {
       window.removeEventListener('olak_fares_updated', handleRatesUpdate);
       window.removeEventListener('olak_landmarks_updated', handleLandmarksUpdate);
       window.removeEventListener('olak_customer_auth_changed', handleCustomerAuth);
+      window.removeEventListener('olak_customers_updated', handleCustomersUpdated);
     };
   }, []);
 
@@ -361,59 +373,99 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </div>
 
           {/* Customer Authentication State Indicator or Inputs */}
-          {currentCustomer ? (
-            /* Logged in Passenger Badge */
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
-                  <UserCheck className="w-4 h-4" />
+          {(() => {
+            const isSuspended = currentCustomer?.status === 'suspended' || currentCustomer?.is_blocked;
+
+            if (currentCustomer) {
+              if (isSuspended) {
+                return (
+                  /* Suspended Customer Warning Banner */
+                  <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4 space-y-2.5 animate-fadeIn shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-xs">
+                          <Ban className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-black text-red-800 uppercase tracking-wider block">
+                            {isUrdu ? 'اکاؤنٹ معطل ہے' : 'Account Suspended'}
+                          </span>
+                          <span className="text-xs font-black text-slate-900">
+                            {currentCustomer.full_name} ({currentCustomer.phone})
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-black text-red-700 bg-white px-2.5 py-1 rounded-lg border border-red-300 shadow-xs">
+                        {isUrdu ? 'بلاک شدہ' : 'Suspended'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-red-800 font-semibold leading-relaxed border-t border-red-200/70 pt-2">
+                      {isUrdu 
+                        ? 'آپ کا اکاؤنٹ انتظامیہ کی جانب سے معطل کیا گیا ہے۔ آپ نئی سواری بک نہیں کر سکتے۔ معلومات کے لیے اولاک سپورٹ (03350455599) سے رابطہ کریں۔' 
+                        : 'Your account has been suspended by OLAK administration due to policy violations. You cannot book rides. Please contact OLAK support at +92 335 0455599.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                /* Normal Verified Passenger Badge */
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                        {isUrdu ? 'لاگ ان شدہ کسٹمر' : 'Verified Customer'}
+                      </span>
+                      <span className="text-xs font-black text-slate-900">
+                        {currentCustomer.full_name} ({currentCustomer.phone})
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
+                    Auto-Confirmed
+                  </span>
                 </div>
+              );
+            }
+
+            return (
+              /* Passenger Name & Phone Details (If not yet logged in) */
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
-                    {isUrdu ? 'لاگ ان شدہ کسٹمر' : 'Verified Customer'}
-                  </span>
-                  <span className="text-xs font-black text-slate-900">
-                    {currentCustomer.full_name} ({currentCustomer.phone})
-                  </span>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <User className="w-3 h-3 text-slate-400" />
+                    <span>{t.name_label}</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={t.name_placeholder}
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Phone className="w-3 h-3 text-slate-400" />
+                    <span>{t.phone_label}</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder={t.phone_placeholder}
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
+                  />
                 </div>
               </div>
-
-              <span className="text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-lg border border-emerald-200">
-                Auto-Confirmed
-              </span>
-            </div>
-          ) : (
-            /* Passenger Name & Phone Details (If not yet logged in) */
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                  <User className="w-3 h-3 text-slate-400" />
-                  <span>{t.name_label}</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder={t.name_placeholder}
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-slate-400" />
-                  <span>{t.phone_label}</span>
-                </label>
-                <input
-                  type="tel"
-                  placeholder={t.phone_placeholder}
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Live Dynamic Fare Estimation Card */}
           <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
@@ -441,24 +493,43 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </div>
 
           {/* Submit Request Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-base cursor-pointer"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center gap-2">
-                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                <span>{isUrdu ? 'کیپٹن سے رابطہ ہو رہا ہے...' : 'Connecting with Captains...'}</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4" />
-                <span>{t.book_now_btn}</span>
-                <ArrowRight className="w-4 h-4" />
-              </span>
-            )}
-          </button>
+          {currentCustomer && (currentCustomer.status === 'suspended' || currentCustomer.is_blocked) ? (
+            <button
+              type="button"
+              onClick={() => {
+                setToast({
+                  type: 'error',
+                  title: isUrdu ? 'اکاؤنٹ معطل ہے' : 'Account Suspended',
+                  message: isUrdu
+                    ? 'آپ کا اکاؤنٹ معطل ہے، آپ سواری بک نہیں کر سکتے۔ رابطہ: 03350455599'
+                    : 'Your account is suspended by admin. You cannot book rides. Contact OLAK support at +92 335 0455599.'
+                });
+              }}
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition text-base cursor-not-allowed"
+            >
+              <Ban className="w-5 h-5" />
+              <span>{isUrdu ? 'اکاؤنٹ معطل ہے (سواری کی اجازت نہیں)' : 'Account Suspended — Booking Disabled'}</span>
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-base cursor-pointer"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>{isUrdu ? 'کیپٹن سے رابطہ ہو رہا ہے...' : 'Connecting with Captains...'}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  <span>{t.book_now_btn}</span>
+                  <ArrowRight className="w-4 h-4" />
+                </span>
+              )}
+            </button>
+          )}
         </form>
       )}
 

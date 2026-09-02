@@ -31,7 +31,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose, duration = 3500 })
   const isError = toast.type === 'error';
 
   return (
-    <div className="fixed top-5 right-5 z-[9999] max-w-sm w-full animate-slideIn">
+    <div className="fixed top-20 sm:top-24 right-3 sm:right-6 left-3 sm:left-auto z-[99999] max-w-sm w-auto animate-slideIn">
       <div className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-md flex items-start gap-3 transition-all ${
         isSuccess 
           ? 'bg-white/95 border-emerald-300 text-slate-900 shadow-emerald-500/10' 

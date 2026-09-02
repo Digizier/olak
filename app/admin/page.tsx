@@ -1367,7 +1367,13 @@ export default function AdminPage() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Registered Passengers & Customers</h3>
-                <span className="text-xs text-slate-500">Total Registered: {customers.length}</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-slate-500">Total: <strong>{customers.length}</strong></span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-xs text-emerald-700 font-bold">Active: {customers.filter(c => c.status !== 'suspended' && !c.is_blocked).length}</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-xs text-red-600 font-bold">Suspended: {customers.filter(c => c.status === 'suspended' || c.is_blocked).length}</span>
+                </div>
               </div>
 
               <div className="relative w-full sm:w-64">
@@ -1398,27 +1404,34 @@ export default function AdminPage() {
                   {filteredCustomers.map((c) => {
                     const isSuspended = c.status === 'suspended' || c.is_blocked;
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50 transition">
-                        <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSuspended ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {c.full_name.charAt(0)}
+                      <tr key={c.id} className={isSuspended ? 'bg-red-50/40 hover:bg-red-50/70 border-l-4 border-l-red-500 transition' : 'hover:bg-slate-50 transition'}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${isSuspended ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                              {isSuspended ? <Ban className="w-3.5 h-3.5" /> : c.full_name.charAt(0)}
+                            </div>
+                            <div>
+                              <span className={`font-bold text-slate-900 block ${isSuspended ? 'line-through text-slate-500' : ''}`}>{c.full_name}</span>
+                              {isSuspended && (
+                                <span className="text-[10px] font-black text-red-600 block">Booking Blocked</span>
+                              )}
+                            </div>
                           </div>
-                          <span className={isSuspended ? 'line-through text-slate-400' : ''}>{c.full_name}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-800">{c.phone}</td>
+                        <td className="px-4 py-3 font-mono font-semibold text-slate-800">{c.phone}</td>
                         <td className="px-4 py-3 text-slate-500">{c.email}</td>
                         <td className="px-4 py-3 text-slate-400">
                           {new Date(c.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3">
                           {isSuspended ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-700 border border-red-200">
-                              <Ban className="w-3 h-3" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-red-100 text-red-800 border border-red-200 shadow-xs animate-pulse">
+                              <Ban className="w-3.5 h-3.5 text-red-600" />
                               <span>Suspended / Blocked</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 className="w-3 h-3" />
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 shadow-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                               <span>Active</span>
                             </span>
                           )}
@@ -1429,22 +1442,22 @@ export default function AdminPage() {
                               onClick={async () => {
                                 await toggleCustomerStatus(c.id, 'active');
                                 await loadData();
-                                showToast(`Customer ${c.full_name} unblocked & activated.`, 'success', 'Account Activated');
+                                showToast(`Customer ${c.full_name} is now unblocked and active.`, 'success', 'Account Activated');
                               }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg border border-emerald-200 transition text-[11px] font-bold cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow-xs transition text-xs font-black cursor-pointer transform active:scale-95"
                               title="Unblock / Reactivate Customer"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Unblock</span>
+                              <span>Unblock / Activate</span>
                             </button>
                           ) : (
                             <button
                               onClick={async () => {
                                 await toggleCustomerStatus(c.id, 'suspended');
                                 await loadData();
-                                showToast(`Customer ${c.full_name} suspended due to rude behavior.`, 'info', 'Customer Suspended');
+                                showToast(`Customer ${c.full_name} has been suspended. Booking blocked.`, 'error', 'Customer Suspended');
                               }}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 hover:bg-red-600 text-amber-700 hover:text-white rounded-lg border border-amber-200 hover:border-red-600 transition text-[11px] font-bold cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-red-600 text-amber-800 hover:text-white rounded-xl border border-amber-300 hover:border-red-600 transition text-xs font-black cursor-pointer shadow-xs"
                               title="Suspend or Temporary Block Rude Customer"
                             >
                               <Ban className="w-3.5 h-3.5" />
