@@ -549,6 +549,23 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
   if (typeof window === 'undefined') return INITIAL_INTERCITY_ROUTES;
 
   try {
+    // 1. Read deleted IDs & deleted city pairs
+    let deletedIdentifiers: string[] = [];
+    try {
+      const deletedIdsRaw = localStorage.getItem('olak_deleted_route_ids');
+      if (deletedIdsRaw) deletedIdentifiers = JSON.parse(deletedIdsRaw);
+    } catch {}
+
+    const isDeleted = (r: { id: string; origin_city?: string; destination_city?: string }) => {
+      if (deletedIdentifiers.includes(r.id)) return true;
+      if (r.origin_city && r.destination_city) {
+        const pair = `${r.origin_city.toLowerCase()}-${r.destination_city.toLowerCase()}`;
+        if (deletedIdentifiers.includes(pair)) return true;
+      }
+      return false;
+    };
+
+    // 2. Read local cache
     const cached = localStorage.getItem(STORAGE_KEYS.INTERCITY);
     let loadedRoutes: IntercityRoute[] = [];
 
@@ -556,14 +573,14 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedRoutes = parsed;
+          loadedRoutes = parsed.filter(r => !isDeleted(r));
         }
       } catch {
         loadedRoutes = [];
       }
     }
 
-    // Remote sync with Supabase
+    // 3. Remote sync with Supabase
     try {
       const { data, error } = await supabase
         .from('intercity_routes')
@@ -571,34 +588,30 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
         .order('car_economy_fare', { ascending: true });
 
       if (data && !error && data.length > 0) {
-        const sbIds = new Set(data.map((d: any) => d.id));
-        const localCustom = loadedRoutes.filter(r => !sbIds.has(r.id));
-        loadedRoutes = [...data as IntercityRoute[], ...localCustom];
+        const validRemote = (data as IntercityRoute[]).filter(r => !isDeleted(r));
+        const sbIds = new Set(validRemote.map((d: any) => d.id));
+        const localCustom = loadedRoutes.filter(r => !sbIds.has(r.id) && !isDeleted(r));
+        loadedRoutes = [...validRemote, ...localCustom];
       }
     } catch (e) {
       // Offline / fallback mode
     }
 
-    // Read list of explicitly deleted route IDs so deleted ones don't reappear
-    let deletedIds: string[] = [];
-    try {
-      const deletedIdsRaw = localStorage.getItem('olak_deleted_route_ids');
-      if (deletedIdsRaw) deletedIds = JSON.parse(deletedIdsRaw);
-    } catch {}
-
-    // MERGE WITH DEFAULT BALUCHISTAN ROUTES:
-    // Any default Baluchistan highway route that hasn't been explicitly deleted must always remain!
+    // 4. MERGE WITH DEFAULT BALUCHISTAN ROUTES (only if not explicitly deleted)
     const existingIds = new Set(loadedRoutes.map(r => r.id));
+    const existingPairs = new Set(loadedRoutes.map(r => `${r.origin_city.toLowerCase()}-${r.destination_city.toLowerCase()}`));
     const merged = [...loadedRoutes];
 
     for (const defRoute of INITIAL_INTERCITY_ROUTES) {
-      if (!existingIds.has(defRoute.id) && !deletedIds.includes(defRoute.id)) {
+      const defPair = `${defRoute.origin_city.toLowerCase()}-${defRoute.destination_city.toLowerCase()}`;
+      if (!existingIds.has(defRoute.id) && !existingPairs.has(defPair) && !isDeleted(defRoute)) {
         merged.push(defRoute);
       }
     }
 
-    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(merged));
-    return merged;
+    const finalRoutes = merged.filter(r => !isDeleted(r));
+    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(finalRoutes));
+    return finalRoutes;
   } catch (err) {
     console.warn('Error fetching intercity routes:', err);
     return INITIAL_INTERCITY_ROUTES;
@@ -608,19 +621,9 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
 export const resetIntercityRoutesToDefaults = async (): Promise<IntercityRoute[]> => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('olak_deleted_route_ids');
-    // Preserve any custom routes created by user, but restore all 11 default routes
-    const cached = localStorage.getItem(STORAGE_KEYS.INTERCITY);
-    let customRoutes: IntercityRoute[] = [];
-    if (cached) {
-      try {
-        const parsed: IntercityRoute[] = JSON.parse(cached);
-        customRoutes = parsed.filter(r => !INITIAL_INTERCITY_ROUTES.some(def => def.id === r.id));
-      } catch {}
-    }
-    const combined = [...customRoutes, ...INITIAL_INTERCITY_ROUTES];
-    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(combined));
-    dispatchCustomEvent('olak_intercity_updated', combined);
-    return combined;
+    localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(INITIAL_INTERCITY_ROUTES));
+    dispatchCustomEvent('olak_intercity_updated', INITIAL_INTERCITY_ROUTES);
+    return INITIAL_INTERCITY_ROUTES;
   }
   return INITIAL_INTERCITY_ROUTES;
 };
@@ -628,6 +631,22 @@ export const resetIntercityRoutesToDefaults = async (): Promise<IntercityRoute[]
 export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Promise<IntercityRoute> => {
   const all = await getIntercityRoutes();
   let updatedRoute: IntercityRoute;
+
+  // If re-adding or updating, unmark from deleted list
+  if (typeof window !== 'undefined') {
+    try {
+      const deletedIdsRaw = localStorage.getItem('olak_deleted_route_ids');
+      if (deletedIdsRaw) {
+        let deletedList: string[] = JSON.parse(deletedIdsRaw);
+        if (routeData.id) deletedList = deletedList.filter(x => x !== routeData.id);
+        if (routeData.origin_city && routeData.destination_city) {
+          const pair = `${routeData.origin_city.toLowerCase()}-${routeData.destination_city.toLowerCase()}`;
+          deletedList = deletedList.filter(x => x !== pair);
+        }
+        localStorage.setItem('olak_deleted_route_ids', JSON.stringify(deletedList));
+      }
+    } catch {}
+  }
 
   if (routeData.id && all.some(r => r.id === routeData.id)) {
     updatedRoute = { ...all.find(r => r.id === routeData.id)!, ...routeData } as IntercityRoute;
@@ -638,7 +657,7 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
     }
   } else {
     updatedRoute = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `route-${Date.now()}`,
+      id: generateUUID(),
       origin_city: routeData.origin_city || 'Turbat',
       destination_city: routeData.destination_city || 'Gwadar',
       estimated_distance_km: Number(routeData.estimated_distance_km) || 100,
@@ -677,24 +696,47 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
 
 export const deleteIntercityRoute = async (id: string): Promise<void> => {
   const all = await getIntercityRoutes();
-  const updated = all.filter(r => r.id !== id);
+  const target = all.find(r => r.id === id);
+
+  const deletedPairs: string[] = [];
+  if (target) {
+    deletedPairs.push(`${target.origin_city.toLowerCase()}-${target.destination_city.toLowerCase()}`);
+  }
 
   if (typeof window !== 'undefined') {
     try {
       const deletedIdsRaw = localStorage.getItem('olak_deleted_route_ids');
       const deletedIds: string[] = deletedIdsRaw ? JSON.parse(deletedIdsRaw) : [];
-      if (!deletedIds.includes(id)) {
-        deletedIds.push(id);
-        localStorage.setItem('olak_deleted_route_ids', JSON.stringify(deletedIds));
+      if (!deletedIds.includes(id)) deletedIds.push(id);
+      for (const pair of deletedPairs) {
+        if (!deletedIds.includes(pair)) deletedIds.push(pair);
       }
+      localStorage.setItem('olak_deleted_route_ids', JSON.stringify(deletedIds));
     } catch {}
+
+    const updated = all.filter(r => {
+      if (r.id === id) return false;
+      if (target && r.origin_city.toLowerCase() === target.origin_city.toLowerCase() && r.destination_city.toLowerCase() === target.destination_city.toLowerCase()) {
+        return false;
+      }
+      return true;
+    });
 
     localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
     dispatchCustomEvent('olak_intercity_updated', updated);
   }
 
   try {
-    await supabase.from('intercity_routes').delete().eq('id', id);
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUUID) {
+      await supabase.from('intercity_routes').delete().eq('id', id);
+    }
+    if (target) {
+      await supabase.from('intercity_routes').delete().match({
+        origin_city: target.origin_city,
+        destination_city: target.destination_city
+      });
+    }
   } catch (err) {
     console.error('Remote intercity route delete error:', err);
   }
