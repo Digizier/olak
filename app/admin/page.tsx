@@ -2677,13 +2677,13 @@ export default function AdminPage() {
                   </p>
                 </div>
 
-                {/* 1-Click Executive PDF Report Button */}
+                {/* 1-Click Executive Print / PDF Report Button */}
                 <button
                   onClick={() => setIsAnalyticsReportOpen(true)}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 sm:px-5 py-2.5 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition cursor-pointer shrink-0"
                 >
-                  <FileText className="w-4 h-4" />
-                  <span>Generate Executive PDF Report</span>
+                  <Printer className="w-4 h-4" />
+                  <span>Print Executive Report / Save PDF</span>
                 </button>
               </div>
 

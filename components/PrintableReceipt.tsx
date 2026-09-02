@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Booking, Captain, SiteSettings } from '@/lib/types';
-import { exportElementToPdf } from '@/lib/pdfHelper';
+import { printElementDirectly } from '@/lib/printHelper';
 import { 
   Printer, 
-  Download,
-  Loader2,
   X, 
   CheckCircle2, 
   MapPin, 
@@ -25,24 +23,8 @@ interface Props {
 }
 
 export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings, onClose }) => {
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-
   const triggerPrint = () => {
-    window.print();
-  };
-
-  const triggerDownloadPdf = async () => {
-    setIsDownloadingPdf(true);
-    try {
-      await exportElementToPdf(
-        'printable-receipt-card', 
-        `OLAK-${booking.booking_code}-Official-Invoice.pdf`
-      );
-    } catch (err) {
-      console.error('PDF download failed:', err);
-    } finally {
-      setIsDownloadingPdf(false);
-    }
+    printElementDirectly('printable-receipt-card', `OLAK-Invoice-${booking.booking_code}`);
   };
 
   const bookingDate = new Date(booking.created_at);
@@ -67,49 +49,29 @@ export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings, 
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-200 flex flex-col my-auto print:border-none print:shadow-none print:max-w-none print:rounded-none">
         
         {/* Top Control Bar (Hidden on Print & PDF) */}
-        <div className="no-print bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800">
+        <div className="no-print bg-slate-900 text-white px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 border-b border-slate-800">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span className="text-xs font-bold text-slate-200">Official Trip Invoice</span>
+            <span className="text-xs font-bold text-slate-200">Official Trip Invoice Preview</span>
             <span className="text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded-md font-bold">
               {booking.booking_code}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Direct 1-Click PDF Download Button */}
-            <button
-              onClick={triggerDownloadPdf}
-              disabled={isDownloadingPdf}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-              title="Download official PDF file"
-            >
-              {isDownloadingPdf ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Generating PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download PDF</span>
-                </>
-              )}
-            </button>
-
-            {/* Direct Physical Printer Button */}
+          <div className="flex items-center gap-2.5">
+            {/* Direct Instant Print / Save PDF Button */}
             <button
               onClick={triggerPrint}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
-              title="Print to physical printer"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-4 py-2 rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer"
+              title="Open full-color print and PDF dialog"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span>Print</span>
+              <Printer className="w-4 h-4" />
+              <span>Print Invoice / Save PDF</span>
             </button>
 
             <button
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer ml-1"
+              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition cursor-pointer"
               title="Close Preview"
             >
               <X className="w-4 h-4" />
@@ -330,7 +292,7 @@ export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings, 
         {/* Bottom Action Footer (Hidden on Print & PDF) */}
         <div className="no-print bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
           <span className="text-xs text-slate-500">
-            Click <strong>Download PDF</strong> for instant file download or <strong>Print</strong> for physical printer.
+            Click <strong>Print Invoice / Save PDF</strong> to send to your physical printer or export as a digital PDF document.
           </span>
 
           <div className="flex items-center gap-2.5">
@@ -342,29 +304,11 @@ export const PrintableReceipt: React.FC<Props> = ({ booking, captain, settings, 
             </button>
 
             <button
-              onClick={triggerDownloadPdf}
-              disabled={isDownloadingPdf}
-              className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
-            >
-              {isDownloadingPdf ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Generating PDF...</span>
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  <span>Download PDF</span>
-                </>
-              )}
-            </button>
-
-            <button
               onClick={triggerPrint}
-              className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2 cursor-pointer"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-2 cursor-pointer"
             >
               <Printer className="w-4 h-4" />
-              <span>Print</span>
+              <span>Print Invoice / Save PDF</span>
             </button>
           </div>
         </div>
