@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Image from 'next/image';
 
 interface OlakLogoProps {
   className?: string;
@@ -12,33 +11,45 @@ interface OlakLogoProps {
   innerCircleColor?: string;
 }
 
+const SIZE_MAP = {
+  sm: {
+    heightClass: 'h-6 sm:h-7', // 24px mobile, 28px desktop
+    maxHeightPx: 28,
+  },
+  md: {
+    heightClass: 'h-7 sm:h-9', // 28px mobile, 36px desktop
+    maxHeightPx: 36,
+  },
+  lg: {
+    heightClass: 'h-8 sm:h-10', // 32px mobile, 40px desktop
+    maxHeightPx: 40,
+  },
+  xl: {
+    heightClass: 'h-10 sm:h-12', // 40px mobile, 48px desktop
+    maxHeightPx: 48,
+  },
+};
+
 export const OlakLogo: React.FC<OlakLogoProps> = ({
   className = '',
   size = 'md',
   variant = 'dark',
 }) => {
-  const getDimensions = () => {
-    switch (size) {
-      case 'sm': return { height: 26, width: 85 };
-      case 'lg': return { height: 40, width: 130 };
-      case 'xl': return { height: 50, width: 163 };
-      default: return { height: 32, width: 104 };
-    }
-  };
-
-  const dim = getDimensions();
+  const config = SIZE_MAP[size] || SIZE_MAP.md;
   const logoSrc = variant === 'light' ? '/assets/olak-logo-white.png' : '/assets/olak-logo.png';
 
   return (
-    <div className={`inline-flex items-center select-none ${className}`}>
-      <Image
+    <div className={`inline-flex items-center flex-shrink-0 select-none ${className}`}>
+      <img
         src={logoSrc}
         alt="OLAK"
-        width={dim.width}
-        height={dim.height}
-        className="h-auto w-auto object-contain drop-shadow-xs"
-        priority
-        unoptimized
+        className={`${config.heightClass} w-auto max-w-full object-contain drop-shadow-xs transition-all duration-200`}
+        style={{
+          maxHeight: `${config.maxHeightPx}px`,
+          width: 'auto',
+          display: 'block',
+        }}
+        loading="eager"
       />
     </div>
   );

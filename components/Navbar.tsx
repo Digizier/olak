@@ -100,8 +100,8 @@ export const Navbar = () => {
         <div className="flex items-center justify-between h-16 sm:h-20">
           
           {/* Logo with Emblem (O) + LAK on Crisp White */}
-          <Link href="/" className="flex items-center gap-3 group py-2">
-            <OlakLogo size="md" textColor="text-slate-900" innerCircleColor="#ffffff" />
+          <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group py-1 sm:py-2 flex-shrink-0">
+            <OlakLogo size="md" />
             <div className="hidden sm:flex flex-col border-s border-slate-200 ps-2.5">
               <span className="text-xs font-bold text-emerald-600 font-urdu">
                 اولاک تربت
