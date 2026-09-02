@@ -755,19 +755,9 @@ export const getPromotions = async (): Promise<PromotionBanner[]> => {
       if (raw) deletedIds = JSON.parse(raw);
     } catch {}
 
-    const cached = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
     let loadedPromos: PromotionBanner[] = [];
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedPromos = parsed.filter(p => !deletedIds.includes(p.id));
-        }
-      } catch {
-        loadedPromos = [];
-      }
-    }
 
+    // 1. Primary: Fetch from Supabase cloud database
     try {
       const { data, error } = await supabase
         .from('promotions')
@@ -775,30 +765,30 @@ export const getPromotions = async (): Promise<PromotionBanner[]> => {
         .order('created_at', { ascending: false });
 
       if (data && !error && data.length > 0) {
-        const validRemote = (data as PromotionBanner[]).filter(p => !deletedIds.includes(p.id));
-        const sbIds = new Set(validRemote.map((d: any) => d.id));
-        const localOnly = loadedPromos.filter(p => !sbIds.has(p.id) && !deletedIds.includes(p.id));
-        loadedPromos = [...validRemote, ...localOnly];
+        loadedPromos = (data as PromotionBanner[]).filter(p => !deletedIds.includes(p.id));
+        try {
+          localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(loadedPromos));
+        } catch {}
+        return loadedPromos;
       }
     } catch (e) {
       console.warn('Supabase promotions fetch warning:', e);
     }
 
-    const existingIds = new Set(loadedPromos.map(p => p.id));
-    const merged = [...loadedPromos];
-
-    for (const defPromo of INITIAL_PROMOTIONS) {
-      if (!existingIds.has(defPromo.id) && !deletedIds.includes(defPromo.id)) {
-        merged.push(defPromo);
-      }
+    // 2. Fallback: LocalStorage cache
+    const cached = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(p => !deletedIds.includes(p.id));
+          if (valid.length > 0) return valid;
+        }
+      } catch {}
     }
 
-    const filtered = merged.filter(p => !deletedIds.includes(p.id));
-    try {
-      localStorage.setItem(STORAGE_KEYS.PROMOTIONS, JSON.stringify(filtered));
-    } catch {}
-
-    return filtered;
+    // 3. Fallback: Initial static constants (only if DB & cache are completely empty)
+    return INITIAL_PROMOTIONS.filter(p => !deletedIds.includes(p.id));
   } catch (err) {
     console.warn('Error fetching promotions:', err);
     return INITIAL_PROMOTIONS;
@@ -905,19 +895,9 @@ export const getDriverPromoCards = async (): Promise<DriverPromoCard[]> => {
       if (raw) deletedIds = JSON.parse(raw);
     } catch {}
 
-    const cached = localStorage.getItem(STORAGE_KEYS.DRIVER_PROMOS);
     let loadedCards: DriverPromoCard[] = [];
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedCards = parsed.filter(c => !deletedIds.includes(c.id));
-        }
-      } catch {
-        loadedCards = [];
-      }
-    }
 
+    // 1. Primary: Fetch from Supabase cloud database
     try {
       const { data, error } = await supabase
         .from('driver_promos')
@@ -925,38 +905,30 @@ export const getDriverPromoCards = async (): Promise<DriverPromoCard[]> => {
         .order('created_at', { ascending: true });
 
       if (data && !error && data.length > 0) {
-        const validRemote = (data as DriverPromoCard[]).filter(c => !deletedIds.includes(c.id));
-        const sbIds = new Set(validRemote.map((d: any) => d.id));
-        const localOnly = loadedCards.filter(c => !sbIds.has(c.id) && !deletedIds.includes(c.id));
-        loadedCards = [...validRemote, ...localOnly];
-      } else if (data && !error && data.length === 0) {
-        // Seed INITIAL_DRIVER_PROMOS into Supabase
-        for (const c of INITIAL_DRIVER_PROMOS) {
-          if (!deletedIds.includes(c.id)) {
-            await supabase.from('driver_promos').upsert(c);
-          }
-        }
-        loadedCards = INITIAL_DRIVER_PROMOS.filter(c => !deletedIds.includes(c.id));
+        loadedCards = (data as DriverPromoCard[]).filter(c => !deletedIds.includes(c.id));
+        try {
+          localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(loadedCards));
+        } catch {}
+        return loadedCards;
       }
     } catch (e) {
       console.warn('Supabase driver_promos fetch warning:', e);
     }
 
-    const existingIds = new Set(loadedCards.map(c => c.id));
-    const merged = [...loadedCards];
-
-    for (const defCard of INITIAL_DRIVER_PROMOS) {
-      if (!existingIds.has(defCard.id) && !deletedIds.includes(defCard.id)) {
-        merged.push(defCard);
-      }
+    // 2. Fallback: LocalStorage cache
+    const cached = localStorage.getItem(STORAGE_KEYS.DRIVER_PROMOS);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(c => !deletedIds.includes(c.id));
+          if (valid.length > 0) return valid;
+        }
+      } catch {}
     }
 
-    const filtered = merged.filter(c => !deletedIds.includes(c.id));
-    try {
-      localStorage.setItem(STORAGE_KEYS.DRIVER_PROMOS, JSON.stringify(filtered));
-    } catch {}
-
-    return filtered;
+    // 3. Fallback: Initial static constants (only if DB & cache are empty)
+    return INITIAL_DRIVER_PROMOS.filter(c => !deletedIds.includes(c.id));
   } catch (err) {
     console.warn('Error fetching driver promo cards:', err);
     return INITIAL_DRIVER_PROMOS;

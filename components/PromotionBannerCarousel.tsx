@@ -13,19 +13,20 @@ interface Props {
 }
 
 export const PromotionBannerCarousel: React.FC<Props> = ({ isUrdu = false }) => {
-  const [promotions, setPromotions] = useState<PromotionBanner[]>(INITIAL_PROMOTIONS);
+  const [promotions, setPromotions] = useState<PromotionBanner[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
     getPromotions().then(data => {
-      if (data && data.length > 0) {
+      if (isMounted && data && data.length > 0) {
         setPromotions(data.filter(p => p.is_active));
       }
     });
 
     const handleUpdate = () => {
       getPromotions().then(data => {
-        if (data && data.length > 0) {
+        if (isMounted && data && data.length > 0) {
           setPromotions(data.filter(p => p.is_active));
         }
       });
@@ -42,6 +43,7 @@ export const PromotionBannerCarousel: React.FC<Props> = ({ isUrdu = false }) => 
       .subscribe();
 
     return () => {
+      isMounted = false;
       window.removeEventListener('olak_promotions_updated', handleUpdate);
       supabase.removeChannel(channel);
     };
@@ -58,7 +60,8 @@ export const PromotionBannerCarousel: React.FC<Props> = ({ isUrdu = false }) => 
 
   if (!promotions || promotions.length === 0) return null;
 
-  const current = promotions[currentIndex] || promotions[0];
+  const safeIndex = currentIndex >= promotions.length ? 0 : currentIndex;
+  const current = promotions[safeIndex] || promotions[0];
 
   const handleNext = () => {
     setCurrentIndex(prev => (prev + 1) % promotions.length);

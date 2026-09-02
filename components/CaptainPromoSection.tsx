@@ -17,11 +17,12 @@ import {
 
 export const CaptainPromoSection = () => {
   const { t, isUrdu } = useLanguage();
-  const [cards, setCards] = useState<DriverPromoCard[]>(INITIAL_DRIVER_PROMOS);
+  const [cards, setCards] = useState<DriverPromoCard[]>([]);
 
   useEffect(() => {
+    let isMounted = true;
     getDriverPromoCards().then((res) => {
-      if (res && res.length > 0) setCards(res);
+      if (isMounted && res && res.length > 0) setCards(res);
     });
 
     const handleUpdate = (e?: any) => {
