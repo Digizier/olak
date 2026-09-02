@@ -8,6 +8,7 @@ import { getPricingRates, createBooking, getCityLandmarks, calculateRealtimeDist
 import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { Toast, ToastMessage } from '@/components/Toast';
+import { SearchableLocationSelect } from '@/components/SearchableLocationSelect';
 import { 
   Bike, 
   Car, 
@@ -188,7 +189,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
+    <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl space-y-3.5 sm:space-y-5">
       {confirmedBooking ? (
         /* Confirmation Voucher */
         <div className="text-center py-6 space-y-5 animate-fadeIn">
@@ -256,24 +257,24 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-5">
           
           {/* Header Title */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <h3 className="text-lg sm:text-xl font-black text-slate-900">
+              <h3 className="text-base sm:text-xl font-black text-slate-900">
                 {isUrdu ? 'سواری کی فوری بکنگ' : 'Instant Ride Booking'}
               </h3>
             </div>
-            <span className="text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+            <span className="text-[11px] sm:text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
               <Clock className="w-3.5 h-3.5" />
               <span>{isUrdu ? '3-7 منٹ میں آمد' : '3-7 Min Pickup'}</span>
             </span>
           </div>
 
-          {/* Service Selector Tabs */}
-          <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+          {/* Service Selector Tabs with Responsive Design */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-2xl border border-slate-200">
             {rates.filter(r => r.service_type !== 'delivery' && r.service_type !== 'intercity').map((rate) => {
               const isSelected = selectedService === rate.service_type;
               return (
@@ -281,21 +282,21 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                   key={rate.id}
                   type="button"
                   onClick={() => setSelectedService(rate.service_type)}
-                  className={`flex flex-col items-center justify-center py-2.5 px-2 rounded-xl transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 sm:px-2 rounded-xl transition-all cursor-pointer ${
                     isSelected 
                       ? 'bg-emerald-600 text-white font-bold shadow-md scale-[1.02]' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
                   <div className="mb-1">
-                    {rate.service_type === 'bike' && <Bike className="w-5 h-5" />}
-                    {rate.service_type === 'rickshaw' && <Truck className="w-5 h-5" />}
-                    {rate.service_type === 'car' && <Car className="w-5 h-5" />}
+                    {rate.service_type === 'bike' && <Bike className="w-4 h-4 sm:w-5 sm:h-5" />}
+                    {rate.service_type === 'rickshaw' && <Truck className="w-4 h-4 sm:w-5 sm:h-5" />}
+                    {rate.service_type === 'car' && <Car className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
-                  <span className="text-xs font-bold truncate max-w-full">
+                  <span className="text-[11px] sm:text-xs font-bold text-center leading-tight">
                     {isUrdu ? (rate.service_name_urdu || rate.service_name) : rate.service_name}
                   </span>
-                  <span className={`text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  <span className={`text-[10px] sm:text-[11px] mt-0.5 font-semibold ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
                     Base PKR {rate.base_fare}
                   </span>
                 </button>
@@ -303,51 +304,31 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
             })}
           </div>
 
-          {/* Location Selection Dropdowns */}
+          {/* Location Selection with Search Filter */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>{t.pickup_label}</span>
-                </span>
-                <span className="text-[10px] text-slate-400">Turbat</span>
-              </label>
+            <SearchableLocationSelect
+              label={t.pickup_label}
+              icon={MapPin}
+              iconColor="text-emerald-600"
+              value={pickup}
+              onChange={(name) => setPickup(name)}
+              landmarks={landmarks}
+              isUrdu={isUrdu}
+              badge="Turbat"
+              placeholder={isUrdu ? 'پک اپ مقام تلاش کریں...' : 'Search pickup landmark...'}
+            />
 
-              <select
-                value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              >
-                {landmarks.map((lm) => (
-                  <option key={lm.id || lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  <Navigation className="w-3.5 h-3.5 text-teal-700" />
-                  <span>{t.dropoff_label}</span>
-                </span>
-                <span className="text-[10px] text-slate-400">Turbat</span>
-              </label>
-
-              <select
-                value={dropoff}
-                onChange={(e) => setDropoff(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              >
-                {landmarks.map((lm) => (
-                  <option key={lm.id || lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableLocationSelect
+              label={t.dropoff_label}
+              icon={Navigation}
+              iconColor="text-teal-700"
+              value={dropoff}
+              onChange={(name) => setDropoff(name)}
+              landmarks={landmarks}
+              isUrdu={isUrdu}
+              badge="Turbat"
+              placeholder={isUrdu ? 'منزل تلاش کریں...' : 'Search dropoff destination...'}
+            />
           </div>
 
           {/* Embedded Real-Time Interactive Google Map */}

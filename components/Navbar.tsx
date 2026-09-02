@@ -53,11 +53,11 @@ export const Navbar = () => {
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm transition-colors">
       {/* Top Notification Strip */}
-      <div className="bg-slate-100/90 border-b border-slate-200 text-[11px] py-1.5 px-3 sm:px-4 text-slate-700">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="font-bold text-emerald-700 truncate max-w-[200px] sm:max-w-none">
+      <div className="bg-slate-100/90 border-b border-slate-200 text-[10px] sm:text-[11px] py-1 px-2.5 sm:px-4 text-slate-700">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+            <span className="font-bold text-emerald-700 truncate text-[10px] sm:text-[11px]">
               {t.hero_badge}
             </span>
             <span className="hidden md:inline text-slate-300">|</span>
@@ -66,7 +66,7 @@ export const Navbar = () => {
             </span>
           </div>
           
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <a 
               href="mailto:olak.tbt@gmail.com" 
               className="hidden lg:flex items-center gap-1 text-slate-600 hover:text-emerald-600 font-medium transition"
@@ -77,18 +77,18 @@ export const Navbar = () => {
 
             <a 
               href="tel:+923350455599" 
-              className="flex items-center gap-1 text-slate-800 hover:text-emerald-600 font-bold transition"
+              className="flex items-center gap-1 text-slate-800 hover:text-emerald-600 font-bold transition text-[10px] sm:text-xs"
             >
-              <Phone className="w-3 h-3 text-emerald-600" />
-              <span>+92 335 0455599</span>
+              <Phone className="w-3 h-3 text-emerald-600 shrink-0" />
+              <span className="whitespace-nowrap">+92 335 0455599</span>
             </a>
 
             <button
               onClick={() => setLang(lang === 'ur' ? 'en' : 'ur')}
-              className="flex items-center gap-1 bg-white hover:bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-lg text-[11px] font-bold border border-slate-300 shadow-xs transition"
+              className="flex items-center gap-1 bg-white hover:bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-bold border border-slate-300 shadow-xs transition shrink-0"
               title="Switch Language"
             >
-              <Globe className="w-3 h-3 text-emerald-600" />
+              <Globe className="w-3 h-3 text-emerald-600 shrink-0" />
               <span>{lang === 'ur' ? 'English' : 'اردو'}</span>
             </button>
           </div>
@@ -96,8 +96,8 @@ export const Navbar = () => {
       </div>
 
       {/* Main Nav Container in Pure White */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 sm:h-20">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between h-14 sm:h-20">
           
           {/* Logo with Emblem (O) + LAK on Crisp White */}
           <Link href="/" className="flex items-center gap-2.5 sm:gap-3 group py-1 sm:py-2 flex-shrink-0">

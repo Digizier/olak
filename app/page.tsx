@@ -49,17 +49,17 @@ export default function HomePage() {
 
       {/* Hero Section with Clean White & Slate Background */}
       <main className="flex-grow">
-        <section className="relative pt-8 pb-16 sm:pt-12 sm:pb-20 overflow-hidden bg-white">
+        <section className="relative pt-3 pb-8 sm:pt-10 sm:pb-20 overflow-hidden bg-white">
           
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 lg:gap-12 items-start">
               
               {/* Left Column: Headings & Value Props (5 Cols) */}
-              <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-28">
+              <div className="lg:col-span-5 space-y-4 sm:space-y-6 lg:sticky lg:top-28">
                 
                 {/* Badge */}
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-300/80 px-3.5 py-1.5 rounded-full text-xs font-bold text-emerald-800 shadow-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-300/80 px-3 py-1 rounded-full text-xs font-bold text-emerald-800 shadow-xs">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                     <span>{t.hero_badge}</span>
                   </div>
@@ -67,7 +67,7 @@ export default function HomePage() {
                   {currentCustomer ? (
                     <Link
                       href="/customer/"
-                      className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1.5 rounded-full text-xs font-bold hover:bg-slate-200 transition"
+                      className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-full text-xs font-bold hover:bg-slate-200 transition"
                     >
                       <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                       <span>{isUrdu ? `خوش آمدید، ${currentCustomer.full_name}` : `Welcome, ${currentCustomer.full_name}`}</span>
@@ -84,55 +84,55 @@ export default function HomePage() {
                 </div>
 
                 {/* Main Titles */}
-                <div className="space-y-2">
-                  <h1 className={`text-3xl sm:text-5xl lg:text-5xl font-black text-slate-950 tracking-tight ${
+                <div className="space-y-1 sm:space-y-2">
+                  <h1 className={`text-2xl sm:text-4xl lg:text-5xl font-black text-slate-950 tracking-tight ${
                     isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans'
                   }`}>
                     {t.hero_title_1}
                   </h1>
-                  <h2 className={`text-2xl sm:text-4xl lg:text-4xl font-black text-emerald-600 ${
+                  <h2 className={`text-xl sm:text-3xl lg:text-4xl font-black text-emerald-600 ${
                     isUrdu ? 'font-urdu leading-normal sm:leading-relaxed' : 'font-sans'
                   }`}>
                     {t.hero_title_2}
                   </h2>
                 </div>
 
-                <p className={`text-sm sm:text-base text-slate-600 leading-relaxed max-w-lg ${isUrdu ? 'font-urdu' : ''}`}>
+                <p className={`text-xs sm:text-base text-slate-600 leading-relaxed max-w-lg ${isUrdu ? 'font-urdu' : ''}`}>
                   {t.hero_desc}
                 </p>
 
                 {/* Quick Trust Highlights */}
-                <div className="grid grid-cols-2 gap-3 pt-2">
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
-                    <div className="flex items-center gap-2 text-emerald-600 font-black text-sm">
-                      <ShieldCheck className="w-4 h-4" />
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 pt-1 sm:pt-2">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-0.5 sm:space-y-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-emerald-600 font-black text-xs sm:text-sm">
+                      <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       <span>CNIC Verified</span>
                     </div>
-                    <p className="text-xs text-slate-500">100% inspected Turbat captains</p>
+                    <p className="text-[10px] sm:text-xs text-slate-500">100% inspected Turbat captains</p>
                   </div>
 
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-1">
-                    <div className="flex items-center gap-2 text-emerald-600 font-black text-sm">
-                      <Clock className="w-4 h-4" />
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 space-y-0.5 sm:space-y-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 text-emerald-600 font-black text-xs sm:text-sm">
+                      <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                       <span>3-7 Min Pickup</span>
                     </div>
-                    <p className="text-xs text-slate-500">Rapid doorstep arrival</p>
+                    <p className="text-[10px] sm:text-xs text-slate-500">Rapid doorstep arrival</p>
                   </div>
                 </div>
 
                 {/* Driver CTA Card */}
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 flex items-center justify-between">
                   <div>
-                    <h4 className="font-black text-sm text-slate-900">
+                    <h4 className="font-black text-xs sm:text-sm text-slate-900">
                       {isUrdu ? 'گاڑی یا بائیک ہے؟' : 'Own a Bike or Car?'}
                     </h4>
-                    <p className={`text-xs text-slate-600 ${isUrdu ? 'font-urdu' : ''}`}>
+                    <p className={`text-[11px] sm:text-xs text-slate-600 ${isUrdu ? 'font-urdu' : ''}`}>
                       {isUrdu ? 'اولاک کے ساتھ جڑیں اور باعزت روزگار کمائیں' : 'Drive with OLAK & earn 90% income'}
                     </p>
                   </div>
                   <Link
                     href="/captain/"
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition whitespace-nowrap shadow-xs"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl transition whitespace-nowrap shadow-xs"
                   >
                     {isUrdu ? 'کیپٹن بنیں' : 'Register Now'}
                   </Link>
@@ -141,44 +141,44 @@ export default function HomePage() {
               </div>
 
               {/* Right Column: Booking Engine (7 Cols) */}
-              <div className="lg:col-span-7 space-y-4">
+              <div className="lg:col-span-7 space-y-3 sm:space-y-4">
                 
                 {/* Primary Mode Tabs (City Ride vs Delivery vs Intercity) */}
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+                <div className="flex bg-slate-100 p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-inner">
                   <button
                     onClick={() => setActiveMainTab('rides')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-3 px-1.5 sm:px-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'rides'
                         ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Car className="w-4 h-4 text-emerald-600" />
-                    <span>{isUrdu ? 'شہری رائیڈ' : 'City Rides'}</span>
+                    <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
+                    <span className="truncate">{isUrdu ? 'شہری رائیڈ' : 'City Rides'}</span>
                   </button>
 
                   <button
                     onClick={() => setActiveMainTab('delivery')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-3 px-1.5 sm:px-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'delivery'
                         ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Package className="w-4 h-4 text-emerald-600" />
-                    <span>{isUrdu ? 'پارسل ڈلیوری' : 'Parcel Delivery'}</span>
+                    <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
+                    <span className="truncate">{isUrdu ? 'پارسل ڈلیوری' : 'Parcel Delivery'}</span>
                   </button>
 
                   <button
                     onClick={() => setActiveMainTab('intercity')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-3 px-1.5 sm:px-3 rounded-lg sm:rounded-xl text-xs sm:text-sm font-black transition cursor-pointer ${
                       activeMainTab === 'intercity'
                         ? 'bg-white text-emerald-700 shadow-md border border-slate-200'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
-                    <Navigation className="w-4 h-4 text-emerald-600" />
-                    <span>{isUrdu ? 'انٹرسٹی ٹریول' : 'Intercity Travel'}</span>
+                    <Navigation className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
+                    <span className="truncate">{isUrdu ? 'انٹرسٹی ٹریول' : 'Intercity Travel'}</span>
                   </button>
                 </div>
 

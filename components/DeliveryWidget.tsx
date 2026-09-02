@@ -7,6 +7,7 @@ import { createBooking, getPricingRates, getCityLandmarks, calculateRealtimeDist
 import { Booking, CityLandmark, PricingRate, Customer } from '@/lib/types';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { Toast, ToastMessage } from '@/components/Toast';
+import { SearchableLocationSelect } from '@/components/SearchableLocationSelect';
 import { 
   Package, 
   MapPin, 
@@ -181,7 +182,7 @@ export const DeliveryWidget = () => {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-7 shadow-xl space-y-5">
+    <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl space-y-3.5 sm:space-y-5">
       {confirmedBooking ? (
         <div className="text-center py-6 space-y-5 animate-fadeIn">
           <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
@@ -197,30 +198,38 @@ export const DeliveryWidget = () => {
             </h3>
             <p className="text-sm text-slate-600 mt-1 font-urdu">
               {isUrdu 
-                ? 'رائڈر کو فوری پارسل پک اپ کے لیے الرٹ بھیج دیا گیا ہے۔' 
-                : 'A nearby delivery rider has been assigned for express door-to-door courier.'}
+                ? 'آپ کا پارسل آرڈر کامیابی کے ساتھ سسٹم میں درج ہوگیا ہے۔' 
+                : 'Your courier order has been placed. Verified captain dispatched.'}
             </p>
           </div>
 
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left space-y-2 text-xs sm:text-sm">
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'پارسل کی قسم' : 'Parcel Type'}:</span>
-              <span className="font-bold text-slate-900">{confirmedBooking.delivery_parcel_type}</span>
+              <span className="font-bold text-slate-900">{confirmedBooking.delivery_parcel_type} ({confirmedBooking.delivery_weight_kg || 1} KG)</span>
             </div>
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
-              <span className="text-slate-500">{isUrdu ? 'بھیجنے والا' : 'Sender'}:</span>
-              <span className="font-semibold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
+              <span className="text-slate-500">{isUrdu ? 'ارسال کنندہ' : 'Sender'}:</span>
+              <span className="font-bold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
             </div>
             <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
-              <span className="text-slate-500">{isUrdu ? 'روٹ فاصلہ' : 'Route Distance'}:</span>
+              <span className="text-slate-500">{isUrdu ? 'وصول کنندہ' : 'Receiver'}:</span>
+              <span className="font-bold text-slate-900">{confirmedBooking.delivery_receiver_name || 'Recipient'} ({confirmedBooking.delivery_receiver_phone})</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'پک اپ پوائنٹ' : 'Pickup Point'}:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.pickup_location}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'منزل' : 'Delivery Destination'}:</span>
+              <span className="font-semibold text-slate-900">{confirmedBooking.dropoff_location}</span>
+            </div>
+            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+              <span className="text-slate-500">{isUrdu ? 'فاصلہ' : 'Distance'}:</span>
               <span className="font-bold text-emerald-700">{confirmedBooking.estimated_distance_km} KM</span>
             </div>
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
-              <span className="text-slate-500">{isUrdu ? 'وصول کنندہ' : 'Recipient'}:</span>
-              <span className="font-semibold text-slate-900">{confirmedBooking.delivery_receiver_name || 'N/A'} ({confirmedBooking.delivery_receiver_phone})</span>
-            </div>
             <div className="flex justify-between text-slate-900 pt-1 text-base">
-              <span className="font-bold text-emerald-600">{isUrdu ? 'ڈلیوری فیس' : 'Total Delivery Fare'}:</span>
+              <span className="font-bold text-emerald-600">{isUrdu ? 'ڈلیوری فیس' : 'Total Fare'}:</span>
               <span className="font-black text-emerald-600">PKR {confirmedBooking.estimated_fare}</span>
             </div>
           </div>
@@ -243,16 +252,16 @@ export const DeliveryWidget = () => {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-5">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <h3 className="text-lg sm:text-xl font-black text-slate-900">
+              <h3 className="text-base sm:text-xl font-black text-slate-900">
                 {isUrdu ? 'شہر کے اندر فوری پارسل ڈلیوری' : 'Turbat Express Parcel Delivery'}
               </h3>
             </div>
-            <span className="text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+            <span className="text-[11px] sm:text-xs text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
               {isUrdu ? 'ڈور ٹو ڈور سروس' : 'Doorstep Courier'}
             </span>
           </div>
@@ -278,7 +287,7 @@ export const DeliveryWidget = () => {
                     onClick={() => setParcelType(item.label)}
                     className={`flex items-center gap-1.5 p-2 sm:p-2.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
                       isSelected 
-                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-xs' 
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-2xs' 
                         : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                     }`}
                   >
@@ -290,43 +299,31 @@ export const DeliveryWidget = () => {
             </div>
           </div>
 
-          {/* Locations */}
+          {/* Locations with Search Filter */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{isUrdu ? 'کہاں سے اٹھانا ہے (پک اپ)' : 'Pickup Point'}</span>
-              </label>
-              <select
-                value={pickup}
-                onChange={(e) => setPickup(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500"
-              >
-                {landmarks.map(lm => (
-                  <option key={lm.id || lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableLocationSelect
+              label={isUrdu ? 'کہاں سے اٹھانا ہے (پک اپ)' : 'Pickup Point'}
+              icon={MapPin}
+              iconColor="text-emerald-600"
+              value={pickup}
+              onChange={(name) => setPickup(name)}
+              landmarks={landmarks}
+              isUrdu={isUrdu}
+              badge="Turbat"
+              placeholder={isUrdu ? 'پک اپ مقام تلاش کریں...' : 'Search pickup location...'}
+            />
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Navigation className="w-3.5 h-3.5 text-teal-700" />
-                <span>{isUrdu ? 'کہاں پہنچانا ہے (منزل)' : 'Delivery Destination'}</span>
-              </label>
-              <select
-                value={dropoff}
-                onChange={(e) => setDropoff(e.target.value)}
-                className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm text-slate-800 font-semibold focus:outline-none focus:border-emerald-500"
-              >
-                {landmarks.map(lm => (
-                  <option key={lm.id || lm.name} value={lm.name}>
-                    {isUrdu ? `${lm.nameUrdu || lm.name_urdu || lm.name} (${lm.area})` : `${lm.name} (${lm.area})`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SearchableLocationSelect
+              label={isUrdu ? 'کہاں پہنچانا ہے (منزل)' : 'Delivery Destination'}
+              icon={Navigation}
+              iconColor="text-teal-700"
+              value={dropoff}
+              onChange={(name) => setDropoff(name)}
+              landmarks={landmarks}
+              isUrdu={isUrdu}
+              badge="Turbat"
+              placeholder={isUrdu ? 'منزل کا مقام تلاش کریں...' : 'Search delivery destination...'}
+            />
           </div>
 
           {/* AUTOMATED ROUTE DISTANCE & WEIGHT SPECIFICATION CARD */}
