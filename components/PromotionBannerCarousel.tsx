@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { getPromotions } from '@/lib/db';
 import { PromotionBanner } from '@/lib/types';
 import { INITIAL_PROMOTIONS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import { Sparkles, ChevronLeft, ChevronRight, ArrowRight, Tag } from 'lucide-react';
 
 interface Props {
@@ -31,7 +32,19 @@ export const PromotionBannerCarousel: React.FC<Props> = ({ isUrdu = false }) => 
     };
 
     window.addEventListener('olak_promotions_updated', handleUpdate);
-    return () => window.removeEventListener('olak_promotions_updated', handleUpdate);
+
+    // 0ms Supabase Realtime Channel
+    const channel = supabase
+      .channel('promotions-live-feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'promotions' }, () => {
+        handleUpdate();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('olak_promotions_updated', handleUpdate);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Auto-slide every 5 seconds if multiple banners exist

@@ -749,13 +749,19 @@ export const getPromotions = async (): Promise<PromotionBanner[]> => {
   if (typeof window === 'undefined') return INITIAL_PROMOTIONS;
 
   try {
+    let deletedIds: string[] = [];
+    try {
+      const raw = localStorage.getItem('olak_deleted_promo_ids');
+      if (raw) deletedIds = JSON.parse(raw);
+    } catch {}
+
     const cached = localStorage.getItem(STORAGE_KEYS.PROMOTIONS);
     let loadedPromos: PromotionBanner[] = [];
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedPromos = parsed;
+          loadedPromos = parsed.filter(p => !deletedIds.includes(p.id));
         }
       } catch {
         loadedPromos = [];
@@ -769,18 +775,14 @@ export const getPromotions = async (): Promise<PromotionBanner[]> => {
         .order('created_at', { ascending: false });
 
       if (data && !error && data.length > 0) {
-        const sbIds = new Set(data.map((d: any) => d.id));
-        const localOnly = loadedPromos.filter(p => !sbIds.has(p.id));
-        loadedPromos = [...data as PromotionBanner[], ...localOnly];
+        const validRemote = (data as PromotionBanner[]).filter(p => !deletedIds.includes(p.id));
+        const sbIds = new Set(validRemote.map((d: any) => d.id));
+        const localOnly = loadedPromos.filter(p => !sbIds.has(p.id) && !deletedIds.includes(p.id));
+        loadedPromos = [...validRemote, ...localOnly];
       }
-    } catch {}
-
-    // Exclude deleted promo ids
-    let deletedIds: string[] = [];
-    try {
-      const raw = localStorage.getItem('olak_deleted_promo_ids');
-      if (raw) deletedIds = JSON.parse(raw);
-    } catch {}
+    } catch (e) {
+      console.warn('Supabase promotions fetch warning:', e);
+    }
 
     const existingIds = new Set(loadedPromos.map(p => p.id));
     const merged = [...loadedPromos];
@@ -820,7 +822,7 @@ export const savePromotion = async (promoData: Partial<PromotionBanner>): Promis
     }
   } else {
     updatedPromo = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `promo-${Date.now()}`,
+      id: promoData.id || generateUUID(),
       title: promoData.title || 'New Special Offer',
       subtitle: promoData.subtitle || '',
       image_url: promoData.image_url || 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=1200&q=80',
@@ -840,8 +842,21 @@ export const savePromotion = async (promoData: Partial<PromotionBanner>): Promis
     }
   }
 
+  // Remove from deleted list if re-adding or updating
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('olak_deleted_promo_ids');
+      if (raw) {
+        const deletedIds: string[] = JSON.parse(raw);
+        const filtered = deletedIds.filter(x => x !== updatedPromo.id);
+        localStorage.setItem('olak_deleted_promo_ids', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
   try {
-    await supabase.from('promotions').upsert(updatedPromo);
+    const { error } = await supabase.from('promotions').upsert(updatedPromo);
+    if (error) console.error('Supabase promotion upsert error:', error.message);
   } catch (err) {
     console.error('Remote promotion sync error:', err);
   }
@@ -870,7 +885,8 @@ export const deletePromotion = async (id: string): Promise<void> => {
   }
 
   try {
-    await supabase.from('promotions').delete().eq('id', id);
+    const { error } = await supabase.from('promotions').delete().eq('id', id);
+    if (error) console.error('Supabase promotion delete error:', error.message);
   } catch (err) {
     console.error('Remote promotion delete error:', err);
   }
@@ -883,13 +899,19 @@ export const getDriverPromoCards = async (): Promise<DriverPromoCard[]> => {
   if (typeof window === 'undefined') return INITIAL_DRIVER_PROMOS;
 
   try {
+    let deletedIds: string[] = [];
+    try {
+      const raw = localStorage.getItem('olak_deleted_driver_promo_ids');
+      if (raw) deletedIds = JSON.parse(raw);
+    } catch {}
+
     const cached = localStorage.getItem(STORAGE_KEYS.DRIVER_PROMOS);
     let loadedCards: DriverPromoCard[] = [];
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          loadedCards = parsed;
+          loadedCards = parsed.filter(c => !deletedIds.includes(c.id));
         }
       } catch {
         loadedCards = [];
@@ -900,20 +922,25 @@ export const getDriverPromoCards = async (): Promise<DriverPromoCard[]> => {
       const { data, error } = await supabase
         .from('driver_promos')
         .select('*')
-        .order('id', { ascending: true });
+        .order('created_at', { ascending: true });
 
       if (data && !error && data.length > 0) {
-        const sbIds = new Set(data.map((d: any) => d.id));
-        const localOnly = loadedCards.filter(c => !sbIds.has(c.id));
-        loadedCards = [...data as DriverPromoCard[], ...localOnly];
+        const validRemote = (data as DriverPromoCard[]).filter(c => !deletedIds.includes(c.id));
+        const sbIds = new Set(validRemote.map((d: any) => d.id));
+        const localOnly = loadedCards.filter(c => !sbIds.has(c.id) && !deletedIds.includes(c.id));
+        loadedCards = [...validRemote, ...localOnly];
+      } else if (data && !error && data.length === 0) {
+        // Seed INITIAL_DRIVER_PROMOS into Supabase
+        for (const c of INITIAL_DRIVER_PROMOS) {
+          if (!deletedIds.includes(c.id)) {
+            await supabase.from('driver_promos').upsert(c);
+          }
+        }
+        loadedCards = INITIAL_DRIVER_PROMOS.filter(c => !deletedIds.includes(c.id));
       }
-    } catch {}
-
-    let deletedIds: string[] = [];
-    try {
-      const raw = localStorage.getItem('olak_deleted_driver_promo_ids');
-      if (raw) deletedIds = JSON.parse(raw);
-    } catch {}
+    } catch (e) {
+      console.warn('Supabase driver_promos fetch warning:', e);
+    }
 
     const existingIds = new Set(loadedCards.map(c => c.id));
     const merged = [...loadedCards];
@@ -951,7 +978,7 @@ export const saveDriverPromoCard = async (cardData: Partial<DriverPromoCard>): P
     }
   } else {
     updatedCard = {
-      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `driver-promo-${Date.now()}`,
+      id: cardData.id || generateUUID(),
       category_badge: cardData.category_badge || 'Motorcycle 70cc / 125cc',
       title: cardData.title || 'Register Driver Account',
       title_urdu: cardData.title_urdu || 'اپنی سواری رجسٹر کروائیں',
@@ -971,9 +998,24 @@ export const saveDriverPromoCard = async (cardData: Partial<DriverPromoCard>): P
     }
   }
 
+  // Remove from deleted list if re-adding or updating
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('olak_deleted_driver_promo_ids');
+      if (raw) {
+        const deletedIds: string[] = JSON.parse(raw);
+        const filtered = deletedIds.filter(x => x !== updatedCard.id);
+        localStorage.setItem('olak_deleted_driver_promo_ids', JSON.stringify(filtered));
+      }
+    } catch {}
+  }
+
   try {
-    await supabase.from('driver_promos').upsert(updatedCard);
-  } catch {}
+    const { error } = await supabase.from('driver_promos').upsert(updatedCard);
+    if (error) console.error('Supabase driver_promos upsert error:', error.message);
+  } catch (err) {
+    console.error('Remote driver_promos error:', err);
+  }
 
   return updatedCard;
 };
@@ -999,8 +1041,11 @@ export const deleteDriverPromoCard = async (id: string): Promise<void> => {
   }
 
   try {
-    await supabase.from('driver_promos').delete().eq('id', id);
-  } catch {}
+    const { error } = await supabase.from('driver_promos').delete().eq('id', id);
+    if (error) console.error('Supabase driver_promos delete error:', error.message);
+  } catch (err) {
+    console.error('Remote driver_promos delete error:', err);
+  }
 };
 
 // ==========================================

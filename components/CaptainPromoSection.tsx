@@ -7,6 +7,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { getDriverPromoCards } from '@/lib/db';
 import { DriverPromoCard } from '@/lib/types';
 import { INITIAL_DRIVER_PROMOS } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import { 
   UserPlus, 
   CheckCircle2, 
@@ -23,16 +24,30 @@ export const CaptainPromoSection = () => {
       if (res && res.length > 0) setCards(res);
     });
 
-    const handleUpdate = (e: any) => {
-      if (e.detail && Array.isArray(e.detail)) {
+    const handleUpdate = (e?: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
         setCards(e.detail);
       } else {
-        getDriverPromoCards().then(setCards);
+        getDriverPromoCards().then(res => {
+          if (res && res.length > 0) setCards(res);
+        });
       }
     };
 
     window.addEventListener('olak_driver_promos_updated', handleUpdate);
-    return () => window.removeEventListener('olak_driver_promos_updated', handleUpdate);
+
+    // 0ms Supabase Realtime Channel
+    const channel = supabase
+      .channel('driver-promos-live-feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_promos' }, () => {
+        handleUpdate();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('olak_driver_promos_updated', handleUpdate);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const activeCards = cards.filter(c => c.is_active);

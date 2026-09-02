@@ -163,6 +163,33 @@ const tablesSQL = [
   `INSERT INTO storage.buckets (id, name, public) VALUES ('olak-uploads', 'olak-uploads', true) ON CONFLICT (id) DO UPDATE SET public = true;`,
   `DROP POLICY IF EXISTS "Public access to olak-uploads" ON storage.objects;`,
   `CREATE POLICY "Public access to olak-uploads" ON storage.objects FOR ALL TO public USING (bucket_id = 'olak-uploads') WITH CHECK (bucket_id = 'olak-uploads');`,
+
+  // 7. Driver Promos Table
+  `CREATE TABLE IF NOT EXISTS public.driver_promos (
+    id TEXT PRIMARY KEY,
+    category_badge TEXT NOT NULL,
+    title TEXT NOT NULL,
+    title_urdu TEXT,
+    image_url TEXT NOT NULL,
+    bullets JSONB DEFAULT '[]'::jsonb,
+    cta_text TEXT DEFAULT 'Register Captain',
+    cta_link TEXT DEFAULT '/captain/',
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );`,
+  `ALTER TABLE public.driver_promos ENABLE ROW LEVEL SECURITY;`,
+  `DROP POLICY IF EXISTS "Allow all on driver_promos" ON public.driver_promos;`,
+  `CREATE POLICY "Allow all on driver_promos" ON public.driver_promos FOR ALL TO public USING (true) WITH CHECK (true);`,
+
+  // 8. Promotions Table Column Alignment
+  `ALTER TABLE public.promotions ALTER COLUMN id TYPE TEXT;`,
+  `ALTER TABLE public.promotions ENABLE ROW LEVEL SECURITY;`,
+  `DROP POLICY IF EXISTS "Allow all on promotions" ON public.promotions;`,
+  `CREATE POLICY "Allow all on promotions" ON public.promotions FOR ALL TO public USING (true) WITH CHECK (true);`,
+
+  // Realtime publications
+  `ALTER PUBLICATION supabase_realtime ADD TABLE public.promotions;`,
+  `ALTER PUBLICATION supabase_realtime ADD TABLE public.driver_promos;`,
 ];
 
 async function runSetup() {

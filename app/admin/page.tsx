@@ -372,6 +372,12 @@ export default function AdminPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_settlements' }, () => {
         handleUpdate();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'promotions' }, () => {
+        handleUpdate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_promos' }, () => {
+        handleUpdate();
+      })
       .subscribe();
 
     return () => {
@@ -2727,11 +2733,12 @@ export default function AdminPage() {
                               const file = e.target.files?.[0];
                               if (file) {
                                 try {
-                                  const base64 = await fileToBase64(file);
-                                  setEditingPromo(prev => ({ ...prev, image_url: base64 }));
-                                  showToast('Banner image updated successfully!', 'success', 'Image Uploaded');
+                                  showToast('Uploading banner to cloud storage...', 'info', 'Uploading');
+                                  const cloudUrl = await uploadFileToStorage(file, 'banners');
+                                  setEditingPromo(prev => ({ ...prev, image_url: cloudUrl }));
+                                  showToast('Banner image uploaded successfully!', 'success', 'Image Uploaded');
                                 } catch (err) {
-                                  showToast('Failed to read image file.', 'error');
+                                  showToast('Failed to upload image file.', 'error');
                                 }
                               }
                             }}
@@ -2754,7 +2761,7 @@ export default function AdminPage() {
                     </div>
                     <div className="text-center">
                       <span className="text-xs font-bold text-slate-900 block">Click to upload banner image</span>
-                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (No URL needed)</span>
+                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (Uploaded to Supabase Cloud)</span>
                     </div>
                     <input
                       type="file"
@@ -2764,11 +2771,12 @@ export default function AdminPage() {
                         const file = e.target.files?.[0];
                         if (file) {
                           try {
-                            const base64 = await fileToBase64(file);
-                            setEditingPromo(prev => ({ ...prev, image_url: base64 }));
-                            showToast('Banner image loaded successfully!', 'success', 'Image Ready');
+                            showToast('Uploading banner to cloud storage...', 'info', 'Uploading');
+                            const cloudUrl = await uploadFileToStorage(file, 'banners');
+                            setEditingPromo(prev => ({ ...prev, image_url: cloudUrl }));
+                            showToast('Banner image uploaded successfully!', 'success', 'Image Ready');
                           } catch (err) {
-                            showToast('Failed to read image file.', 'error');
+                            showToast('Failed to upload image file.', 'error');
                           }
                         }
                       }}
@@ -2924,11 +2932,12 @@ export default function AdminPage() {
                               const file = e.target.files?.[0];
                               if (file) {
                                 try {
-                                  const base64 = await fileToBase64(file);
-                                  setEditingDriverPromo(prev => ({ ...prev, image_url: base64 }));
-                                  showToast('Card image updated successfully!', 'success', 'Image Uploaded');
+                                  showToast('Uploading driver poster to cloud storage...', 'info', 'Uploading');
+                                  const cloudUrl = await uploadFileToStorage(file, 'driver-promos');
+                                  setEditingDriverPromo(prev => ({ ...prev, image_url: cloudUrl }));
+                                  showToast('Card image uploaded successfully!', 'success', 'Image Uploaded');
                                 } catch (err) {
-                                  showToast('Failed to read image file.', 'error');
+                                  showToast('Failed to upload image file.', 'error');
                                 }
                               }
                             }}
@@ -2951,7 +2960,7 @@ export default function AdminPage() {
                     </div>
                     <div className="text-center">
                       <span className="text-xs font-bold text-slate-900 block">Click to upload banner photo</span>
-                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (Auto-optimized)</span>
+                      <span className="text-[10px] text-slate-500">Supports JPG, PNG, WEBP (Uploaded to Supabase Cloud)</span>
                     </div>
                     <input
                       type="file"
@@ -2961,11 +2970,12 @@ export default function AdminPage() {
                         const file = e.target.files?.[0];
                         if (file) {
                           try {
-                            const base64 = await fileToBase64(file);
-                            setEditingDriverPromo(prev => ({ ...prev, image_url: base64 }));
+                            showToast('Uploading driver poster to cloud storage...', 'info', 'Uploading');
+                            const cloudUrl = await uploadFileToStorage(file, 'driver-promos');
+                            setEditingDriverPromo(prev => ({ ...prev, image_url: cloudUrl }));
                             showToast('Card image loaded successfully!', 'success', 'Image Ready');
                           } catch (err) {
-                            showToast('Failed to read image file.', 'error');
+                            showToast('Failed to upload image file.', 'error');
                           }
                         }
                       }}
