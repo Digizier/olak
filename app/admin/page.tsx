@@ -42,6 +42,7 @@ import {
   getDetailedAnalytics
 } from '@/lib/db';
 import { getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
+import { resolveIntercityCoords } from '@/lib/intercityCoords';
 import { supabase } from '@/lib/supabase';
 import { 
   SiteSettings, 
@@ -712,11 +713,28 @@ export default function AdminPage() {
       return;
     }
     setIsSaving(true);
-    await saveIntercityRoute(editingRoute);
-    setIsSaving(false);
-    setRouteModalOpen(false);
-    await loadData();
-    showToast(`Highway route ${editingRoute.origin_city} ➔ ${editingRoute.destination_city} saved successfully!`, 'success', 'Route Configured');
+    try {
+      const finalOrigin = adminRouteOriginCoords || (editingRoute.origin_lat && editingRoute.origin_lng ? { lat: Number(editingRoute.origin_lat), lng: Number(editingRoute.origin_lng) } : resolveIntercityCoords(editingRoute.origin_city));
+      const finalDest = adminRouteDestCoords || (editingRoute.destination_lat && editingRoute.destination_lng ? { lat: Number(editingRoute.destination_lat), lng: Number(editingRoute.destination_lng) } : resolveIntercityCoords(editingRoute.destination_city));
+
+      const toSave: Partial<IntercityRoute> = {
+        ...editingRoute,
+        origin_lat: finalOrigin.lat,
+        origin_lng: finalOrigin.lng,
+        destination_lat: finalDest.lat,
+        destination_lng: finalDest.lng,
+      };
+
+      await saveIntercityRoute(toSave);
+      setRouteModalOpen(false);
+      await loadData();
+      showToast(`Highway route ${toSave.origin_city} ➔ ${toSave.destination_city} saved successfully!`, 'success', 'Route Configured');
+    } catch (err) {
+      console.error('Save intercity route error:', err);
+      showToast('Failed to save route. Please try again.', 'error', 'Save Error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Promotion Handlers
@@ -2336,10 +2354,16 @@ export default function AdminPage() {
 
                   <button
                     onClick={() => {
+                      const defaultOrigin = { lat: 26.0031, lng: 63.0544 };
+                      const defaultDest = { lat: 25.1264, lng: 62.3225 };
                       setEditingRoute({
                         origin_city: 'Turbat',
-                        destination_city: '',
-                        estimated_distance_km: 150,
+                        destination_city: 'Gwadar',
+                        origin_lat: defaultOrigin.lat,
+                        origin_lng: defaultOrigin.lng,
+                        destination_lat: defaultDest.lat,
+                        destination_lng: defaultDest.lng,
+                        estimated_distance_km: 170,
                         estimated_duration: '2.5 Hours',
                         pricing_model: 'fixed',
                         per_km_rate: 25,
@@ -2348,8 +2372,8 @@ export default function AdminPage() {
                         delivery_parcel_fare: 800,
                         is_active: true,
                       });
-                      setAdminRouteOriginCoords({ lat: 26.0031, lng: 63.0544 });
-                      setAdminRouteDestCoords(undefined);
+                      setAdminRouteOriginCoords(defaultOrigin);
+                      setAdminRouteDestCoords(defaultDest);
                       setRouteModalOpen(true);
                     }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
@@ -2414,9 +2438,22 @@ export default function AdminPage() {
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => {
-                              setEditingRoute(route);
-                              setAdminRouteOriginCoords(undefined);
-                              setAdminRouteDestCoords(undefined);
+                              const origCoords = route.origin_lat && route.origin_lng
+                                ? { lat: Number(route.origin_lat), lng: Number(route.origin_lng) }
+                                : resolveIntercityCoords(route.origin_city);
+                              const destCoords = route.destination_lat && route.destination_lng
+                                ? { lat: Number(route.destination_lat), lng: Number(route.destination_lng) }
+                                : resolveIntercityCoords(route.destination_city);
+
+                              setEditingRoute({
+                                ...route,
+                                origin_lat: origCoords.lat,
+                                origin_lng: origCoords.lng,
+                                destination_lat: destCoords.lat,
+                                destination_lng: destCoords.lng,
+                              });
+                              setAdminRouteOriginCoords(origCoords);
+                              setAdminRouteDestCoords(destCoords);
                               setRouteModalOpen(true);
                             }}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 transition cursor-pointer"
@@ -3486,10 +3523,16 @@ export default function AdminPage() {
                   value={editingRoute.origin_city || ''}
                   allowCurrentLocation={true}
                   onChange={(name, lm) => {
-                    setEditingRoute(prev => ({ ...prev, origin_city: name }));
-                    if (lm) {
-                      setAdminRouteOriginCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
-                    }
+                    const coords = lm?.lat && lm?.lng 
+                      ? { lat: Number(lm.lat), lng: Number(lm.lng) }
+                      : resolveIntercityCoords(name);
+                    setEditingRoute(prev => ({ 
+                      ...prev, 
+                      origin_city: name,
+                      origin_lat: coords.lat,
+                      origin_lng: coords.lng,
+                    }));
+                    setAdminRouteOriginCoords(coords);
                   }}
                   landmarks={INTERCITY_PRESET_LANDMARKS}
                   badge="Balochistan"
@@ -3504,10 +3547,16 @@ export default function AdminPage() {
                   referenceCoords={adminRouteOriginCoords}
                   allowCurrentLocation={false}
                   onChange={(name, lm) => {
-                    setEditingRoute(prev => ({ ...prev, destination_city: name }));
-                    if (lm) {
-                      setAdminRouteDestCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
-                    }
+                    const coords = lm?.lat && lm?.lng 
+                      ? { lat: Number(lm.lat), lng: Number(lm.lng) }
+                      : resolveIntercityCoords(name);
+                    setEditingRoute(prev => ({ 
+                      ...prev, 
+                      destination_city: name,
+                      destination_lat: coords.lat,
+                      destination_lng: coords.lng,
+                    }));
+                    setAdminRouteDestCoords(coords);
                   }}
                   landmarks={INTERCITY_PRESET_LANDMARKS}
                   badge="Highway"
@@ -3527,11 +3576,21 @@ export default function AdminPage() {
                   heightClass="h-48 sm:h-56"
                   allowPinDrop={true}
                   onOriginChange={(label, coords) => {
-                    setEditingRoute(prev => ({ ...prev, origin_city: label }));
+                    setEditingRoute(prev => ({ 
+                      ...prev, 
+                      origin_city: label,
+                      origin_lat: coords.lat,
+                      origin_lng: coords.lng,
+                    }));
                     setAdminRouteOriginCoords(coords);
                   }}
                   onDestinationChange={(label, coords) => {
-                    setEditingRoute(prev => ({ ...prev, destination_city: label }));
+                    setEditingRoute(prev => ({ 
+                      ...prev, 
+                      destination_city: label,
+                      destination_lat: coords.lat,
+                      destination_lng: coords.lng,
+                    }));
                     setAdminRouteDestCoords(coords);
                   }}
                   onRouteCalculated={(km, mins) => {

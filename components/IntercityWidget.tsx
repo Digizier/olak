@@ -286,6 +286,8 @@ export const IntercityWidget = () => {
             destinationCity={currentRoute.destination_city}
             distanceKm={currentRoute.estimated_distance_km}
             duration={currentRoute.estimated_duration}
+            originCoords={currentRoute.origin_lat && currentRoute.origin_lng ? { lat: Number(currentRoute.origin_lat), lng: Number(currentRoute.origin_lng) } : undefined}
+            destinationCoords={currentRoute.destination_lat && currentRoute.destination_lng ? { lat: Number(currentRoute.destination_lat), lng: Number(currentRoute.destination_lng) } : undefined}
             isUrdu={isUrdu}
           />
 

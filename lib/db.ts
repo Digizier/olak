@@ -601,10 +601,48 @@ export const getIntercityRoutes = async (): Promise<IntercityRoute[]> => {
         .order('car_economy_fare', { ascending: true });
 
       if (data && !error && data.length > 0) {
-        const validRemote = (data as IntercityRoute[]).filter(r => !isDeleted(r));
-        const sbIds = new Set(validRemote.map((d: any) => d.id));
-        const localCustom = loadedRoutes.filter(r => !sbIds.has(r.id) && !isDeleted(r));
-        loadedRoutes = [...validRemote, ...localCustom];
+        const validRemote = (data as any[]).filter(r => !isDeleted(r)).map(r => ({
+          ...r,
+          origin_lat: r.origin_lat != null ? Number(r.origin_lat) : undefined,
+          origin_lng: r.origin_lng != null ? Number(r.origin_lng) : undefined,
+          destination_lat: r.destination_lat != null ? Number(r.destination_lat) : undefined,
+          destination_lng: r.destination_lng != null ? Number(r.destination_lng) : undefined,
+          estimated_distance_km: Number(r.estimated_distance_km),
+          car_economy_fare: Number(r.car_economy_fare),
+          car_comfort_fare: Number(r.car_comfort_fare),
+          delivery_parcel_fare: Number(r.delivery_parcel_fare),
+          per_km_rate: Number(r.per_km_rate) || 25,
+        } as IntercityRoute));
+
+        const remoteMap = new Map(validRemote.map(d => [d.id, d]));
+        const mergedList: IntercityRoute[] = [];
+        const seenIds = new Set<string>();
+
+        for (const localR of loadedRoutes) {
+          if (remoteMap.has(localR.id)) {
+            const remoteR = remoteMap.get(localR.id)!;
+            mergedList.push({
+              ...remoteR,
+              origin_lat: remoteR.origin_lat ?? localR.origin_lat,
+              origin_lng: remoteR.origin_lng ?? localR.origin_lng,
+              destination_lat: remoteR.destination_lat ?? localR.destination_lat,
+              destination_lng: remoteR.destination_lng ?? localR.destination_lng,
+            });
+            seenIds.add(localR.id);
+          } else {
+            mergedList.push(localR);
+            seenIds.add(localR.id);
+          }
+        }
+
+        for (const remR of validRemote) {
+          if (!seenIds.has(remR.id)) {
+            mergedList.push(remR);
+            seenIds.add(remR.id);
+          }
+        }
+
+        loadedRoutes = mergedList;
       }
     } catch (e) {
       // Offline / fallback mode
@@ -661,8 +699,30 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
     } catch {}
   }
 
+  const originLat = routeData.origin_lat != null ? Number(routeData.origin_lat) : undefined;
+  const originLng = routeData.origin_lng != null ? Number(routeData.origin_lng) : undefined;
+  const destLat = routeData.destination_lat != null ? Number(routeData.destination_lat) : undefined;
+  const destLng = routeData.destination_lng != null ? Number(routeData.destination_lng) : undefined;
+
   if (routeData.id && all.some(r => r.id === routeData.id)) {
-    updatedRoute = { ...all.find(r => r.id === routeData.id)!, ...routeData } as IntercityRoute;
+    const existing = all.find(r => r.id === routeData.id)!;
+    updatedRoute = {
+      ...existing,
+      ...routeData,
+      origin_lat: originLat ?? existing.origin_lat,
+      origin_lng: originLng ?? existing.origin_lng,
+      destination_lat: destLat ?? existing.destination_lat,
+      destination_lng: destLng ?? existing.destination_lng,
+      estimated_distance_km: Number(routeData.estimated_distance_km ?? existing.estimated_distance_km) || 100,
+      estimated_duration: routeData.estimated_duration || existing.estimated_duration || '2 Hours',
+      car_economy_fare: Number(routeData.car_economy_fare ?? existing.car_economy_fare) || 3000,
+      car_comfort_fare: Number(routeData.car_comfort_fare ?? existing.car_comfort_fare) || 4500,
+      delivery_parcel_fare: Number(routeData.delivery_parcel_fare ?? existing.delivery_parcel_fare) || 800,
+      per_km_rate: Number(routeData.per_km_rate ?? existing.per_km_rate) || 25,
+      pricing_model: routeData.pricing_model || existing.pricing_model || 'fixed',
+      is_active: routeData.is_active !== undefined ? routeData.is_active : existing.is_active,
+    } as IntercityRoute;
+
     const updated = all.map(r => r.id === updatedRoute.id ? updatedRoute : r);
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
@@ -670,9 +730,13 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
     }
   } else {
     updatedRoute = {
-      id: generateUUID(),
+      id: routeData.id || generateUUID(),
       origin_city: routeData.origin_city || 'Turbat',
       destination_city: routeData.destination_city || 'Gwadar',
+      origin_lat: originLat,
+      origin_lng: originLng,
+      destination_lat: destLat,
+      destination_lng: destLng,
       estimated_distance_km: Number(routeData.estimated_distance_km) || 100,
       estimated_duration: routeData.estimated_duration || '2 Hours',
       pricing_model: routeData.pricing_model || 'fixed',
@@ -691,7 +755,7 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
         mergedAll.push(defRoute);
       }
     }
-    const updated = [updatedRoute, ...mergedAll];
+    const updated = [updatedRoute, ...mergedAll.filter(r => r.id !== updatedRoute.id)];
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEYS.INTERCITY, JSON.stringify(updated));
       dispatchCustomEvent('olak_intercity_updated', updated);
@@ -699,7 +763,27 @@ export const saveIntercityRoute = async (routeData: Partial<IntercityRoute>): Pr
   }
 
   try {
-    await supabase.from('intercity_routes').upsert(updatedRoute);
+    const payload = {
+      id: updatedRoute.id,
+      origin_city: updatedRoute.origin_city,
+      destination_city: updatedRoute.destination_city,
+      estimated_distance_km: updatedRoute.estimated_distance_km,
+      estimated_duration: updatedRoute.estimated_duration,
+      car_economy_fare: updatedRoute.car_economy_fare,
+      car_comfort_fare: updatedRoute.car_comfort_fare,
+      delivery_parcel_fare: updatedRoute.delivery_parcel_fare,
+      is_active: updatedRoute.is_active,
+      pricing_model: updatedRoute.pricing_model || 'fixed',
+      per_km_rate: updatedRoute.per_km_rate || 25,
+      origin_lat: updatedRoute.origin_lat ?? null,
+      origin_lng: updatedRoute.origin_lng ?? null,
+      destination_lat: updatedRoute.destination_lat ?? null,
+      destination_lng: updatedRoute.destination_lng ?? null,
+    };
+    const { error } = await supabase.from('intercity_routes').upsert(payload);
+    if (error) {
+      console.warn('Supabase intercity_routes upsert warning:', error.message);
+    }
   } catch (err) {
     console.error('Remote intercity sync error:', err);
   }
@@ -740,10 +824,7 @@ export const deleteIntercityRoute = async (id: string): Promise<void> => {
   }
 
   try {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUUID) {
-      await supabase.from('intercity_routes').delete().eq('id', id);
-    }
+    await supabase.from('intercity_routes').delete().eq('id', id);
     if (target) {
       await supabase.from('intercity_routes').delete().match({
         origin_city: target.origin_city,

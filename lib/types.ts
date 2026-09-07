@@ -68,6 +68,10 @@ export interface IntercityRoute {
   id: string;
   origin_city: string;
   destination_city: string;
+  origin_lat?: number;
+  origin_lng?: number;
+  destination_lat?: number;
+  destination_lng?: number;
   estimated_distance_km: number;
   estimated_duration: string;
   pricing_model?: 'fixed' | 'per_km';
