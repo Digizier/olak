@@ -348,11 +348,17 @@ export default function AdminPage() {
       }
     }
 
-    // 2. Exact place coordinates in data parameter: !3dLAT!4dLNG
+    // 2. Exact place coordinates in data parameter: !3dLAT!4dLNG or embed !2dLNG!3dLAT
     const pinpointMatch = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
     if (pinpointMatch) {
       lat = parseFloat(pinpointMatch[1]);
       lng = parseFloat(pinpointMatch[2]);
+    } else {
+      const embedMatch = text.match(/!2d(-?\d+\.\d+)!3d(-?\d+\.\d+)/);
+      if (embedMatch) {
+        lng = parseFloat(embedMatch[1]);
+        lat = parseFloat(embedMatch[2]);
+      }
     }
 
     // 3. Center map coordinates: @LAT,LNG
@@ -364,18 +370,27 @@ export default function AdminPage() {
       }
     }
 
-    // 4. Query coordinates: ?q=LAT,LNG or ll=LAT,LNG
+    // 4. Query coordinates: ?q=LAT,LNG or ll=LAT,LNG or query=LAT,LNG or destination=LAT,LNG
     if (lat === null || isNaN(lat)) {
-      const queryMatch = text.match(/[?&](?:q|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+      const queryMatch = text.match(/[?&](?:q|ll|query|destination|origin)=(-?\d+\.\d+)(?:,|%2C|\+)(-?\d+\.\d+)/i);
       if (queryMatch) {
         lat = parseFloat(queryMatch[1]);
         lng = parseFloat(queryMatch[2]);
       }
     }
 
-    // 5. Raw comma-separated coordinates: LAT, LNG
+    // 5. Search path: /maps/search/LAT,LNG or /maps/dir/.../LAT,LNG
     if (lat === null || isNaN(lat)) {
-      const rawMatch = text.match(/^(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)$/);
+      const searchMatch = text.match(/\/(?:search|dir)\/.*?(-?\d+\.\d+)[,\s+]+(-?\d+\.\d+)/i);
+      if (searchMatch) {
+        lat = parseFloat(searchMatch[1]);
+        lng = parseFloat(searchMatch[2]);
+      }
+    }
+
+    // 6. Raw comma-separated or space-separated coordinates: LAT, LNG
+    if (lat === null || isNaN(lat)) {
+      const rawMatch = text.match(/^(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)$/);
       if (rawMatch) {
         lat = parseFloat(rawMatch[1]);
         lng = parseFloat(rawMatch[2]);
@@ -390,7 +405,10 @@ export default function AdminPage() {
 
   const handleMapsUrlChange = (value: string) => {
     setMapsUrlInput(value);
-    const parsed = parseGoogleMapsUrl(value);
+    const trimmed = value.trim();
+
+    // Parse coordinates and place name
+    const parsed = parseGoogleMapsUrl(trimmed);
     if (parsed) {
       setDetectedMapsInfo(parsed);
       setEditingLandmark(prev => ({
@@ -400,9 +418,10 @@ export default function AdminPage() {
         name: prev.name && prev.name.trim() !== '' ? prev.name : (parsed.placeName || prev.name),
       }));
       showToast(`Detected: Lat ${parsed.lat.toFixed(4)}, Lng ${parsed.lng.toFixed(4)}`, 'success', 'Google Maps Auto-Detected');
-    } else {
-      setDetectedMapsInfo(null);
+      return;
     }
+
+    setDetectedMapsInfo(null);
   };
 
   // Load All Data
@@ -743,7 +762,8 @@ export default function AdminPage() {
   const getCaptainWhatsAppLink = (bk: Booking, cap: Captain) => {
     const cleanPhone = (cap.whatsapp_number || cap.phone).replace(/\D/g, '');
     const phoneWithCountry = cleanPhone.startsWith('92') ? cleanPhone : `92${cleanPhone.replace(/^0/, '')}`;
-    const text = `OLAK Dispatch Alert!\nNew Trip Assigned to Captain ${cap.full_name}.\n\nBooking: ${bk.booking_code}\nService: ${bk.service_type.toUpperCase()}\nCustomer: ${bk.customer_name} (${bk.customer_phone})\nPickup: ${bk.pickup_location}\nDropoff: ${bk.dropoff_location}\nFare: PKR ${bk.estimated_fare}\n\nPlease head to the pickup location immediately.`;
+    const mapsNavigationUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(bk.pickup_location + ', Turbat')}&destination=${encodeURIComponent(bk.dropoff_location + ', Turbat')}&travelmode=driving`;
+    const text = `OLAK Dispatch Alert!\nNew Trip Assigned to Captain ${cap.full_name}.\n\nBooking: ${bk.booking_code}\nService: ${bk.service_type.toUpperCase()}\nCustomer: ${bk.customer_name} (${bk.customer_phone})\nPickup: ${bk.pickup_location}\nDropoff: ${bk.dropoff_location}\nFare: PKR ${bk.estimated_fare}\n\n1-Click Google Maps Route: ${mapsNavigationUrl}\n\nPlease head to the pickup location immediately.`;
     return `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(text)}`;
   };
 
@@ -1335,6 +1355,16 @@ export default function AdminPage() {
                           <td className="px-4 py-3 max-w-xs">
                             <span className="text-slate-800 block truncate font-medium">📍 {b.pickup_location}</span>
                             <span className="text-slate-500 block truncate">🏁 {b.dropoff_location}</span>
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(b.pickup_location + ', Turbat')}&destination=${encodeURIComponent(b.dropoff_location + ', Turbat')}&travelmode=driving`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline mt-1"
+                              title="Open 1-Click Google Maps Directions"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>1-Click Route Map</span>
+                            </a>
                           </td>
 
                           <td className="px-4 py-3">
@@ -2411,6 +2441,16 @@ export default function AdminPage() {
                                     {b.estimated_distance_km && (
                                       <span className="text-[10px] text-emerald-700 font-bold block">{b.estimated_distance_km} KM</span>
                                     )}
+                                    <a
+                                      href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(b.pickup_location)}&destination=${encodeURIComponent(b.dropoff_location)}&travelmode=driving`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline mt-1"
+                                      title="Open 1-Click Google Maps Directions"
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      <span>1-Click Route Map</span>
+                                    </a>
                                   </div>
                                 </td>
 

@@ -32,8 +32,11 @@ const LeafletRouteMap = dynamic(
 interface InteractiveRouteMapProps {
   pickupName: string;
   dropoffName: string;
+  pickupCoords?: { lat: number; lng: number };
+  dropoffCoords?: { lat: number; lng: number };
   onPickupChange?: (name: string, coords?: { lat: number; lng: number }) => void;
   onDropoffChange?: (name: string, coords?: { lat: number; lng: number }) => void;
+  onDistanceChange?: (distanceKm: number, durationMins: number) => void;
   distanceKm: number;
   landmarks?: CityLandmark[];
   isUrdu?: boolean;
@@ -42,8 +45,11 @@ interface InteractiveRouteMapProps {
 export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   pickupName,
   dropoffName,
+  pickupCoords: pickupCoordsProp,
+  dropoffCoords: dropoffCoordsProp,
   onPickupChange,
   onDropoffChange,
+  onDistanceChange,
   distanceKm,
   landmarks = TURBAT_LANDMARKS,
   isUrdu = false,
@@ -52,16 +58,39 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   const [dynamicKm, setDynamicKm] = useState<number>(distanceKm);
   const [dynamicMins, setDynamicMins] = useState<number>(Math.max(4, Math.round(distanceKm * 2.5 + 2)));
 
-  // Find landmarks coords
+  // Helper to parse coordinate string like "Custom Pin (26.0031, 63.0544)"
+  const parseCoordinates = (text: string) => {
+    if (!text) return null;
+    const match = text.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
+    if (match) {
+      const lat = parseFloat(match[1]);
+      const lng = parseFloat(match[2]);
+      if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
+    }
+    return null;
+  };
+
+  // Resolve landmarks & coordinates
   const currentLandmarks = landmarks.length > 0 ? landmarks : TURBAT_LANDMARKS;
-  const pickupLandmark = currentLandmarks.find(l => l.name === pickupName) || currentLandmarks[0];
-  const dropoffLandmark = currentLandmarks.find(l => l.name === dropoffName) || currentLandmarks[2] || currentLandmarks[0];
+  const pickupLandmark = currentLandmarks.find(l => l.name === pickupName);
+  const dropoffLandmark = currentLandmarks.find(l => l.name === dropoffName);
 
-  const pickupCoords = { lat: Number(pickupLandmark.lat), lng: Number(pickupLandmark.lng) };
-  const dropoffCoords = { lat: Number(dropoffLandmark.lat), lng: Number(dropoffLandmark.lng) };
+  const parsedPickup = parseCoordinates(pickupName);
+  const parsedDropoff = parseCoordinates(dropoffName);
 
-  // Google Maps Direction URL for live GPS navigation
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${pickupLandmark.lat},${pickupLandmark.lng}&destination=${dropoffLandmark.lat},${dropoffLandmark.lng}&travelmode=driving`;
+  const activePickupCoords = pickupCoordsProp || parsedPickup || (pickupLandmark ? { lat: Number(pickupLandmark.lat), lng: Number(pickupLandmark.lng) } : { lat: 26.0031, lng: 63.0544 });
+  const activeDropoffCoords = dropoffCoordsProp || parsedDropoff || (dropoffLandmark ? { lat: Number(dropoffLandmark.lat), lng: Number(dropoffLandmark.lng) } : { lat: 26.0082, lng: 63.0485 });
+
+  // 1-Click Google Maps Direction URL for live GPS navigation
+  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${activePickupCoords.lat},${activePickupCoords.lng}&destination=${activeDropoffCoords.lat},${activeDropoffCoords.lng}&travelmode=driving`;
+
+  const handleOpenGoogleMaps = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    window.open(googleMapsUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const handleLandmarkClick = (lm: CityLandmark) => {
     if (activePinSelection === 'pickup') {
@@ -75,7 +104,6 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
 
   // When clicking on an arbitrary location on map, snap to nearest landmark or create custom point
   const handleMapClick = (coords: { lat: number; lng: number }) => {
-    // Find nearest landmark to user click
     let nearest: CityLandmark = currentLandmarks[0];
     let minDist = Infinity;
 
@@ -87,12 +115,12 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
       }
     }
 
-    if (minDist < 0.015) {
+    if (minDist < 0.008) {
       // Snapped to nearby landmark
       handleLandmarkClick(nearest);
     } else {
-      // Custom coordinate location
-      const label = `Location (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)})`;
+      // Custom coordinate pin
+      const label = `Custom Pin (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
       if (activePinSelection === 'pickup') {
         if (onPickupChange) onPickupChange(label, coords);
         setActivePinSelection('dropoff');
@@ -106,6 +134,9 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   const handleRouteCalculated = (km: number, mins: number) => {
     setDynamicKm(km);
     setDynamicMins(mins);
+    if (onDistanceChange) {
+      onDistanceChange(km, mins);
+    }
   };
 
   const displayKm = dynamicKm || distanceKm;
@@ -160,25 +191,24 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             </button>
           </div>
 
-          <a
-            href={googleMapsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg border border-slate-200 transition"
-            title="Open in Google Maps"
+          <button
+            type="button"
+            onClick={handleOpenGoogleMaps}
+            className="inline-flex items-center gap-1.5 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
+            title={isUrdu ? '1-کلک گوگل میپس میں لائیو ڈائریکشنز کھولیں' : '1-Click Google Maps Live Directions'}
           >
-            <ExternalLink className="w-3 h-3 text-emerald-600" />
-            <span className="hidden sm:inline">Google Maps</span>
-          </a>
+            <ExternalLink className="w-3 h-3" />
+            <span>1-Click Google Maps</span>
+          </button>
         </div>
       </div>
 
       {/* Real Interactive Leaflet OpenStreetMap Visualizer */}
       <LeafletRouteMap
-        pickupCoords={pickupCoords}
-        dropoffCoords={dropoffCoords}
-        pickupName={pickupLandmark.name}
-        dropoffName={dropoffLandmark.name}
+        pickupCoords={activePickupCoords}
+        dropoffCoords={activeDropoffCoords}
+        pickupName={pickupName}
+        dropoffName={dropoffName}
         landmarks={currentLandmarks}
         onMapClick={handleMapClick}
         onLandmarkSelect={handleLandmarkClick}
@@ -201,13 +231,13 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           </div>
           <p className="text-[11px] text-slate-500">
             {isUrdu 
-              ? `${pickupLandmark.name.split(',')[0]} سے ${dropoffLandmark.name.split(',')[0]} تک روڈ فاصلہ`
-              : `Road distance from ${pickupLandmark.name.split(',')[0]} to ${dropoffLandmark.name.split(',')[0]}`}
+              ? `${pickupName.split(',')[0]} سے ${dropoffName.split(',')[0]} تک روڈ فاصلہ`
+              : `Road distance from ${pickupName.split(',')[0]} to ${dropoffName.split(',')[0]}`}
           </p>
         </div>
 
-        {/* Display Badge showing exact calculated KM & Travel Duration */}
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        {/* Display Badge showing exact calculated KM & Travel Duration & 1-Click Link */}
+        <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
           <div className="text-right">
             <span className="text-[10px] font-bold text-slate-400 block uppercase">Est. Time</span>
             <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
@@ -216,12 +246,22 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             </span>
           </div>
 
-          <div className="bg-white border-2 border-emerald-500 rounded-xl px-3.5 py-1.5 text-center shadow-xs">
+          <div className="bg-white border-2 border-emerald-500 rounded-xl px-3 py-1.5 text-center shadow-xs">
             <span className="text-[10px] font-bold text-slate-500 block uppercase">Distance</span>
             <span className="text-base font-black text-slate-900 leading-none">
-              {distanceKm} <span className="text-xs font-bold text-emerald-600">KM</span>
+              {displayKm} <span className="text-xs font-bold text-emerald-600">KM</span>
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={handleOpenGoogleMaps}
+            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+            title="Open in Google Maps"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden xs:inline">1-Click Maps</span>
+          </button>
         </div>
       </div>
 

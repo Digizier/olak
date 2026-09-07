@@ -8,6 +8,7 @@ import { Booking, CityLandmark, PricingRate, Customer } from '@/lib/types';
 import { CustomerAuthModal } from '@/components/CustomerAuthModal';
 import { Toast, ToastMessage } from '@/components/Toast';
 import { SearchableLocationSelect } from '@/components/SearchableLocationSelect';
+import { InteractiveRouteMap } from '@/components/InteractiveRouteMap';
 import { 
   Package, 
   MapPin, 
@@ -38,6 +39,9 @@ export const DeliveryWidget = () => {
 
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[1].name);
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [roadDistanceKm, setRoadDistanceKm] = useState<number | null>(null);
   const [senderName, setSenderName] = useState('');
   const [senderPhone, setSenderPhone] = useState('');
   const [receiverName, setReceiverName] = useState('');
@@ -86,14 +90,21 @@ export const DeliveryWidget = () => {
     };
   }, []);
 
-  // Compute Real-time Distance between selected landmarks
+  // Compute Real-time Distance between selected landmarks & active pins
   const pickupPoint = landmarks.find(l => l.name === pickup) || landmarks[0] || TURBAT_LANDMARKS[0];
   const dropoffPoint = landmarks.find(l => l.name === dropoff) || landmarks[1] || landmarks[0] || TURBAT_LANDMARKS[1];
   
-  const realTimeDistanceKm = calculateRealtimeDistance(
-    { lat: Number(pickupPoint.lat), lng: Number(pickupPoint.lng) },
-    { lat: Number(dropoffPoint.lat), lng: Number(dropoffPoint.lng) }
+  const pLat = pickupCoords?.lat ?? Number(pickupPoint.lat);
+  const pLng = pickupCoords?.lng ?? Number(pickupPoint.lng);
+  const dLat = dropoffCoords?.lat ?? Number(dropoffPoint.lat);
+  const dLng = dropoffCoords?.lng ?? Number(dropoffPoint.lng);
+
+  const fallbackDistanceKm = calculateRealtimeDistance(
+    { lat: pLat, lng: pLng },
+    { lat: dLat, lng: dLng }
   );
+
+  const realTimeDistanceKm = roadDistanceKm !== null ? roadDistanceKm : fallbackDistanceKm;
 
   // Delivery Pricing Formula using Admin Rates
   const deliveryRate = rates.find(r => r.service_type === 'delivery') || {
@@ -306,11 +317,17 @@ export const DeliveryWidget = () => {
               icon={MapPin}
               iconColor="text-emerald-600"
               value={pickup}
-              onChange={(name) => setPickup(name)}
+              onChange={(name, lm) => {
+                setPickup(name);
+                if (lm) {
+                  setPickupCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                }
+                setRoadDistanceKm(null);
+              }}
               landmarks={landmarks}
               isUrdu={isUrdu}
               badge="Turbat"
-              placeholder={isUrdu ? 'پک اپ مقام تلاش کریں...' : 'Search pickup location...'}
+              placeholder={isUrdu ? 'پک اپ مقام یا پتہ تلاش کریں...' : 'Search pickup location or type address...'}
             />
 
             <SearchableLocationSelect
@@ -318,13 +335,41 @@ export const DeliveryWidget = () => {
               icon={Navigation}
               iconColor="text-teal-700"
               value={dropoff}
-              onChange={(name) => setDropoff(name)}
+              onChange={(name, lm) => {
+                setDropoff(name);
+                if (lm) {
+                  setDropoffCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                }
+                setRoadDistanceKm(null);
+              }}
               landmarks={landmarks}
               isUrdu={isUrdu}
               badge="Turbat"
-              placeholder={isUrdu ? 'منزل کا مقام تلاش کریں...' : 'Search delivery destination...'}
+              placeholder={isUrdu ? 'منزل کا مقام یا پتہ تلاش کریں...' : 'Search delivery destination or type address...'}
             />
           </div>
+
+          {/* Embedded Real-Time Interactive Route Map for Parcel Delivery */}
+          <InteractiveRouteMap
+            pickupName={pickup}
+            dropoffName={dropoff}
+            pickupCoords={pickupCoords || undefined}
+            dropoffCoords={dropoffCoords || undefined}
+            onPickupChange={(name, coords) => {
+              setPickup(name);
+              if (coords) setPickupCoords(coords);
+            }}
+            onDropoffChange={(name, coords) => {
+              setDropoff(name);
+              if (coords) setDropoffCoords(coords);
+            }}
+            onDistanceChange={(km) => {
+              if (km && km > 0) setRoadDistanceKm(km);
+            }}
+            distanceKm={realTimeDistanceKm}
+            landmarks={landmarks}
+            isUrdu={isUrdu}
+          />
 
           {/* AUTOMATED ROUTE DISTANCE & WEIGHT SPECIFICATION CARD */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-3">

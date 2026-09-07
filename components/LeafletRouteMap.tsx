@@ -56,10 +56,10 @@ export const LeafletRouteMap: React.FC<Props> = ({
       attributionControl: false,
     });
 
-    // High-performance, crisp CartoDB Voyager tiles (100% Free, cached via Cloudflare)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    // High-performance OpenStreetMap standard tiles (100% Free, zero API key, zero watermark)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      subdomains: 'abcd',
+      subdomains: ['a', 'b', 'c'],
     }).addTo(map);
 
     // Attribution control in bottom right

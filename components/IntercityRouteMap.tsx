@@ -63,9 +63,9 @@ export const IntercityRouteMap: React.FC<Props> = ({
       attributionControl: false,
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
-      subdomains: 'abcd',
+      subdomains: ['a', 'b', 'c'],
     }).addTo(map);
 
     L.control.attribution({ position: 'bottomright', prefix: false })
@@ -202,16 +202,15 @@ export const IntercityRouteMap: React.FC<Props> = ({
           </span>
         </div>
 
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-600 hover:text-emerald-600 bg-white hover:bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 transition"
+        <button
+          type="button"
+          onClick={() => window.open(googleMapsUrl, '_blank', 'noopener,noreferrer')}
+          className="inline-flex items-center gap-1 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
           title="Open in Google Maps"
         >
-          <ExternalLink className="w-3 h-3 text-emerald-600" />
-          <span className="hidden sm:inline">Google Maps</span>
-        </a>
+          <ExternalLink className="w-3 h-3" />
+          <span>1-Click Google Maps</span>
+        </button>
       </div>
 
       {/* Map view */}

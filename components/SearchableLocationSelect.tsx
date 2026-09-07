@@ -9,7 +9,7 @@ interface Props {
   icon?: LucideIcon;
   iconColor?: string;
   value: string;
-  onChange: (name: string) => void;
+  onChange: (name: string, landmark?: CityLandmark) => void;
   landmarks: CityLandmark[];
   isUrdu?: boolean;
   placeholder?: string;
@@ -67,18 +67,32 @@ export const SearchableLocationSelect: React.FC<Props> = ({
   // Find currently selected landmark
   const selectedLandmark = landmarks.find(lm => lm.name === value);
 
-  // Filter landmarks in real-time
+  // Filter landmarks in real-time with smart word matching
   const query = searchQuery.trim().toLowerCase();
+  const queryWords = query ? query.split(/\s+/).filter(Boolean) : [];
+  
   const filtered = landmarks.filter(lm => {
     if (!query) return true;
-    const nameMatch = lm.name.toLowerCase().includes(query);
-    const areaMatch = lm.area ? lm.area.toLowerCase().includes(query) : false;
-    const urduMatch = (lm.nameUrdu || lm.name_urdu || '').toLowerCase().includes(query);
-    return nameMatch || areaMatch || urduMatch;
+    const name = lm.name.toLowerCase();
+    const area = (lm.area || '').toLowerCase();
+    const urdu = (lm.nameUrdu || lm.name_urdu || '').toLowerCase();
+    
+    // Exact or substring match
+    if (name.includes(query) || area.includes(query) || urdu.includes(query)) return true;
+    
+    // Multi-word partial matching (e.g. "turbat road")
+    return queryWords.some(w => name.includes(w) || area.includes(w) || urdu.includes(w));
   });
 
   const handleSelect = (lm: CityLandmark) => {
-    onChange(lm.name);
+    onChange(lm.name, lm);
+    setIsOpen(false);
+    setSearchQuery('');
+  };
+
+  const handleSelectCustom = (customName: string) => {
+    if (!customName.trim()) return;
+    onChange(customName.trim());
     setIsOpen(false);
     setSearchQuery('');
   };
@@ -112,11 +126,9 @@ export const SearchableLocationSelect: React.FC<Props> = ({
                 : value
               }
             </span>
-            {selectedLandmark?.area && (
-              <span className="text-[10px] text-slate-500 font-medium block truncate">
-                {selectedLandmark.area}
-              </span>
-            )}
+            <span className="text-[10px] text-slate-500 font-medium block truncate">
+              {selectedLandmark?.area || (isUrdu ? 'تربت کسٹم مقام' : 'Turbat Location')}
+            </span>
           </div>
         </div>
 
@@ -140,7 +152,17 @@ export const SearchableLocationSelect: React.FC<Props> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={placeholder || (isUrdu ? 'مقام یا علاقہ تلاش کریں...' : 'Search location, area, or landmark...')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (filtered.length > 0) {
+                      handleSelect(filtered[0]);
+                    } else if (searchQuery.trim()) {
+                      handleSelectCustom(searchQuery.trim());
+                    }
+                  }
+                }}
+                placeholder={placeholder || (isUrdu ? 'مقام یا پتہ تلاش کریں...' : 'Search location, area, or type address...')}
                 className="w-full bg-white border border-slate-300 rounded-xl pl-9 pr-8 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 font-medium focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
               {searchQuery && (
@@ -156,29 +178,59 @@ export const SearchableLocationSelect: React.FC<Props> = ({
 
             {/* Quick Result Counter */}
             <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-1 pt-1.5">
-              <span>{isUrdu ? `${filtered.length} مقامات دستیاب` : `${filtered.length} locations available`}</span>
+              <span>{isUrdu ? `${filtered.length} نشانات دستیاب` : `${filtered.length} presets found`}</span>
               {searchQuery && (
                 <span className="text-emerald-600 font-bold">
-                  {isUrdu ? 'فلٹر فعال ہے' : 'Filtering live'}
+                  {isUrdu ? 'لائیو فلٹر' : 'Live Filter'}
                 </span>
               )}
             </div>
           </div>
 
           {/* Locations List */}
-          <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 p-1">
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1.5">
+            {/* Custom Location Option if Query is Typed */}
+            {searchQuery.trim() && (
+              <button
+                type="button"
+                onClick={() => handleSelectCustom(searchQuery.trim())}
+                className="w-full p-2.5 mb-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl text-left flex items-center justify-between gap-2 text-emerald-950 font-bold transition shadow-2xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 truncate min-w-0">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="truncate">
+                    <div className="text-xs font-black truncate">
+                      {isUrdu ? `بطور مقام منتخب کریں: "${searchQuery.trim()}"` : `Use: "${searchQuery.trim()}"`}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium">
+                      {isUrdu ? 'کسٹم پتہ / مخصوص جگہ' : 'Custom Address / Specific Location'}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-1 rounded-md font-bold shrink-0 shadow-2xs">
+                  {isUrdu ? 'منتخب کریں' : 'Select'}
+                </span>
+              </button>
+            )}
+
             {filtered.length === 0 ? (
-              <div className="py-6 text-center text-slate-500 space-y-2">
-                <p className="text-xs font-semibold">
-                  {isUrdu ? `"${searchQuery}" کا کوئی مقام نہیں ملا` : `No location found matching "${searchQuery}"`}
+              <div className="py-5 text-center text-slate-500 space-y-2.5 px-2">
+                <p className="text-xs font-semibold text-slate-700">
+                  {isUrdu ? `"${searchQuery}" کا کوئی پہلے سے درج لینڈ مارک نہیں ملا` : `No preset landmark matching "${searchQuery}"`}
                 </p>
                 <button
                   type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 font-bold underline cursor-pointer"
+                  onClick={() => handleSelectCustom(searchQuery.trim())}
+                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  {isUrdu ? 'تمام مقامات دیکھیں' : 'Clear search to view all'}
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>{isUrdu ? `"${searchQuery}" بطور پتہ استعمال کریں` : `Use "${searchQuery}" as ${label}`}</span>
                 </button>
+                <p className="text-[10px] text-slate-400">
+                  {isUrdu ? '💡 آپ نقشے پر ٹیپ کر کے بھی اپنی پن لگا سکتے ہیں' : '💡 Tip: You can also tap anywhere on the map to pin your exact spot!'}
+                </p>
               </div>
             ) : (
               filtered.map((lm) => {

@@ -45,6 +45,9 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   // Form State
   const [pickup, setPickup] = useState(TURBAT_LANDMARKS[0].name);
   const [dropoff, setDropoff] = useState(TURBAT_LANDMARKS[2].name);
+  const [pickupCoords, setPickupCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [dropoffCoords, setDropoffCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [roadDistanceKm, setRoadDistanceKm] = useState<number | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [notes, setNotes] = useState('');
@@ -103,10 +106,17 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   const pickupPoint = landmarks.find(l => l.name === pickup) || landmarks[0] || TURBAT_LANDMARKS[0];
   const dropoffPoint = landmarks.find(l => l.name === dropoff) || landmarks[2] || landmarks[0] || TURBAT_LANDMARKS[2];
   
-  const realTimeDistanceKm = calculateRealtimeDistance(
-    { lat: Number(pickupPoint.lat), lng: Number(pickupPoint.lng) },
-    { lat: Number(dropoffPoint.lat), lng: Number(dropoffPoint.lng) }
+  const pLat = pickupCoords?.lat ?? Number(pickupPoint.lat);
+  const pLng = pickupCoords?.lng ?? Number(pickupPoint.lng);
+  const dLat = dropoffCoords?.lat ?? Number(dropoffPoint.lat);
+  const dLng = dropoffCoords?.lng ?? Number(dropoffPoint.lng);
+
+  const fallbackDistanceKm = calculateRealtimeDistance(
+    { lat: pLat, lng: pLng },
+    { lat: dLat, lng: dLng }
   );
+
+  const realTimeDistanceKm = roadDistanceKm !== null ? roadDistanceKm : fallbackDistanceKm;
 
   // Dynamic Fare Calculation based on Admin's Rates & Real-Time KM
   const activeRate = rates.find(r => r.service_type === selectedService) || rates[0];
@@ -311,11 +321,17 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
               icon={MapPin}
               iconColor="text-emerald-600"
               value={pickup}
-              onChange={(name) => setPickup(name)}
+              onChange={(name, lm) => {
+                setPickup(name);
+                if (lm) {
+                  setPickupCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                }
+                setRoadDistanceKm(null);
+              }}
               landmarks={landmarks}
               isUrdu={isUrdu}
               badge="Turbat"
-              placeholder={isUrdu ? 'پک اپ مقام تلاش کریں...' : 'Search pickup landmark...'}
+              placeholder={isUrdu ? 'پک اپ مقام یا پتہ تلاش کریں...' : 'Search pickup landmark or type address...'}
             />
 
             <SearchableLocationSelect
@@ -323,20 +339,37 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
               icon={Navigation}
               iconColor="text-teal-700"
               value={dropoff}
-              onChange={(name) => setDropoff(name)}
+              onChange={(name, lm) => {
+                setDropoff(name);
+                if (lm) {
+                  setDropoffCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                }
+                setRoadDistanceKm(null);
+              }}
               landmarks={landmarks}
               isUrdu={isUrdu}
               badge="Turbat"
-              placeholder={isUrdu ? 'منزل تلاش کریں...' : 'Search dropoff destination...'}
+              placeholder={isUrdu ? 'منزل کا مقام یا پتہ تلاش کریں...' : 'Search dropoff destination or type address...'}
             />
           </div>
 
-          {/* Embedded Real-Time Interactive Google Map */}
+          {/* Embedded Real-Time Interactive Route Map */}
           <InteractiveRouteMap
             pickupName={pickup}
             dropoffName={dropoff}
-            onPickupChange={(name) => setPickup(name)}
-            onDropoffChange={(name) => setDropoff(name)}
+            pickupCoords={pickupCoords || undefined}
+            dropoffCoords={dropoffCoords || undefined}
+            onPickupChange={(name, coords) => {
+              setPickup(name);
+              if (coords) setPickupCoords(coords);
+            }}
+            onDropoffChange={(name, coords) => {
+              setDropoff(name);
+              if (coords) setDropoffCoords(coords);
+            }}
+            onDistanceChange={(km) => {
+              if (km && km > 0) setRoadDistanceKm(km);
+            }}
             distanceKm={realTimeDistanceKm}
             landmarks={landmarks}
             isUrdu={isUrdu}
