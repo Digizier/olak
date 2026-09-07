@@ -343,6 +343,7 @@ export const DeliveryWidget = () => {
               icon={Navigation}
               iconColor="text-teal-700"
               value={dropoff}
+              allowCurrentLocation={true}
               referenceCoords={pickupCoords || { lat: pLat, lng: pLng }}
               onChange={(name, lm) => {
                 setDropoff(name);

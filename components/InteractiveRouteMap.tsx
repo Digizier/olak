@@ -10,7 +10,9 @@ import {
   ExternalLink, 
   Clock, 
   Route, 
-  Crosshair 
+  Crosshair,
+  AlertCircle,
+  X
 } from 'lucide-react';
 import { resolveLocationCoords, getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
 
@@ -23,7 +25,7 @@ const LeafletRouteMap = dynamic(
     loading: () => (
       <div className="w-full h-64 sm:h-72 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-2 text-slate-400 animate-pulse">
         <Compass className="w-7 h-7 animate-spin text-emerald-500" />
-        <span className="text-xs font-bold text-slate-600">Loading Live Turbat OpenStreetMap...</span>
+        <span className="text-xs font-bold text-slate-600">Loading Google Maps Route...</span>
       </div>
     ),
   }
@@ -58,6 +60,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   const [dynamicKm, setDynamicKm] = useState<number>(distanceKm);
   const [dynamicMins, setDynamicMins] = useState<number>(Math.max(4, Math.round(distanceKm * 2.5 + 2)));
   const [isLocatingUser, setIsLocatingUser] = useState(false);
+  const [gpsNotice, setGpsNotice] = useState<string | null>(null);
 
   const currentLandmarks = landmarks.length > 0 ? landmarks : TURBAT_LANDMARKS;
 
@@ -80,9 +83,10 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   const handleGpsLocateMe = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setGpsNotice(null);
 
     if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert(isUrdu ? 'آپ کے براؤزر میں جی پی ایس لوکیشن سپورٹ نہیں ہے۔' : 'GPS location is not supported by your browser.');
+      setGpsNotice(isUrdu ? 'آپ کے براؤزر میں جی پی ایس لوکیشن سپورٹ نہیں ہے۔' : 'GPS location is not supported by your browser.');
       return;
     }
 
@@ -90,6 +94,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocatingUser(false);
+        setGpsNotice(null);
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const label = isUrdu 
@@ -103,7 +108,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
       },
       () => {
         setIsLocatingUser(false);
-        alert(isUrdu ? 'براہ کرم براؤزر / ڈیوائس میں لوکیشن کی اجازت آن کریں۔' : 'Please allow GPS location permission in your device/browser settings.');
+        setGpsNotice(isUrdu ? 'براہ کرم براؤزر / ڈیوائس میں لوکیشن کی اجازت (Allow Location) آن کریں۔' : 'Please allow GPS location permission in your device/browser settings.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -189,9 +194,10 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           </div>
           <div>
             <h4 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-              <span>{isUrdu ? 'تربت لائیو روٹ میپ' : 'Live Turbat Route Map'}</span>
-              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
-                OSM Free
+              <span>{isUrdu ? 'لائیو روٹ میپ' : 'Live Route Map'}</span>
+              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Google Maps
               </span>
             </h4>
             <p className="text-[10px] text-slate-500">
@@ -268,6 +274,23 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           </button>
         </div>
       </div>
+
+      {/* GPS Error / Info Notice Banner (Replaces alert popup) */}
+      {gpsNotice && (
+        <div className="p-2 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="font-semibold text-[11px] leading-tight truncate">{gpsNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setGpsNotice(null)}
+            className="text-amber-700 hover:text-amber-950 p-0.5 rounded cursor-pointer shrink-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Pin Placement Mode Active Alert Banner */}
       {pinPlacementMode !== 'none' && (

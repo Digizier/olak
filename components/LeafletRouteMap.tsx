@@ -46,7 +46,6 @@ export const LeafletRouteMap: React.FC<Props> = ({
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
-  const [mapStyle, setMapStyle] = useState<'google' | 'voyager' | 'osm'>('google');
 
   // Keep latest callbacks in ref for map click event handler
   const callbacksRef = useRef({
@@ -67,46 +66,6 @@ export const LeafletRouteMap: React.FC<Props> = ({
     };
   }, [activePinMode, onMapClick, onSetPickup, onSetDropoff, isUrdu]);
 
-  const CARTO_API_KEY = 'cb1_30a9_1_52c71ad4bffb3a768ffb3eaf';
-
-  const getTileConfig = (style: 'google' | 'voyager' | 'osm') => {
-    if (style === 'google') {
-      return {
-        url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
-        subdomains: ['0', '1', '2', '3'],
-        maxZoom: 20,
-        attribution: '&copy; Google Maps',
-      };
-    }
-    if (style === 'voyager') {
-      return {
-        url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
-        subdomains: ['a', 'b', 'c', 'd'],
-        maxZoom: 20,
-        attribution: '&copy; CARTO &copy; OpenStreetMap',
-      };
-    }
-    return {
-      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      subdomains: ['a', 'b', 'c'],
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    };
-  };
-
-  // Handle map style change
-  useEffect(() => {
-    if (!mapInstanceRef.current || !tileLayerRef.current) return;
-    mapInstanceRef.current.removeLayer(tileLayerRef.current);
-
-    const cfg = getTileConfig(mapStyle);
-    const newTile = L.tileLayer(cfg.url, {
-      maxZoom: cfg.maxZoom,
-      subdomains: cfg.subdomains,
-    }).addTo(mapInstanceRef.current);
-    tileLayerRef.current = newTile;
-  }, [mapStyle]);
-
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -118,26 +77,30 @@ export const LeafletRouteMap: React.FC<Props> = ({
       pickupCoords.lng || 63.0544,
     ];
 
+    // Scroll-friendly map: scrollWheelZoom is disabled so page scrolling is smooth
     const map = L.map(mapContainerRef.current, {
       center: defaultCenter,
       zoom: 14,
-      minZoom: 12,
       maxZoom: 20,
       zoomControl: true,
       attributionControl: false,
+      scrollWheelZoom: false, // Fix: never hijacks user page scroll
+      touchZoom: true,
+      doubleClickZoom: true,
+      dragging: true,
     });
 
-    // Default to Google Streets Tile Layer (full shop, street, and landmark details)
-    const cfg = getTileConfig('google');
-    const tileLayer = L.tileLayer(cfg.url, {
-      maxZoom: cfg.maxZoom,
-      subdomains: cfg.subdomains,
+    // Google Maps standard road tiles (full streets, shops, houses, landmarks)
+    const tileLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['0', '1', '2', '3'],
+      attribution: '&copy; Google Maps',
     }).addTo(map);
     tileLayerRef.current = tileLayer;
 
     // Attribution control in bottom right
     L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('&copy; Google Maps / OpenStreetMap')
+      .addAttribution('&copy; Google Maps')
       .addTo(map);
 
     const routeLayer = L.layerGroup().addTo(map);
@@ -239,16 +202,16 @@ export const LeafletRouteMap: React.FC<Props> = ({
 
 
 
-    // 1. Pickup Icon (Compact Emerald)
+    // 1. Pickup Icon (High-contrast Emerald)
     const pickupHtml = `
       <div style="display: flex; flex-direction: column; align-items: center; cursor: grab;">
-        <div style="width: 28px; height: 28px; border-radius: 50%; background: #059669; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.35); border: 2px solid white;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="white" stroke="none">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: #059669; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.45); border: 2.5px solid white;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
           </svg>
         </div>
-        <span style="margin-top: 2px; font-size: 9px; font-weight: 800; background: #064e3b; color: #a7f3d0; padding: 1px 5px; border-radius: 5px; border: 1px solid #10b981; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.25);">
-          ${isUrdu ? 'پک اپ' : '📍 Pickup'}
+        <span style="margin-top: 2px; font-size: 10px; font-weight: 900; background: #064e3b; color: #a7f3d0; padding: 2px 6px; border-radius: 6px; border: 1px solid #10b981; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.35);">
+          ${isUrdu ? '📍 پک اپ' : '📍 Pickup'}
         </span>
       </div>
     `;
@@ -256,20 +219,20 @@ export const LeafletRouteMap: React.FC<Props> = ({
     const pickupIcon = L.divIcon({
       html: pickupHtml,
       className: 'custom-pickup-pin',
-      iconSize: [36, 46],
-      iconAnchor: [18, 44],
+      iconSize: [42, 52],
+      iconAnchor: [21, 50],
     });
 
-    // 2. Dropoff Icon (Compact Teal)
+    // 2. Dropoff Icon (High-contrast Red/Indigo Flag)
     const dropoffHtml = `
       <div style="display: flex; flex-direction: column; align-items: center; cursor: grab;">
-        <div style="width: 28px; height: 28px; border-radius: 50%; background: #0f766e; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.35); border: 2px solid white;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: #dc2626; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.45); border: 2.5px solid white;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="white" stroke="none">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
           </svg>
         </div>
-        <span style="margin-top: 2px; font-size: 9px; font-weight: 800; background: #0f172a; color: #5eead4; padding: 1px 5px; border-radius: 5px; border: 1px solid #14b8a6; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.25);">
-          ${isUrdu ? 'منزل' : '🏁 Dropoff'}
+        <span style="margin-top: 2px; font-size: 10px; font-weight: 900; background: #7f1d1d; color: #fecaca; padding: 2px 6px; border-radius: 6px; border: 1px solid #ef4444; white-space: nowrap; box-shadow: 0 2px 5px rgba(0,0,0,0.35);">
+          ${isUrdu ? '🏁 منزل' : '🏁 Dropoff'}
         </span>
       </div>
     `;
@@ -277,14 +240,14 @@ export const LeafletRouteMap: React.FC<Props> = ({
     const dropoffIcon = L.divIcon({
       html: dropoffHtml,
       className: 'custom-dropoff-pin',
-      iconSize: [36, 46],
-      iconAnchor: [18, 44],
+      iconSize: [42, 52],
+      iconAnchor: [21, 50],
     });
 
     // Add Pickup & Dropoff Markers as DRAGGABLE pins
     const pMarker = L.marker([pickupCoords.lat, pickupCoords.lng], { 
       icon: pickupIcon, 
-      zIndexOffset: 1000,
+      zIndexOffset: 2000,
       draggable: true,
     }).addTo(markersLayer);
 
@@ -299,11 +262,11 @@ export const LeafletRouteMap: React.FC<Props> = ({
 
     const dMarker = L.marker([dropoffCoords.lat, dropoffCoords.lng], { 
       icon: dropoffIcon, 
-      zIndexOffset: 950,
+      zIndexOffset: 1950,
       draggable: true,
     }).addTo(markersLayer);
 
-    dMarker.bindPopup(`<strong>${isUrdu ? 'منزل' : 'Dropoff Point'}</strong><br/>${dropoffName}<br/><span style="font-size: 10px; color: #0f766e; font-weight: bold;">(Drag to fine-tune exact spot)</span>`);
+    dMarker.bindPopup(`<strong>${isUrdu ? 'منزل' : 'Dropoff Point'}</strong><br/>${dropoffName}<br/><span style="font-size: 10px; color: #dc2626; font-weight: bold;">(Drag to fine-tune exact spot)</span>`);
 
     dMarker.on('dragend', (e) => {
       const pos = e.target.getLatLng();
@@ -312,95 +275,111 @@ export const LeafletRouteMap: React.FC<Props> = ({
       }
     });
 
-    // 3. Add Turbat Local Landmark POIs on Map (Hospitals, Bazaars, Colleges, Hotels)
-    const poiCategoryIcons: Record<string, { bg: string; icon: string }> = {
-      hospital: { bg: '#dc2626', icon: '🏥' },
-      shopping: { bg: '#d97706', icon: '🛍️' },
-      education: { bg: '#2563eb', icon: '🎓' },
-      bank: { bg: '#059669', icon: '🏦' },
-      transit: { bg: '#4f46e5', icon: '🚌' },
-      airport: { bg: '#0284c7', icon: '✈️' },
-      govt: { bg: '#475569', icon: '🏛️' },
-      park: { bg: '#16a34a', icon: '🌳' },
-      area: { bg: '#7c3aed', icon: '📍' },
-    };
+    // 3. Add Turbat Local Landmark POIs on Map only for local views (<= 25 km)
+    const dLat = (pickupCoords.lat - dropoffCoords.lat) * 111;
+    const dLng = (pickupCoords.lng - dropoffCoords.lng) * 100;
+    const distBetweenKm = Math.hypot(dLat, dLng);
 
-    const curatedLandmarks = landmarks.slice(0, 32);
-    curatedLandmarks.forEach((lm) => {
-      // Don't render POI if user's pickup or dropoff pin is at this exact position
-      const isAtPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0008 && Math.abs(lm.lng - pickupCoords.lng) < 0.0008;
-      const isAtDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0008 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0008;
-      if (isAtPickup || isAtDropoff) return;
+    if (distBetweenKm <= 25) {
+      const poiCategoryIcons: Record<string, { bg: string; icon: string }> = {
+        hospital: { bg: '#dc2626', icon: '🏥' },
+        shopping: { bg: '#d97706', icon: '🛍️' },
+        education: { bg: '#2563eb', icon: '🎓' },
+        bank: { bg: '#059669', icon: '🏦' },
+        transit: { bg: '#4f46e5', icon: '🚌' },
+        airport: { bg: '#0284c7', icon: '✈️' },
+        govt: { bg: '#475569', icon: '🏛️' },
+        park: { bg: '#16a34a', icon: '🌳' },
+        area: { bg: '#7c3aed', icon: '📍' },
+      };
 
-      const category = poiCategoryIcons[lm.category || 'area'] || { bg: '#059669', icon: '📍' };
-      const shortDisplay = lm.shortName || lm.name.split(',')[0].slice(0, 16);
+      const curatedLandmarks = landmarks.slice(0, 20);
+      curatedLandmarks.forEach((lm) => {
+        const isAtPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0008 && Math.abs(lm.lng - pickupCoords.lng) < 0.0008;
+        const isAtDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0008 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0008;
+        if (isAtPickup || isAtDropoff) return;
 
-      const poiHtml = `
-        <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;" title="${lm.name}">
-          <div style="width: 22px; height: 22px; border-radius: 50%; background: ${category.bg}; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white; font-size: 11px;">
-            ${category.icon}
+        const category = poiCategoryIcons[lm.category || 'area'] || { bg: '#059669', icon: '📍' };
+        const shortDisplay = lm.shortName || lm.name.split(',')[0].slice(0, 16);
+
+        const poiHtml = `
+          <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;" title="${lm.name}">
+            <div style="width: 20px; height: 20px; border-radius: 50%; background: ${category.bg}; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,0.3); border: 1.5px solid white; font-size: 10px;">
+              ${category.icon}
+            </div>
+            <span style="margin-top: 1px; font-size: 7.5px; font-weight: 800; background: rgba(15, 23, 42, 0.85); color: #f8fafc; padding: 0.5px 3px; border-radius: 3px; white-space: nowrap; max-width: 70px; overflow: hidden; text-overflow: ellipsis; pointer-events: none;">
+              ${shortDisplay}
+            </span>
           </div>
-          <span style="margin-top: 1px; font-size: 8px; font-weight: 800; background: rgba(15, 23, 42, 0.85); color: #f8fafc; padding: 0.5px 4px; border-radius: 4px; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; pointer-events: none;">
-            ${shortDisplay}
-          </span>
-        </div>
-      `;
+        `;
 
-      const poiIcon = L.divIcon({
-        html: poiHtml,
-        className: 'custom-poi-pin',
-        iconSize: [80, 36],
-        iconAnchor: [40, 11],
+        const poiIcon = L.divIcon({
+          html: poiHtml,
+          className: 'custom-poi-pin',
+          iconSize: [70, 32],
+          iconAnchor: [35, 10],
+        });
+
+        const poiMarker = L.marker([lm.lat, lm.lng], {
+          icon: poiIcon,
+          zIndexOffset: 300,
+        }).addTo(markersLayer);
+
+        const popupDiv = document.createElement('div');
+        popupDiv.style.textAlign = 'center';
+        popupDiv.style.padding = '4px 2px';
+        popupDiv.style.minWidth = '130px';
+        popupDiv.innerHTML = `
+          <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">
+            ${category.icon} ${isUrdu ? (lm.nameUrdu || lm.name_urdu || lm.name) : lm.name}
+          </div>
+          <div style="font-size: 9px; color: #64748b; margin-bottom: 8px;">
+            ${lm.area || ''}
+          </div>
+          <div style="display: flex; gap: 4px; justify-content: center;">
+            <button id="btn-poi-p-${lm.id}" type="button" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+              📍 ${isUrdu ? 'پک اپ' : 'Pickup'}
+            </button>
+            <button id="btn-poi-d-${lm.id}" type="button" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+              🏁 ${isUrdu ? 'منزل' : 'Dropoff'}
+            </button>
+          </div>
+        `;
+
+        poiMarker.bindPopup(popupDiv);
+
+        poiMarker.on('popupopen', () => {
+          const btnP = document.getElementById(`btn-poi-p-${lm.id}`);
+          const btnD = document.getElementById(`btn-poi-d-${lm.id}`);
+          if (btnP) {
+            btnP.onclick = (evt: MouseEvent) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              map.closePopup();
+              if (callbacksRef.current.onSetPickup) callbacksRef.current.onSetPickup({ lat: lm.lat, lng: lm.lng });
+            };
+          }
+          if (btnD) {
+            btnD.onclick = (evt: MouseEvent) => {
+              evt.preventDefault();
+              evt.stopPropagation();
+              map.closePopup();
+              if (callbacksRef.current.onSetDropoff) callbacksRef.current.onSetDropoff({ lat: lm.lat, lng: lm.lng });
+            };
+          }
+        });
       });
+    }
 
-      const poiMarker = L.marker([lm.lat, lm.lng], {
-        icon: poiIcon,
-        zIndexOffset: 400,
-      }).addTo(markersLayer);
-
-      const popupDiv = document.createElement('div');
-      popupDiv.style.textAlign = 'center';
-      popupDiv.style.padding = '4px 2px';
-      popupDiv.style.minWidth = '130px';
-      popupDiv.innerHTML = `
-        <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">
-          ${category.icon} ${isUrdu ? (lm.nameUrdu || lm.name_urdu || lm.name) : lm.name}
-        </div>
-        <div style="font-size: 9px; color: #64748b; margin-bottom: 8px;">
-          ${lm.area || ''}
-        </div>
-        <div style="display: flex; gap: 4px; justify-content: center;">
-          <button id="btn-poi-p-${lm.id}" type="button" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
-            📍 ${isUrdu ? 'پک اپ' : 'Pickup'}
-          </button>
-          <button id="btn-poi-d-${lm.id}" type="button" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
-            🏁 ${isUrdu ? 'منزل' : 'Dropoff'}
-          </button>
-        </div>
-      `;
-
-      poiMarker.bindPopup(popupDiv);
-
-      poiMarker.on('popupopen', () => {
-        const btnP = document.getElementById(`btn-poi-p-${lm.id}`);
-        const btnD = document.getElementById(`btn-poi-d-${lm.id}`);
-        if (btnP) {
-          btnP.onclick = (evt: MouseEvent) => {
-            evt.preventDefault();
-            evt.stopPropagation();
-            map.closePopup();
-            if (callbacksRef.current.onSetPickup) callbacksRef.current.onSetPickup({ lat: lm.lat, lng: lm.lng });
-          };
-        }
-        if (btnD) {
-          btnD.onclick = (evt: MouseEvent) => {
-            evt.preventDefault();
-            evt.stopPropagation();
-            map.closePopup();
-            if (callbacksRef.current.onSetDropoff) callbacksRef.current.onSetDropoff({ lat: lm.lat, lng: lm.lng });
-          };
-        }
-      });
+    // Immediately fit bounds to both points with safe padding
+    const initialBounds = L.latLngBounds([
+      [pickupCoords.lat, pickupCoords.lng],
+      [dropoffCoords.lat, dropoffCoords.lng],
+    ]);
+    map.fitBounds(initialBounds, {
+      padding: [45, 45],
+      maxZoom: 15,
+      animate: false,
     });
 
     // 4. Fetch Real Road Routing & Draw Polyline
@@ -410,21 +389,30 @@ export const LeafletRouteMap: React.FC<Props> = ({
         setIsLoadingRoute(false);
         if (!routeLayerRef.current) return;
 
-        // Base glow line
+        // Base dark glow line
         L.polyline(routeResult.coordinates, {
-          color: '#059669',
-          weight: 5,
-          opacity: 0.9,
+          color: '#064e3b',
+          weight: 6,
+          opacity: 0.8,
           lineCap: 'round',
           lineJoin: 'round',
         }).addTo(routeLayerRef.current);
 
-        // Center dashed bright line
+        // Vibrant main green line
+        L.polyline(routeResult.coordinates, {
+          color: '#10b981',
+          weight: 4,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(routeLayerRef.current);
+
+        // Center dashed bright tracer line
         L.polyline(routeResult.coordinates, {
           color: '#ffffff',
           weight: 2,
-          opacity: 0.95,
-          dashArray: '5, 8',
+          opacity: 0.9,
+          dashArray: '5, 7',
           lineCap: 'round',
         }).addTo(routeLayerRef.current);
 
@@ -432,19 +420,24 @@ export const LeafletRouteMap: React.FC<Props> = ({
           onRouteCalculated(routeResult.distanceKm, routeResult.durationMins);
         }
 
-        // Fit map bounds smoothly with high street zoom
-        const bounds = L.latLngBounds([
+        // Fit map bounds smoothly to the full route line
+        const routeBounds = L.latLngBounds([
           [pickupCoords.lat, pickupCoords.lng],
           [dropoffCoords.lat, dropoffCoords.lng],
         ]);
-        map.fitBounds(bounds, {
-          padding: [35, 35],
-          maxZoom: 16,
+        if (routeResult.coordinates && routeResult.coordinates.length > 0) {
+          routeResult.coordinates.forEach(pt => routeBounds.extend(pt));
+        }
+
+        map.fitBounds(routeBounds, {
+          padding: [45, 45],
+          maxZoom: 15,
           animate: true,
         });
-        // Keep street typography and shops visible
-        if (map.getZoom() < 13) {
-          map.setZoom(13);
+
+        // For extremely close points in Turbat city (<= 3 km), keep street details sharp
+        if (distBetweenKm <= 3 && map.getZoom() < 14) {
+          map.setZoom(14);
         }
       })
       .catch(() => {
@@ -466,38 +459,10 @@ export const LeafletRouteMap: React.FC<Props> = ({
       {/* Map DOM Container */}
       <div ref={mapContainerRef} className={`w-full ${heightClass} z-0`} />
 
-      {/* Map Style Switcher Toggle */}
-      <div className="absolute top-2.5 right-2.5 z-[500] flex items-center bg-white/95 rounded-xl border border-slate-300 shadow-md p-0.5 backdrop-blur-xs">
-        <button
-          type="button"
-          onClick={() => setMapStyle('google')}
-          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
-            mapStyle === 'google' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
-          }`}
-          title="Google Streets - Full street & shop details"
-        >
-          🗺️ Google
-        </button>
-        <button
-          type="button"
-          onClick={() => setMapStyle('voyager')}
-          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
-            mapStyle === 'voyager' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
-          }`}
-          title="CARTO Voyager"
-        >
-          🎨 CARTO
-        </button>
-        <button
-          type="button"
-          onClick={() => setMapStyle('osm')}
-          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
-            mapStyle === 'osm' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
-          }`}
-          title="OpenStreetMap Standard"
-        >
-          🌍 OSM
-        </button>
+      {/* Google Maps Indicator Badge */}
+      <div className="absolute top-2.5 right-2.5 z-[500] bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-800 shadow-xs flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Google Maps</span>
       </div>
 
       {/* Floating Mode Indicator / Instruction (when pin mode is active) */}

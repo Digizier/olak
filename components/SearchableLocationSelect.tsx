@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CityLandmark } from '@/lib/types';
 import { calculateRealtimeDistance } from '@/lib/db';
-import { Search, X, Check, ChevronDown, MapPin, LucideIcon, Compass, Globe } from 'lucide-react';
+import { Search, X, Check, ChevronDown, MapPin, LucideIcon, Compass, Globe, AlertCircle } from 'lucide-react';
 
 interface Props {
   label: string;
@@ -248,12 +248,15 @@ export const SearchableLocationSelect: React.FC<Props> = ({
   }
 
   const [isLocating, setIsLocating] = useState(false);
+  const [geoNotice, setGeoNotice] = useState<string | null>(null);
 
   const handleUseCurrentLocation = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    setGeoNotice(null);
+
     if (typeof window === 'undefined' || !navigator.geolocation) {
-      alert(isUrdu ? 'آپ کے براؤزر میں جی پی ایس لوکیشن سپورٹ نہیں ہے۔' : 'GPS location is not supported by your browser.');
+      setGeoNotice(isUrdu ? 'آپ کے براؤزر میں جی پی ایس لوکیشن سپورٹ نہیں ہے۔' : 'GPS location is not supported by your browser.');
       return;
     }
 
@@ -261,6 +264,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false);
+        setGeoNotice(null);
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
         const liveLm: CityLandmark = {
@@ -277,7 +281,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
       },
       () => {
         setIsLocating(false);
-        alert(isUrdu ? 'براہ کرم براؤزر / ڈیوائس میں لوکیشن کی اجازت آن کریں۔' : 'Please allow location permission in your browser or device settings.');
+        setGeoNotice(isUrdu ? 'براہ کرم براؤزر / ڈیوائس میں لوکیشن کی اجازت آن کریں۔' : 'Please allow location permission in your browser or device settings.');
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
@@ -447,6 +451,27 @@ export const SearchableLocationSelect: React.FC<Props> = ({
           {/* Locations List */}
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1">
             
+            {/* Soft GPS Error / Notice Banner (No Alert Popup) */}
+            {geoNotice && (
+              <div className="p-2 mb-1.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-900 text-xs flex items-center justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-semibold text-[11px] leading-tight">{geoNotice}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setGeoNotice(null);
+                  }}
+                  className="text-amber-700 hover:text-amber-950 p-0.5 rounded cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* Live GPS Current Location Detector Button */}
             {allowCurrentLocation && !searchQuery.trim() && (
               <button
