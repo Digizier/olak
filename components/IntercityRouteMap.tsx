@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { getRoadRoute } from '@/lib/routingHelper';
-import { ExternalLink, Route, Clock } from 'lucide-react';
+import { ExternalLink, Route, Clock, MapPin, Navigation } from 'lucide-react';
 
 interface Props {
   originCity: string;
@@ -15,6 +15,9 @@ interface Props {
   originCoords?: { lat: number; lng: number };
   destinationCoords?: { lat: number; lng: number };
   onRouteCalculated?: (distanceKm: number, durationMins: number) => void;
+  allowPinDrop?: boolean;
+  onOriginChange?: (name: string, coords: { lat: number; lng: number }) => void;
+  onDestinationChange?: (name: string, coords: { lat: number; lng: number }) => void;
 }
 
 // Comprehensive regional coordinates for Balochistan, Sindh & Pakistan transport hubs
@@ -59,7 +62,6 @@ export const INTERCITY_CITY_COORDINATES: Record<string, { lat: number; lng: numb
   'peshawar': { lat: 34.0151, lng: 71.5249, nameUrdu: 'پشاور' },
 };
 
-// Helper to resolve city to coordinate, including substring matching
 export function resolveIntercityCoords(cityName: string, fallbackCoords?: { lat: number; lng: number }): { lat: number; lng: number; nameUrdu: string } {
   if (fallbackCoords && Number.isFinite(fallbackCoords.lat) && Number.isFinite(fallbackCoords.lng)) {
     return { lat: fallbackCoords.lat, lng: fallbackCoords.lng, nameUrdu: cityName };
@@ -79,7 +81,6 @@ export function resolveIntercityCoords(cityName: string, fallbackCoords?: { lat:
     }
   }
 
-  // Default coordinate if completely unknown
   return { lat: 26.0031, lng: 63.0544, nameUrdu: cityName };
 }
 
@@ -93,6 +94,9 @@ export const IntercityRouteMap: React.FC<Props> = ({
   originCoords: propOriginCoords,
   destinationCoords: propDestCoords,
   onRouteCalculated,
+  allowPinDrop = false,
+  onOriginChange,
+  onDestinationChange,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -100,12 +104,31 @@ export const IntercityRouteMap: React.FC<Props> = ({
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const [actualKm, setActualKm] = useState<number>(distanceKm);
   const [actualDuration, setActualDuration] = useState<string>(duration);
+  const [pinPlacementMode, setPinPlacementMode] = useState<'none' | 'origin' | 'destination'>('none');
+
   const [resolvedOrigin, setResolvedOrigin] = useState<{ lat: number; lng: number; nameUrdu: string }>(() =>
     resolveIntercityCoords(originCity, propOriginCoords)
   );
   const [resolvedDest, setResolvedDest] = useState<{ lat: number; lng: number; nameUrdu: string }>(() =>
     resolveIntercityCoords(destinationCity || 'Gwadar', propDestCoords)
   );
+
+  // Callbacks ref for map event handling
+  const callbacksRef = useRef({
+    pinPlacementMode,
+    onOriginChange,
+    onDestinationChange,
+    allowPinDrop,
+  });
+
+  useEffect(() => {
+    callbacksRef.current = {
+      pinPlacementMode,
+      onOriginChange,
+      onDestinationChange,
+      allowPinDrop,
+    };
+  }, [pinPlacementMode, onOriginChange, onDestinationChange, allowPinDrop]);
 
   // Sync coords when props change
   useEffect(() => {
@@ -116,7 +139,6 @@ export const IntercityRouteMap: React.FC<Props> = ({
     setResolvedDest(resolveIntercityCoords(destinationCity || 'Gwadar', propDestCoords));
   }, [destinationCity, propDestCoords?.lat, propDestCoords?.lng]);
 
-  // Google Maps Direction URL
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${resolvedOrigin.lat},${resolvedOrigin.lng}&destination=${resolvedDest.lat},${resolvedDest.lng}&travelmode=driving`;
 
   // Initialize Map
@@ -152,6 +174,23 @@ export const IntercityRouteMap: React.FC<Props> = ({
     routeLayerRef.current = routeLayer;
     markersLayerRef.current = markersLayer;
     mapInstanceRef.current = map;
+
+    // Interactive map click for pin placement
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      const cb = callbacksRef.current;
+      if (!cb.allowPinDrop) return;
+      const coords = { lat: e.latlng.lat, lng: e.latlng.lng };
+
+      if (cb.pinPlacementMode === 'origin') {
+        const label = `Pickup (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+        if (cb.onOriginChange) cb.onOriginChange(label, coords);
+        setPinPlacementMode('none');
+      } else if (cb.pinPlacementMode === 'destination') {
+        const label = `Dropoff (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+        if (cb.onDestinationChange) cb.onDestinationChange(label, coords);
+        setPinPlacementMode('none');
+      }
+    });
 
     setTimeout(() => {
       map.invalidateSize();
@@ -215,13 +254,39 @@ export const IntercityRouteMap: React.FC<Props> = ({
       iconAnchor: [21, 50],
     });
 
-    L.marker([resolvedOrigin.lat, resolvedOrigin.lng], { icon: originIcon, zIndexOffset: 1000 })
-      .addTo(markersLayer)
-      .bindPopup(`<strong>${originCity || 'Origin'}</strong><br/>${isUrdu ? 'ہائی وے روانگی مقام' : 'Highway Departure Point'}`);
+    const pMarker = L.marker([resolvedOrigin.lat, resolvedOrigin.lng], { 
+      icon: originIcon, 
+      zIndexOffset: 1000,
+      draggable: Boolean(allowPinDrop),
+    }).addTo(markersLayer);
 
-    L.marker([resolvedDest.lat, resolvedDest.lng], { icon: destIcon, zIndexOffset: 950 })
-      .addTo(markersLayer)
-      .bindPopup(`<strong>${destinationCity || 'Destination'}</strong><br/>${isUrdu ? 'ہائی وے آمد مقام' : 'Highway Arrival Destination'}`);
+    pMarker.bindPopup(`<strong>${originCity || 'Origin'}</strong><br/>${isUrdu ? 'ہائی وے روانگی مقام' : 'Highway Departure Point'}`);
+
+    if (allowPinDrop) {
+      pMarker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        const coords = { lat: pos.lat, lng: pos.lng };
+        const label = `${originCity || 'Origin'} (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+        if (onOriginChange) onOriginChange(label, coords);
+      });
+    }
+
+    const dMarker = L.marker([resolvedDest.lat, resolvedDest.lng], { 
+      icon: destIcon, 
+      zIndexOffset: 950,
+      draggable: Boolean(allowPinDrop),
+    }).addTo(markersLayer);
+
+    dMarker.bindPopup(`<strong>${destinationCity || 'Destination'}</strong><br/>${isUrdu ? 'ہائی وے آمد مقام' : 'Highway Arrival Destination'}`);
+
+    if (allowPinDrop) {
+      dMarker.on('dragend', (e) => {
+        const pos = e.target.getLatLng();
+        const coords = { lat: pos.lat, lng: pos.lng };
+        const label = `${destinationCity || 'Destination'} (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`;
+        if (onDestinationChange) onDestinationChange(label, coords);
+      });
+    }
 
     // Initial bounds fit
     const initialBounds = L.latLngBounds([
@@ -287,12 +352,12 @@ export const IntercityRouteMap: React.FC<Props> = ({
         });
       })
       .catch(() => {});
-  }, [resolvedOrigin.lat, resolvedOrigin.lng, resolvedDest.lat, resolvedDest.lng, originCity, destinationCity, isUrdu]);
+  }, [resolvedOrigin.lat, resolvedOrigin.lng, resolvedDest.lat, resolvedDest.lng, originCity, destinationCity, isUrdu, allowPinDrop]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3 space-y-2.5 shadow-sm">
-      {/* Header bar */}
-      <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
+      {/* Top Header with Pin Mode Selectors & Google Maps Button */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1.5 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
             <Route className="w-3.5 h-3.5" />
@@ -302,50 +367,111 @@ export const IntercityRouteMap: React.FC<Props> = ({
               <span className="text-xs sm:text-sm font-black text-slate-900">
                 {isUrdu ? 'ہائی وے روٹ لائیو میپ' : 'Live Highway Route Corridor'}
               </span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.2 rounded-full">
-                {actualKm || distanceKm} KM
+              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
+                Google Maps
               </span>
             </div>
             <p className="text-[10px] text-slate-500">
-              {originCity || 'Turbat'} ➔ {destinationCity || 'Gwadar'}
+              {isUrdu ? 'نقشے پر پن لگائیں یا اوپر سے تلاش کریں' : 'Drag pins on map or tap to set exact pickup & dropoff'}
             </p>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => window.open(googleMapsUrl, '_blank', 'noopener,noreferrer')}
-          className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
-          title={isUrdu ? 'گوگل میپس میں کھولیں' : 'Open in Google Maps'}
-        >
-          <ExternalLink className="w-3 h-3" />
-          <span>1-Click Google Maps</span>
-        </button>
+        {/* Pin placement tools (if enabled) + Google Maps Link */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap self-end sm:self-auto">
+          {allowPinDrop && (
+            <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPinPlacementMode(prev => prev === 'origin' ? 'none' : 'origin');
+                }}
+                className={`px-2 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
+                  pinPlacementMode === 'origin'
+                    ? 'bg-emerald-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tap map to set Origin / Pickup spot"
+              >
+                <MapPin className="w-2.5 h-2.5" />
+                <span>{isUrdu ? 'پک اپ' : 'Pickup'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setPinPlacementMode(prev => prev === 'destination' ? 'none' : 'destination');
+                }}
+                className={`px-2 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
+                  pinPlacementMode === 'destination'
+                    ? 'bg-red-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tap map to set Destination / Dropoff spot"
+              >
+                <Navigation className="w-2.5 h-2.5" />
+                <span>{isUrdu ? 'منزل' : 'Dropoff'}</span>
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => window.open(googleMapsUrl, '_blank', 'noopener,noreferrer')}
+            className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
+            title={isUrdu ? 'گوگل میپس میں کھولیں' : 'Open in Google Maps'}
+          >
+            <ExternalLink className="w-3 h-3" />
+            <span>Google Maps</span>
+          </button>
+        </div>
       </div>
 
-      {/* Map view */}
+      {/* Pin Placement Mode Active Alert Banner */}
+      {pinPlacementMode !== 'none' && (
+        <div className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 shadow-xs ${
+          pinPlacementMode === 'origin'
+            ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+            : 'bg-red-50 border-red-300 text-red-900'
+        }`}>
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping shrink-0"></span>
+            <span className="truncate">
+              {pinPlacementMode === 'origin'
+                ? (isUrdu ? 'نقشے پر ٹیپ کر کے روانگی مقام (پک اپ) پن لگائیں 📍' : 'Tap map to set ORIGIN PICKUP 📍')
+                : (isUrdu ? 'نقشے پر ٹیپ کر کے منزل (ڈراپ آف) پن لگائیں 🏁' : 'Tap map to set DESTINATION DROPOFF 🏁')}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPinPlacementMode('none')}
+            className="text-slate-500 hover:text-slate-900 text-[10px] underline cursor-pointer shrink-0"
+          >
+            {isUrdu ? 'منسوخ' : 'Done'}
+          </button>
+        </div>
+      )}
+
+      {/* Map view container - NO overlapping badge on top-left to avoid Leaflet +/- zoom buttons */}
       <div className={`relative w-full ${heightClass} rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100`}>
         <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* Google Maps Indicator Badge */}
+        {/* Google Maps Indicator Badge (Top Right) */}
         <div className="absolute top-2.5 right-2.5 z-[500] bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] font-black text-slate-800 shadow-xs flex items-center gap-1.5 pointer-events-none">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>Google Maps</span>
         </div>
 
-        {/* Floating Route Badge */}
-        <div className="absolute top-2.5 left-2.5 z-[500] bg-white/95 backdrop-blur-md px-3 py-1 rounded-xl border border-slate-200 shadow-sm text-xs font-black text-slate-800 flex items-center gap-2 pointer-events-none">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>{originCity || 'Turbat'} ➔ {destinationCity || 'Gwadar'}</span>
-        </div>
-
-        {/* Floating Duration Tag */}
+        {/* Floating Duration Tag (Bottom Right) */}
         <div className="absolute bottom-2 right-2 z-[500] bg-slate-900/90 text-white backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-md pointer-events-none">
           <Clock className="w-3 h-3 text-emerald-400" />
           <span>{actualDuration || duration}</span>
         </div>
 
-        {/* Legend */}
+        {/* Legend (Bottom Left) */}
         <div className="absolute bottom-2 left-2 z-[500] bg-white/95 backdrop-blur-md px-2 py-0.5 rounded-lg border border-slate-200 text-[9px] text-slate-700 font-bold flex items-center gap-1.5 shadow-xs pointer-events-none">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
@@ -355,6 +481,26 @@ export const IntercityRouteMap: React.FC<Props> = ({
             <span className="w-2 h-2 rounded-full bg-red-600"></span>
             <span>Destination</span>
           </span>
+        </div>
+      </div>
+
+      {/* City-Rides-Style Bottom Summary Bar (No zoom overlap, 100% clean & responsive) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pt-1 px-1 text-xs border-t border-slate-100">
+        <div className="flex items-center gap-1.5 text-slate-800 font-bold min-w-0">
+          <Route className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <span className="truncate">{originCity || 'Turbat'} ➔ {destinationCity || 'Gwadar'}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+          <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-black px-2 py-0.5 rounded-md shadow-2xs">
+            DISTANCE {actualKm || distanceKm} KM
+          </span>
+          <button
+            type="button"
+            onClick={() => window.open(googleMapsUrl, '_blank', 'noopener,noreferrer')}
+            className="text-[10px] text-emerald-700 font-black hover:underline flex items-center gap-0.5 cursor-pointer"
+          >
+            <ExternalLink className="w-2.5 h-2.5" /> 1-Click Maps
+          </button>
         </div>
       </div>
     </div>

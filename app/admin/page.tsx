@@ -144,6 +144,28 @@ const POPULAR_INTERCITY_CITIES = [
   'Peshawar'
 ];
 
+import { SearchableLocationSelect } from '@/components/SearchableLocationSelect';
+
+const INTERCITY_PRESET_LANDMARKS: CityLandmark[] = [
+  ...TURBAT_LANDMARKS,
+  { id: 'city-gwadar', name: 'Gwadar City & Port', area: 'Gwadar Coastal Highway', lat: 25.1264, lng: 62.3225, category: 'transit' },
+  { id: 'city-pasni', name: 'Pasni City & Coastal Belt', area: 'Pasni', lat: 25.2631, lng: 63.4692, category: 'transit' },
+  { id: 'city-jiwani', name: 'Jiwani Coastal Town', area: 'Jiwani', lat: 25.0485, lng: 61.7410, category: 'transit' },
+  { id: 'city-tump', name: 'Tump Gateway', area: 'Tump', lat: 26.0827, lng: 62.5938, category: 'area' },
+  { id: 'city-mand', name: 'Mand Border Highway', area: 'Mand', lat: 26.0450, lng: 62.0620, category: 'transit' },
+  { id: 'city-panjgur', name: 'Panjgur City Center', area: 'Panjgur', lat: 26.9644, lng: 64.0903, category: 'transit' },
+  { id: 'city-quetta', name: 'Quetta City (via Hoshab/Surab)', area: 'Quetta', lat: 30.1798, lng: 66.9750, category: 'transit' },
+  { id: 'city-karachi', name: 'Karachi Saddar / Coastal Adda', area: 'Karachi Coastal Highway', lat: 24.8607, lng: 67.0011, category: 'transit' },
+  { id: 'city-khuzdar', name: 'Khuzdar Highway Junction', area: 'Khuzdar', lat: 27.8000, lng: 66.6167, category: 'transit' },
+  { id: 'city-ormara', name: 'Ormara Coastal City', area: 'Ormara', lat: 25.2088, lng: 64.6357, category: 'transit' },
+  { id: 'city-hoshab', name: 'Hoshab M-8 Junction', area: 'Hoshab', lat: 26.0028, lng: 63.9014, category: 'transit' },
+  { id: 'city-bela', name: 'Bela Highway Stop', area: 'Bela', lat: 26.2271, lng: 66.3115, category: 'transit' },
+  { id: 'city-hub', name: 'Hub Chowki Terminal', area: 'Hub', lat: 25.0270, lng: 66.8833, category: 'transit' },
+  { id: 'city-sukkur', name: 'Sukkur Interchange', area: 'Sukkur', lat: 27.7052, lng: 68.8574, category: 'transit' },
+  { id: 'city-larkana', name: 'Larkana Terminal', area: 'Larkana', lat: 27.5590, lng: 68.2120, category: 'transit' },
+  { id: 'city-hyderabad', name: 'Hyderabad Bypass Adda', area: 'Hyderabad', lat: 25.3960, lng: 68.3578, category: 'transit' },
+];
+
 import { 
   Lock, 
   ShieldCheck, 
@@ -283,6 +305,8 @@ export default function AdminPage() {
     delivery_parcel_fare: 800,
     is_active: true,
   });
+  const [adminRouteOriginCoords, setAdminRouteOriginCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
+  const [adminRouteDestCoords, setAdminRouteDestCoords] = useState<{ lat: number; lng: number } | undefined>(undefined);
 
   // Promo Banner Form Modal State
   const [promoModalOpen, setPromoModalOpen] = useState(false);
@@ -2324,6 +2348,8 @@ export default function AdminPage() {
                         delivery_parcel_fare: 800,
                         is_active: true,
                       });
+                      setAdminRouteOriginCoords({ lat: 26.0031, lng: 63.0544 });
+                      setAdminRouteDestCoords(undefined);
                       setRouteModalOpen(true);
                     }}
                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
@@ -2389,6 +2415,8 @@ export default function AdminPage() {
                           <button
                             onClick={() => {
                               setEditingRoute(route);
+                              setAdminRouteOriginCoords(undefined);
+                              setAdminRouteDestCoords(undefined);
                               setRouteModalOpen(true);
                             }}
                             className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-200 transition cursor-pointer"
@@ -3448,67 +3476,64 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <datalist id="popular-cities-list">
-              {POPULAR_INTERCITY_CITIES.map((city) => (
-                <option key={city} value={city} />
-              ))}
-            </datalist>
-
             <form onSubmit={handleSaveRouteSubmit} className="space-y-3.5 text-xs">
-              {/* Origin & Destination City Selectors */}
+              {/* Origin & Destination City Selectors with Real-Time Location Search */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Origin City (Pickup Point)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    list="popular-cities-list"
-                    placeholder="e.g. Turbat"
-                    value={editingRoute.origin_city || ''}
-                    onChange={(e) => setEditingRoute({ ...editingRoute, origin_city: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Type or select: Turbat, Gwadar, Pasni, etc.</span>
-                </div>
+                <SearchableLocationSelect
+                  label="Origin Location / Pickup Point (Terminal / City)"
+                  icon={MapPin}
+                  iconColor="text-emerald-600"
+                  value={editingRoute.origin_city || ''}
+                  allowCurrentLocation={true}
+                  onChange={(name, lm) => {
+                    setEditingRoute(prev => ({ ...prev, origin_city: name }));
+                    if (lm) {
+                      setAdminRouteOriginCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                    }
+                  }}
+                  landmarks={INTERCITY_PRESET_LANDMARKS}
+                  badge="Balochistan"
+                  placeholder="Search city, terminal, hotel (e.g. Shaheen Hotel)..."
+                />
 
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5 text-red-600" />
-                    <span>Destination City (Dropoff Point)</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    list="popular-cities-list"
-                    placeholder="e.g. Gwadar, Karachi, Quetta"
-                    value={editingRoute.destination_city || ''}
-                    onChange={(e) => setEditingRoute({ ...editingRoute, destination_city: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 font-bold text-slate-900 focus:outline-none focus:border-emerald-500"
-                  />
-                  <span className="text-[10px] text-slate-400 mt-0.5 block">Type or select destination city</span>
-                </div>
+                <SearchableLocationSelect
+                  label="Destination Location / Dropoff Point (Terminal / City)"
+                  icon={Navigation}
+                  iconColor="text-red-600"
+                  value={editingRoute.destination_city || ''}
+                  referenceCoords={adminRouteOriginCoords}
+                  allowCurrentLocation={false}
+                  onChange={(name, lm) => {
+                    setEditingRoute(prev => ({ ...prev, destination_city: name }));
+                    if (lm) {
+                      setAdminRouteDestCoords({ lat: Number(lm.lat), lng: Number(lm.lng) });
+                    }
+                  }}
+                  landmarks={INTERCITY_PRESET_LANDMARKS}
+                  badge="Highway"
+                  placeholder="Search destination city or terminal (e.g. Gwadar Port)..."
+                />
               </div>
 
-              {/* Live Interactive Google Maps Corridor Preview */}
+              {/* Live Interactive Google Maps Corridor Preview with Pin Controls */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700 flex items-center gap-1">
-                    <span>🗺️ Live Highway Route & Distance Preview</span>
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
-                      Google Maps
-                    </span>
-                  </span>
-                  <span className="text-[10px] text-emerald-700 font-bold">Auto-syncs KM & duration</span>
-                </div>
                 <IntercityRouteMap
                   originCity={editingRoute.origin_city || 'Turbat'}
                   destinationCity={editingRoute.destination_city || 'Gwadar'}
                   distanceKm={editingRoute.estimated_distance_km || 150}
                   duration={editingRoute.estimated_duration || '2.5 Hours'}
-                  heightClass="h-44 sm:h-52"
+                  originCoords={adminRouteOriginCoords}
+                  destinationCoords={adminRouteDestCoords}
+                  heightClass="h-48 sm:h-56"
+                  allowPinDrop={true}
+                  onOriginChange={(label, coords) => {
+                    setEditingRoute(prev => ({ ...prev, origin_city: label }));
+                    setAdminRouteOriginCoords(coords);
+                  }}
+                  onDestinationChange={(label, coords) => {
+                    setEditingRoute(prev => ({ ...prev, destination_city: label }));
+                    setAdminRouteDestCoords(coords);
+                  }}
                   onRouteCalculated={(km, mins) => {
                     const hours = (km / 65).toFixed(1);
                     setEditingRoute((prev) => ({
