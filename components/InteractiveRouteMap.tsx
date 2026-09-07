@@ -307,7 +307,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         onPickupDrag={handlePickupDrag}
         onDropoffDrag={handleDropoffDrag}
         activePinMode={pinPlacementMode}
-        heightClass="h-56 sm:h-64"
+        heightClass="h-64 sm:h-72"
         isUrdu={isUrdu}
         onRouteCalculated={handleRouteCalculated}
       />

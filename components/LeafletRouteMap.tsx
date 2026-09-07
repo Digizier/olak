@@ -46,7 +46,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
-  const [mapStyle, setMapStyle] = useState<'voyager' | 'osm'>('voyager');
+  const [mapStyle, setMapStyle] = useState<'google' | 'voyager' | 'osm'>('google');
 
   // Keep latest callbacks in ref for map click event handler
   const callbacksRef = useRef({
@@ -69,18 +69,41 @@ export const LeafletRouteMap: React.FC<Props> = ({
 
   const CARTO_API_KEY = 'cb1_30a9_1_52c71ad4bffb3a768ffb3eaf';
 
+  const getTileConfig = (style: 'google' | 'voyager' | 'osm') => {
+    if (style === 'google') {
+      return {
+        url: 'https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        subdomains: ['0', '1', '2', '3'],
+        maxZoom: 20,
+        attribution: '&copy; Google Maps',
+      };
+    }
+    if (style === 'voyager') {
+      return {
+        url: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
+        subdomains: ['a', 'b', 'c', 'd'],
+        maxZoom: 20,
+        attribution: '&copy; CARTO &copy; OpenStreetMap',
+      };
+    }
+    return {
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      subdomains: ['a', 'b', 'c'],
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    };
+  };
+
   // Handle map style change
   useEffect(() => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
     mapInstanceRef.current.removeLayer(tileLayerRef.current);
 
-    const tileUrl = mapStyle === 'voyager'
-      ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
-    const maxZoom = mapStyle === 'voyager' ? 20 : 19;
-
-    const newTile = L.tileLayer(tileUrl, { maxZoom, subdomains }).addTo(mapInstanceRef.current);
+    const cfg = getTileConfig(mapStyle);
+    const newTile = L.tileLayer(cfg.url, {
+      maxZoom: cfg.maxZoom,
+      subdomains: cfg.subdomains,
+    }).addTo(mapInstanceRef.current);
     tileLayerRef.current = newTile;
   }, [mapStyle]);
 
@@ -98,25 +121,23 @@ export const LeafletRouteMap: React.FC<Props> = ({
     const map = L.map(mapContainerRef.current, {
       center: defaultCenter,
       zoom: 14,
+      minZoom: 12,
+      maxZoom: 20,
       zoomControl: true,
       attributionControl: false,
     });
 
-    // Detailed Streets Tile Layer with verified CARTO API Key
-    const tileUrl = mapStyle === 'voyager'
-      ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
-      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
-
-    const tileLayer = L.tileLayer(tileUrl, {
-      maxZoom: 20,
-      subdomains,
+    // Default to Google Streets Tile Layer (full shop, street, and landmark details)
+    const cfg = getTileConfig('google');
+    const tileLayer = L.tileLayer(cfg.url, {
+      maxZoom: cfg.maxZoom,
+      subdomains: cfg.subdomains,
     }).addTo(map);
     tileLayerRef.current = tileLayer;
 
     // Attribution control in bottom right
     L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/" target="_blank">CARTO</a>')
+      .addAttribution('&copy; Google Maps / OpenStreetMap')
       .addTo(map);
 
     const routeLayer = L.layerGroup().addTo(map);
@@ -291,7 +312,98 @@ export const LeafletRouteMap: React.FC<Props> = ({
       }
     });
 
-    // 3. Fetch Real Road Routing & Draw Polyline
+    // 3. Add Turbat Local Landmark POIs on Map (Hospitals, Bazaars, Colleges, Hotels)
+    const poiCategoryIcons: Record<string, { bg: string; icon: string }> = {
+      hospital: { bg: '#dc2626', icon: '🏥' },
+      shopping: { bg: '#d97706', icon: '🛍️' },
+      education: { bg: '#2563eb', icon: '🎓' },
+      bank: { bg: '#059669', icon: '🏦' },
+      transit: { bg: '#4f46e5', icon: '🚌' },
+      airport: { bg: '#0284c7', icon: '✈️' },
+      govt: { bg: '#475569', icon: '🏛️' },
+      park: { bg: '#16a34a', icon: '🌳' },
+      area: { bg: '#7c3aed', icon: '📍' },
+    };
+
+    const curatedLandmarks = landmarks.slice(0, 32);
+    curatedLandmarks.forEach((lm) => {
+      // Don't render POI if user's pickup or dropoff pin is at this exact position
+      const isAtPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0008 && Math.abs(lm.lng - pickupCoords.lng) < 0.0008;
+      const isAtDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0008 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0008;
+      if (isAtPickup || isAtDropoff) return;
+
+      const category = poiCategoryIcons[lm.category || 'area'] || { bg: '#059669', icon: '📍' };
+      const shortDisplay = lm.shortName || lm.name.split(',')[0].slice(0, 16);
+
+      const poiHtml = `
+        <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;" title="${lm.name}">
+          <div style="width: 22px; height: 22px; border-radius: 50%; background: ${category.bg}; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white; font-size: 11px;">
+            ${category.icon}
+          </div>
+          <span style="margin-top: 1px; font-size: 8px; font-weight: 800; background: rgba(15, 23, 42, 0.85); color: #f8fafc; padding: 0.5px 4px; border-radius: 4px; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; pointer-events: none;">
+            ${shortDisplay}
+          </span>
+        </div>
+      `;
+
+      const poiIcon = L.divIcon({
+        html: poiHtml,
+        className: 'custom-poi-pin',
+        iconSize: [80, 36],
+        iconAnchor: [40, 11],
+      });
+
+      const poiMarker = L.marker([lm.lat, lm.lng], {
+        icon: poiIcon,
+        zIndexOffset: 400,
+      }).addTo(markersLayer);
+
+      const popupDiv = document.createElement('div');
+      popupDiv.style.textAlign = 'center';
+      popupDiv.style.padding = '4px 2px';
+      popupDiv.style.minWidth = '130px';
+      popupDiv.innerHTML = `
+        <div style="font-size: 11px; font-weight: 800; color: #0f172a; margin-bottom: 2px;">
+          ${category.icon} ${isUrdu ? (lm.nameUrdu || lm.name_urdu || lm.name) : lm.name}
+        </div>
+        <div style="font-size: 9px; color: #64748b; margin-bottom: 8px;">
+          ${lm.area || ''}
+        </div>
+        <div style="display: flex; gap: 4px; justify-content: center;">
+          <button id="btn-poi-p-${lm.id}" type="button" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+            📍 ${isUrdu ? 'پک اپ' : 'Pickup'}
+          </button>
+          <button id="btn-poi-d-${lm.id}" type="button" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 4px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+            🏁 ${isUrdu ? 'منزل' : 'Dropoff'}
+          </button>
+        </div>
+      `;
+
+      poiMarker.bindPopup(popupDiv);
+
+      poiMarker.on('popupopen', () => {
+        const btnP = document.getElementById(`btn-poi-p-${lm.id}`);
+        const btnD = document.getElementById(`btn-poi-d-${lm.id}`);
+        if (btnP) {
+          btnP.onclick = (evt: MouseEvent) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            map.closePopup();
+            if (callbacksRef.current.onSetPickup) callbacksRef.current.onSetPickup({ lat: lm.lat, lng: lm.lng });
+          };
+        }
+        if (btnD) {
+          btnD.onclick = (evt: MouseEvent) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            map.closePopup();
+            if (callbacksRef.current.onSetDropoff) callbacksRef.current.onSetDropoff({ lat: lm.lat, lng: lm.lng });
+          };
+        }
+      });
+    });
+
+    // 4. Fetch Real Road Routing & Draw Polyline
     setIsLoadingRoute(true);
     getRoadRoute(pickupCoords, dropoffCoords)
       .then((routeResult) => {
@@ -330,6 +442,10 @@ export const LeafletRouteMap: React.FC<Props> = ({
           maxZoom: 16,
           animate: true,
         });
+        // Keep street typography and shops visible
+        if (map.getZoom() < 13) {
+          map.setZoom(13);
+        }
       })
       .catch(() => {
         setIsLoadingRoute(false);
@@ -351,14 +467,38 @@ export const LeafletRouteMap: React.FC<Props> = ({
       <div ref={mapContainerRef} className={`w-full ${heightClass} z-0`} />
 
       {/* Map Style Switcher Toggle */}
-      <button
-        type="button"
-        onClick={() => setMapStyle(prev => prev === 'voyager' ? 'osm' : 'voyager')}
-        className="absolute top-2.5 right-2.5 z-[500] bg-white/95 hover:bg-white text-slate-800 text-[10px] font-black px-2.5 py-1 rounded-lg border border-slate-300 shadow-md flex items-center gap-1 transition cursor-pointer backdrop-blur-xs"
-        title="Toggle between Detailed Street Map and Standard OSM"
-      >
-        <span>{mapStyle === 'voyager' ? '🗺️ Detailed Streets' : '🌍 OSM Standard'}</span>
-      </button>
+      <div className="absolute top-2.5 right-2.5 z-[500] flex items-center bg-white/95 rounded-xl border border-slate-300 shadow-md p-0.5 backdrop-blur-xs">
+        <button
+          type="button"
+          onClick={() => setMapStyle('google')}
+          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
+            mapStyle === 'google' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
+          }`}
+          title="Google Streets - Full street & shop details"
+        >
+          🗺️ Google
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapStyle('voyager')}
+          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
+            mapStyle === 'voyager' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
+          }`}
+          title="CARTO Voyager"
+        >
+          🎨 CARTO
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapStyle('osm')}
+          className={`text-[10px] font-black px-2 py-1 rounded-lg transition cursor-pointer ${
+            mapStyle === 'osm' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-700 hover:text-slate-900'
+          }`}
+          title="OpenStreetMap Standard"
+        >
+          🌍 OSM
+        </button>
+      </div>
 
       {/* Floating Mode Indicator / Instruction (when pin mode is active) */}
       {activePinMode !== 'none' && (

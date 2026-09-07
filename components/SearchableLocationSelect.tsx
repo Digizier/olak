@@ -24,6 +24,8 @@ interface OnlineResult {
   detail: string;
   lat: number;
   lng: number;
+  distKm: number;
+  isLocal: boolean;
 }
 
 const getCategoryEmoji = (category?: string) => {
@@ -47,7 +49,7 @@ const POPULAR_QUICK_CHIPS = [
   { name: 'Main Bazaar / Shahi Bazaar', short: '🛍️ Shahi Bazaar', shortUrdu: '🛍️ شاہی بازار' },
   { name: 'University of Turbat (UoT) Campus', short: '🎓 UoT', shortUrdu: '🎓 یونیورسٹی' },
   { name: 'Turbat Central Bus Terminal / Adda', short: '🚌 Bus Adda', shortUrdu: '🚌 بس اڈا' },
-  { name: 'City Thana (Police Station), Thana Road', short: '🏛️ City Thana', shortUrdu: '🏛️ سٹی تھانہ' },
+  { name: 'Quaid-e-Azam Road / Jinnah Road', short: '🛣️ Jinnah Road', shortUrdu: '🛣️ جناح روڈ' },
 ];
 
 export const SearchableLocationSelect: React.FC<Props> = ({
@@ -103,7 +105,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     }
   }, [isOpen]);
 
-  // Real-time online OpenStreetMap search (Photon API) debounced - Strictly bounded to Turbat & Kech District
+  // Real-time online OpenStreetMap search (Photon API + Nominatim PK fallback)
   useEffect(() => {
     const queryTrim = searchQuery.trim();
     if (!isOpen || queryTrim.length < 2) {
@@ -115,47 +117,92 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     const timer = setTimeout(async () => {
       setIsSearchingOnline(true);
       try {
-        const res = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(queryTrim)}&lat=26.0031&lon=63.0544&limit=6`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          const TURBAT_CENTER_LAT = 26.0031;
-          const TURBAT_CENTER_LNG = 63.0544;
+        const TURBAT_CENTER_LAT = 26.0031;
+        const TURBAT_CENTER_LNG = 63.0544;
+        let items: OnlineResult[] = [];
 
-          const items: OnlineResult[] = (data.features || [])
-            .filter((f: any) => {
-              if (!f.geometry || !f.geometry.coordinates || f.geometry.coordinates.length < 2) return false;
-              const fLng = Number(f.geometry.coordinates[0]);
-              const fLat = Number(f.geometry.coordinates[1]);
-              // Only accept locations within ~45 KM of Turbat / Kech Valley (lat ~25.6 to 26.4, lng ~62.6 to 63.5)
-              // Discards Karachi, Quetta, Islamabad or distant external places
-              const dLat = (fLat - TURBAT_CENTER_LAT) * 111;
-              const dLng = (fLng - TURBAT_CENTER_LNG) * 100;
-              const distKm = Math.hypot(dLat, dLng);
-              return distKm <= 45;
-            })
-            .map((f: any) => {
-              const p = f.properties || {};
-              const name = p.name || p.street || queryTrim;
-              const placeDetails = [p.street, p.district, p.city || 'Turbat', p.state, p.country]
-                .filter(Boolean)
-                .join(', ');
-              return {
-                name: p.city ? `${name} (${p.city})` : name,
-                detail: placeDetails || 'Live OSM Location (Turbat)',
-                lat: Number(f.geometry.coordinates[1]),
-                lng: Number(f.geometry.coordinates[0]),
-              };
-            });
-          setOnlineResults(items);
+        // 1. Query Photon with bias to Turbat coordinates
+        try {
+          const res = await fetch(
+            `https://photon.komoot.io/api/?q=${encodeURIComponent(queryTrim)}&lat=${TURBAT_CENTER_LAT}&lon=${TURBAT_CENTER_LNG}&limit=8`
+          );
+          if (res.ok) {
+            const data = await res.json();
+            items = (data.features || [])
+              .filter((f: any) => f.geometry && f.geometry.coordinates && f.geometry.coordinates.length >= 2)
+              .map((f: any) => {
+                const p = f.properties || {};
+                const rawName = p.name || p.street || queryTrim;
+                const fLat = Number(f.geometry.coordinates[1]);
+                const fLng = Number(f.geometry.coordinates[0]);
+                const dLat = (fLat - TURBAT_CENTER_LAT) * 111;
+                const dLng = (fLng - TURBAT_CENTER_LNG) * 100;
+                const distKm = Math.hypot(dLat, dLng);
+
+                const placeDetails = [p.street, p.district || p.county, p.city, p.state, p.country]
+                  .filter(Boolean)
+                  .join(', ');
+
+                return {
+                  name: p.city && !rawName.includes(p.city) ? `${rawName} (${p.city})` : rawName,
+                  detail: placeDetails || 'Live Map Location',
+                  lat: fLat,
+                  lng: fLng,
+                  distKm: Math.round(distKm),
+                  isLocal: distKm <= 35,
+                };
+              });
+          }
+        } catch {}
+
+        // 2. If Photon yielded few results, fallback to Nominatim (with countrycodes=pk)
+        if (items.length < 2) {
+          try {
+            const nRes = await fetch(
+              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(queryTrim)}&format=json&countrycodes=pk&limit=6`,
+              { headers: { 'User-Agent': 'OlakApp/1.0' } }
+            );
+            if (nRes.ok) {
+              const nData = await nRes.json();
+              const nItems = (nData || []).map((item: any) => {
+                const parts = (item.display_name || '').split(',');
+                const title = parts[0]?.trim() || queryTrim;
+                const detail = parts.slice(1, 4).join(',').trim();
+                const fLat = parseFloat(item.lat);
+                const fLng = parseFloat(item.lon);
+                const dLat = (fLat - TURBAT_CENTER_LAT) * 111;
+                const dLng = (fLng - TURBAT_CENTER_LNG) * 100;
+                const distKm = Math.hypot(dLat, dLng);
+                return {
+                  name: title,
+                  detail: detail || item.display_name,
+                  lat: fLat,
+                  lng: fLng,
+                  distKm: Math.round(distKm),
+                  isLocal: distKm <= 35,
+                };
+              });
+
+              // Merge unique items by proximity
+              for (const ni of nItems) {
+                if (!items.some(it => Math.hypot(it.lat - ni.lat, it.lng - ni.lng) < 0.005)) {
+                  items.push(ni);
+                }
+              }
+            }
+          } catch {}
         }
+
+        // Sort: local Turbat results first, then closest distance
+        items.sort((a, b) => a.distKm - b.distKm);
+
+        setOnlineResults(items.slice(0, 8));
       } catch {
-        // Silently fall back to presets and custom text
+        // Silently handle
       } finally {
         setIsSearchingOnline(false);
       }
-    }, 320);
+    }, 280);
 
     return () => clearTimeout(timer);
   }, [searchQuery, isOpen]);
@@ -163,7 +210,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
   // Find currently selected landmark
   const selectedLandmark = landmarks.find(lm => lm.name === value);
 
-  // Filter landmarks in real-time with smart word matching
+  // Filter landmarks in real-time with smart word and category matching
   const query = searchQuery.trim().toLowerCase();
   const queryWords = query ? query.split(/\s+/).filter(Boolean) : [];
   
@@ -173,12 +220,14 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     const area = (lm.area || '').toLowerCase();
     const short = (lm.shortName || '').toLowerCase();
     const urdu = (lm.nameUrdu || lm.name_urdu || '').toLowerCase();
+    const cat = (lm.category || '').toLowerCase();
     
-    // Exact or substring match
-    if (name.includes(query) || area.includes(query) || short.includes(query) || urdu.includes(query)) return true;
+    // Direct or full substring match
+    if (name.includes(query) || area.includes(query) || short.includes(query) || urdu.includes(query) || cat.includes(query)) return true;
     
-    // Multi-word partial matching (e.g. "turbat road")
-    return queryWords.some(w => name.includes(w) || area.includes(w) || short.includes(w) || urdu.includes(w));
+    // Multi-word partial matching (e.g. "jinnah", "thana road", "hospital", "hotel")
+    return queryWords.every(w => name.includes(w) || area.includes(w) || short.includes(w) || urdu.includes(w) || cat.includes(w))
+      || queryWords.some(w => name.includes(w) || area.includes(w) || short.includes(w) || urdu.includes(w) || cat.includes(w));
   });
 
   // Calculate live road distance from referenceCoords (e.g. pickup to dropoff or user GPS)
@@ -376,11 +425,15 @@ export const SearchableLocationSelect: React.FC<Props> = ({
               </div>
             ) : (
               <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold px-1">
-                <span>{isUrdu ? `${filtered.length} نشانات ملے` : `${filtered.length} matching presets`}</span>
+                <span>
+                  {isUrdu 
+                    ? `${landmarksWithDistance.length + onlineResults.length} مقامات ملے` 
+                    : `${landmarksWithDistance.length + onlineResults.length} locations found`}
+                </span>
                 {isSearchingOnline ? (
                   <span className="text-emerald-600 font-bold flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-spin"></span>
-                    <span>{isUrdu ? 'آن لائن تلاش جاری...' : 'Searching OSM live...'}</span>
+                    <span>{isUrdu ? 'آن لائن تلاش جاری...' : 'Searching live...'}</span>
                   </span>
                 ) : (
                   <span className="text-emerald-600 font-bold">
@@ -392,7 +445,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
           </div>
 
           {/* Locations List */}
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 p-1">
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1">
             
             {/* Live GPS Current Location Detector Button */}
             {allowCurrentLocation && !searchQuery.trim() && (
@@ -449,32 +502,53 @@ export const SearchableLocationSelect: React.FC<Props> = ({
               </button>
             )}
 
-            {/* Live Online OpenStreetMap Results (if any) */}
-            {onlineResults.map((onlineItem, i) => (
-              <button
-                key={`online-${i}`}
-                type="button"
-                onClick={() => handleSelectOnline(onlineItem)}
-                className="w-full px-2.5 py-1.5 text-left rounded-xl transition flex items-center justify-between gap-2 cursor-pointer bg-teal-50/50 hover:bg-teal-100/70 border border-teal-200/60 mb-0.5"
-              >
-                <div className="flex items-center gap-2 truncate min-w-0">
-                  <div className="w-5 h-5 rounded-md bg-teal-600 text-white flex items-center justify-center shrink-0">
-                    <Globe className="w-3 h-3" />
-                  </div>
-                  <div className="truncate">
-                    <span className="text-xs font-bold text-teal-950 block truncate leading-tight">
-                      {onlineItem.name}
-                    </span>
-                    <span className="text-[9px] text-teal-700 font-medium block truncate leading-tight">
-                      {onlineItem.detail}
-                    </span>
-                  </div>
+            {/* Live Online Search Results (Photon + Nominatim) */}
+            {onlineResults.length > 0 && (
+              <div className="py-1">
+                <div className="px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-teal-800 flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-teal-600" />
+                  <span>{isUrdu ? 'آن لائن لائیو نقشے کے نتائج' : 'Live Map Results'} ({onlineResults.length})</span>
                 </div>
-                <span className="text-[9px] font-black bg-teal-600 text-white px-1.5 py-0.5 rounded shrink-0">
-                  Live OSM
-                </span>
-              </button>
-            ))}
+                {onlineResults.map((onlineItem, i) => (
+                  <button
+                    key={`online-${i}`}
+                    type="button"
+                    onClick={() => handleSelectOnline(onlineItem)}
+                    className="w-full px-2.5 py-1.5 text-left rounded-xl transition flex items-center justify-between gap-2 cursor-pointer bg-teal-50/70 hover:bg-teal-100/90 border border-teal-200/80 mb-1 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2 truncate min-w-0">
+                      <div className={`w-5 h-5 rounded-md ${onlineItem.isLocal ? 'bg-emerald-600' : 'bg-teal-700'} text-white flex items-center justify-center shrink-0`}>
+                        {onlineItem.isLocal ? <MapPin className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                      </div>
+                      <div className="truncate">
+                        <span className="text-xs font-bold text-slate-900 block truncate leading-tight">
+                          {onlineItem.name}
+                        </span>
+                        <span className="text-[9px] text-slate-600 font-medium block truncate leading-tight">
+                          {onlineItem.detail}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md shrink-0 ${
+                      onlineItem.isLocal 
+                        ? 'bg-emerald-600 text-white shadow-2xs' 
+                        : 'bg-slate-200 text-slate-700 font-bold'
+                    }`}>
+                      {onlineItem.isLocal 
+                        ? (isUrdu ? '📍 تربت' : '📍 Turbat') 
+                        : `${onlineItem.distKm} km`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Presets List Header if query is active */}
+            {searchQuery.trim() && landmarksWithDistance.length > 0 && onlineResults.length > 0 && (
+              <div className="px-1.5 pt-1.5 pb-0.5 text-[10px] font-black uppercase tracking-wider text-slate-500 border-t border-slate-100">
+                <span>{isUrdu ? 'تربت کے معروف مقامات' : 'Verified Turbat Landmarks'} ({landmarksWithDistance.length})</span>
+              </div>
+            )}
 
             {/* Presets List */}
             {landmarksWithDistance.length === 0 && onlineResults.length === 0 ? (

@@ -1,46 +1,80 @@
 import { PricingRate, IntercityRoute, SiteSettings, PromotionBanner, CityLandmark, DriverPromoCard } from './types';
 
 export const TURBAT_LANDMARKS: CityLandmark[] = [
-  // Major Hubs & Emergency
-  { id: 'lm-1', name: 'City Thana (Police Station), Thana Road', shortName: 'City Thana', nameUrdu: 'سٹی تھانہ، تھانہ روڈ', name_urdu: 'سٹی تھانہ، تھانہ روڈ', area: 'Central Turbat', category: 'govt', lat: 26.0031, lng: 63.0544, is_active: true },
-  { id: 'lm-2', name: 'Turbat International Airport', shortName: 'Airport', nameUrdu: 'تربت انٹرنیشنل ایئرپورٹ', name_urdu: 'تربت انٹرنیشنل ایئرپورٹ', area: 'Airport Road', category: 'airport', lat: 25.9863, lng: 63.0312, is_active: true },
-  { id: 'lm-3', name: 'University of Turbat (UoT) Campus', shortName: 'UoT Campus', nameUrdu: 'یونیورسٹی آف تربت', name_urdu: 'یونیورسٹی آف تربت', area: 'M-8 Ginna', category: 'education', lat: 26.0289, lng: 63.0978, is_active: true },
-  { id: 'lm-4', name: 'Main Bazaar / Shahi Bazaar', shortName: 'Shahi Bazaar', nameUrdu: 'مین بازار / شاہی بازار', name_urdu: 'مین بازار / شاہی بازار', area: 'Central Turbat', category: 'shopping', lat: 26.0055, lng: 63.0501, is_active: true },
+  // Major Roads & Avenues
+  { id: 'lm-rd-1', name: 'Quaid-e-Azam Road / Jinnah Road', shortName: 'Jinnah Road', nameUrdu: 'قائد اعظم روڈ / جناح روڈ', name_urdu: 'قائد اعظم روڈ / جناح روڈ', area: 'Central Turbat', category: 'area', lat: 26.0048, lng: 63.0520, is_active: true },
+  { id: 'lm-1', name: 'City Thana (Police Station), Thana Road', shortName: 'City Thana / Thana Rd', nameUrdu: 'سٹی تھانہ، تھانہ روڈ', name_urdu: 'سٹی تھانہ، تھانہ روڈ', area: 'Central Turbat', category: 'govt', lat: 26.0031, lng: 63.0544, is_active: true },
+  { id: 'lm-rd-2', name: 'Pasni Road Commercial Belt & Shops', shortName: 'Pasni Road', nameUrdu: 'پسنی روڈ مارکیٹ', name_urdu: 'پسنی روڈ مارکیٹ', area: 'Pasni Road', category: 'shopping', lat: 26.0018, lng: 63.0535, is_active: true },
+  { id: 'lm-rd-3', name: 'Cinema Road Commercial Market', shortName: 'Cinema Road', nameUrdu: 'سینما روڈ مارکیٹ', name_urdu: 'سینما روڈ مارکیٹ', area: 'Cinema Road', category: 'shopping', lat: 26.0065, lng: 63.0520, is_active: true },
+  { id: 'lm-rd-4', name: 'Model School Road / Pilot High School', shortName: 'Model School Rd', nameUrdu: 'ماڈل اسکول روڈ', name_urdu: 'ماڈل اسکول روڈ', area: 'Central Turbat', category: 'education', lat: 26.0035, lng: 63.0560, is_active: true },
+  { id: 'lm-rd-5', name: 'Commissionery Road / Admin Complex', shortName: 'Commissionery Road', nameUrdu: 'کمشنری روڈ', name_urdu: 'کمشنری روڈ', area: 'Admin Complex', category: 'govt', lat: 26.0105, lng: 63.0570, is_active: true },
+
+  // Hospitals & Medical Hubs
   { id: 'lm-5', name: 'District Headquarters (DHQ) Hospital Turbat', shortName: 'DHQ Hospital', nameUrdu: 'ڈی ایچ کیو ہسپتال تربت', name_urdu: 'ڈی ایچ کیو ہسپتال تربت', area: 'Hospital Road', category: 'hospital', lat: 26.0082, lng: 63.0485, is_active: true },
-  { id: 'lm-19', name: 'Red Crescent (Hilal-e-Ahmar) Hospital', shortName: 'Red Crescent', nameUrdu: 'ہلال احمر ہسپتال', name_urdu: 'ہلال احمر ہسپتال', area: 'Absar Road', category: 'hospital', lat: 25.9950, lng: 63.0705, is_active: true },
-  
-  // Bazaars, Markets & Commercial
+  { id: 'lm-med-1', name: 'Turbat Medical Center (TMC) Hospital', shortName: 'TMC Hospital', nameUrdu: 'ٹی ایم سی ہسپتال تربت', name_urdu: 'ٹی ایم سی ہسپتال تربت', area: 'Hospital Road', category: 'hospital', lat: 26.0065, lng: 63.0490, is_active: true },
+  { id: 'lm-19', name: 'Red Crescent (Hilal-e-Ahmar) Hospital', shortName: 'Red Crescent Hospital', nameUrdu: 'ہلال احمر ہسپتال', name_urdu: 'ہلال احمر ہسپتال', area: 'Absar Road', category: 'hospital', lat: 25.9950, lng: 63.0705, is_active: true },
+  { id: 'lm-med-2', name: 'Al-Khidmat Clinic & Diagnostic Pharmacy', shortName: 'Al-Khidmat Clinic', nameUrdu: 'الخدمت کلینک و فارمیسی', name_urdu: 'الخدمت کلینک و فارمیسی', area: 'DHQ Chowk', category: 'hospital', lat: 26.0078, lng: 63.0495, is_active: true },
+  { id: 'lm-med-3', name: 'City Medicos & Surgical 24/7, Hospital Road', shortName: 'City Medicos', nameUrdu: 'سٹی میڈیکوز و فارمیسی', name_urdu: 'سٹی میڈیکوز و فارمیسی', area: 'Hospital Road', category: 'hospital', lat: 26.0072, lng: 63.0488, is_active: true },
+
+  // Bazaars, Markets, Plazas & Shops
+  { id: 'lm-4', name: 'Main Bazaar / Shahi Bazaar', shortName: 'Shahi Bazaar', nameUrdu: 'مین بازار / شاہی بازار', name_urdu: 'مین بازار / شاہی بازار', area: 'Central Turbat', category: 'shopping', lat: 26.0055, lng: 63.0501, is_active: true },
   { id: 'lm-18', name: 'Sabzi Mandi (Fruit & Veg Market)', shortName: 'Sabzi Mandi', nameUrdu: 'سبزی منڈی تربت', name_urdu: 'سبزی منڈی تربت', area: 'Market Road', category: 'shopping', lat: 26.0070, lng: 63.0468, is_active: true },
   { id: 'lm-28', name: 'Cloth & Garments Market, Shahi Bazaar', shortName: 'Cloth Market', nameUrdu: 'کپڑا مارکیٹ تربت', name_urdu: 'کپڑا مارکیٹ تربت', area: 'Shahi Bazaar', category: 'shopping', lat: 26.0050, lng: 63.0495, is_active: true },
-  { id: 'lm-29', name: 'Mobile & Electronics Plaza', shortName: 'Mobile Market', nameUrdu: 'موبائل مارکیٹ', name_urdu: 'موبائل مارکیٹ', area: 'Commercial Road', category: 'shopping', lat: 26.0040, lng: 63.0510, is_active: true },
+  { id: 'lm-29', name: 'Mirani Plaza & Mobile Market', shortName: 'Mirani Plaza', nameUrdu: 'میرانی پلازہ و موبائل مارکیٹ', name_urdu: 'میرانی پلازہ و موبائل مارکیٹ', area: 'Commercial Road', category: 'shopping', lat: 26.0042, lng: 63.0512, is_active: true },
+  { id: 'lm-sh-1', name: 'Fish & Poultry Market Turbat', shortName: 'Fish Market', nameUrdu: 'مچھلی مارکیٹ تربت', name_urdu: 'مچھلی مارکیٹ تربت', area: 'Market Road', category: 'shopping', lat: 26.0074, lng: 63.0460, is_active: true },
+  { id: 'lm-sh-2', name: 'Sarafa Jewellery Bazaar, Shahi Bazaar', shortName: 'Sarafa Bazaar', nameUrdu: 'صرافہ بازار تربت', name_urdu: 'صرافہ بازار تربت', area: 'Shahi Bazaar', category: 'shopping', lat: 26.0058, lng: 63.0498, is_active: true },
+  { id: 'lm-38', name: 'Al-Falah Super Store & Shopping Mart', shortName: 'Al-Falah Store', nameUrdu: 'الفلاح سپر اسٹور', name_urdu: 'الفلاح سپر اسٹور', area: 'Commercial Center', category: 'shopping', lat: 26.0060, lng: 63.0525, is_active: true },
+  { id: 'lm-sh-3', name: 'Sarfraz Market & Electronics', shortName: 'Sarfraz Market', nameUrdu: 'سرفراز مارکیٹ تربت', name_urdu: 'سرفراز مارکیٹ تربت', area: 'Cinema Road', category: 'shopping', lat: 26.0064, lng: 63.0518, is_active: true },
+
+  // Hotels & Dining
+  { id: 'lm-ht-1', name: 'Turbat Continental Hotel & Restaurant', shortName: 'Continental Hotel', nameUrdu: 'تربت کانٹینینٹل ہوٹل', name_urdu: 'تربت کانٹینینٹل ہوٹل', area: 'Thana Road', category: 'shopping', lat: 26.0038, lng: 63.0535, is_active: true },
+  { id: 'lm-ht-2', name: 'Al-Harmain Hotel & Restaurant, Cinema Chowk', shortName: 'Al-Harmain Hotel', nameUrdu: 'الحرمین ہوٹل', name_urdu: 'الحرمین ہوٹل', area: 'Cinema Road', category: 'shopping', lat: 26.0052, lng: 63.0518, is_active: true },
+  { id: 'lm-ht-3', name: 'Makran Palace Hotel & Dining Hall', shortName: 'Makran Palace', nameUrdu: 'مکران پیلس ہوٹل', name_urdu: 'مکران پیلس ہوٹل', area: 'College Road', category: 'shopping', lat: 26.0018, lng: 63.0552, is_active: true },
+  { id: 'lm-ht-4', name: 'Sada Bahar Hotel & Cafe', shortName: 'Sada Bahar Hotel', nameUrdu: 'سدا بہار ہوٹل', name_urdu: 'سدا بہار ہوٹل', area: 'Shahi Bazaar Road', category: 'shopping', lat: 26.0061, lng: 63.0505, is_active: true },
+  { id: 'lm-ht-5', name: 'Green Star Hotel & Family Dining', shortName: 'Green Star Hotel', nameUrdu: 'گرین اسٹار ہوٹل', name_urdu: 'گرین اسٹار ہوٹل', area: 'Main Road', category: 'shopping', lat: 26.0045, lng: 63.0528, is_active: true },
+  { id: 'lm-ht-6', name: 'Al-Farooq Hotel & Traditional Bakers', shortName: 'Al-Farooq Hotel', nameUrdu: 'الفاروق ہوٹل و بیکرز', name_urdu: 'الفاروق ہوٹل و بیکرز', area: 'Main Chowk', category: 'shopping', lat: 26.0049, lng: 63.0514, is_active: true },
+
+  // Banks & Finance
   { id: 'lm-15', name: 'Meezan Bank Chowk', shortName: 'Meezan Bank', nameUrdu: 'میزان بینک چوک', name_urdu: 'میزان بینک چوک', area: 'Commercial Center', category: 'bank', lat: 26.0044, lng: 63.0522, is_active: true },
   { id: 'lm-16', name: 'National Bank (NBP) Main Branch', shortName: 'NBP Cinema Rd', nameUrdu: 'نیشنل بینک مین برانچ', name_urdu: 'نیشنل بینک مین برانچ', area: 'Cinema Road', category: 'bank', lat: 26.0062, lng: 63.0515, is_active: true },
   { id: 'lm-37', name: 'Habib Bank (HBL) City Branch', shortName: 'HBL City Branch', nameUrdu: 'حبیب بینک سٹی برانچ', name_urdu: 'حبیب بینک سٹی برانچ', area: 'Shahi Bazaar', category: 'bank', lat: 26.0051, lng: 63.0508, is_active: true },
-  { id: 'lm-38', name: 'Al-Falah Super Store & Market', shortName: 'Al-Falah Store', nameUrdu: 'الفلاح سپر اسٹور', name_urdu: 'الفلاح سپر اسٹور', area: 'Commercial Center', category: 'shopping', lat: 26.0060, lng: 63.0525, is_active: true },
+  { id: 'lm-bk-1', name: 'Bank Alfalah & ATM, Airport Road', shortName: 'Bank Alfalah', nameUrdu: 'بینک الفلاح تربت', name_urdu: 'بینک الفلاح تربت', area: 'Airport Road', category: 'bank', lat: 25.9960, lng: 63.0425, is_active: true },
+  { id: 'lm-bk-2', name: 'Allied Bank Limited (ABL) Main Branch', shortName: 'ABL Main Branch', nameUrdu: 'الائیڈ بینک تربت', name_urdu: 'الائیڈ بینک تربت', area: 'Commercial Road', category: 'bank', lat: 26.0048, lng: 63.0518, is_active: true },
 
-  // Transport & Addas
+  // Transport & Terminals
+  { id: 'lm-2', name: 'Turbat International Airport', shortName: 'Turbat Airport', nameUrdu: 'تربت انٹرنیشنل ایئرپورٹ', name_urdu: 'تربت انٹرنیشنل ایئرپورٹ', area: 'Airport Road', category: 'airport', lat: 25.9863, lng: 63.0312, is_active: true },
   { id: 'lm-17', name: 'Turbat Central Bus Terminal / Adda', shortName: 'Bus Terminal', nameUrdu: 'تربت جنرل بس اڈا', name_urdu: 'تربت جنرل بس اڈا', area: 'Gwadar Road', category: 'transit', lat: 25.9912, lng: 63.0450, is_active: true },
   { id: 'lm-39', name: 'Karachi & Quetta Coach Adda, Cinema Road', shortName: 'Coach Adda', nameUrdu: 'کوچ اڈا تربت', name_urdu: 'کوچ اڈا تربت', area: 'Cinema Road', category: 'transit', lat: 26.0068, lng: 63.0528, is_active: true },
+  { id: 'lm-tr-1', name: 'Gwadar & Pasni Hiace Van Stop, Airport Road', shortName: 'Gwadar/Pasni Stop', nameUrdu: 'گوادر و پسنی وین اڈا', name_urdu: 'گوادر و پسنی وین اڈا', area: 'Airport Road', category: 'transit', lat: 25.9940, lng: 63.0435, is_active: true },
   { id: 'lm-33', name: 'Nasirabad Bus Stop', shortName: 'Nasirabad Stop', nameUrdu: 'ناصرآباد بس اسٹاپ', name_urdu: 'ناصرآباد بس اسٹاپ', area: 'Kech Valley', category: 'transit', lat: 26.0310, lng: 63.0210, is_active: true },
   { id: 'lm-34', name: 'Tump Road Gateway', shortName: 'Tump Gateway', nameUrdu: 'تمپ روڈ گیٹ وے', name_urdu: 'تمپ روڈ گیٹ وے', area: 'Turbat West', category: 'transit', lat: 26.0075, lng: 63.0220, is_active: true },
   { id: 'lm-10', name: 'Ginna Road / M-8 CPEC Junction', shortName: 'M-8 Junction', nameUrdu: 'گنہ روڈ / ایم 8 جنکشن', name_urdu: 'گنہ روڈ / ایم 8 جنکشن', area: 'Ginna', category: 'transit', lat: 26.0351, lng: 63.1120, is_active: true },
 
-  // Colleges & Schools
+  // Education & Colleges
+  { id: 'lm-3', name: 'University of Turbat (UoT) Campus', shortName: 'UoT Campus', nameUrdu: 'یونیورسٹی آف تربت', name_urdu: 'یونیورسٹی آف تربت', area: 'M-8 Ginna', category: 'education', lat: 26.0289, lng: 63.0978, is_active: true },
   { id: 'lm-14', name: 'Government Degree College for Boys', shortName: 'Degree College', nameUrdu: 'گورنمنٹ ڈگری کالج تربت', name_urdu: 'گورنمنٹ ڈگری کالج تربت', area: 'College Road', category: 'education', lat: 26.0012, lng: 63.0531, is_active: true },
   { id: 'lm-24', name: 'Balochistan Residential College (BRC)', shortName: 'BRC College', nameUrdu: 'بی آر سی کالج تربت', name_urdu: 'بی آر سی کالج تربت', area: 'Airport Highway', category: 'education', lat: 25.9790, lng: 63.0250, is_active: true },
-  { id: 'lm-12', name: 'Turbat Public School & College', shortName: 'Public School', nameUrdu: 'تربت پبلک اسکول و کالج', name_urdu: 'تربت پبلک اسکول و کالج', area: 'Absar Road', category: 'education', lat: 25.9981, lng: 63.0699, is_active: true },
   { id: 'lm-40', name: 'Government Girls Degree College', shortName: 'Girls College', nameUrdu: 'گورنمنٹ گرلز ڈگری کالج', name_urdu: 'گورنمنٹ گرلز ڈگری کالج', area: 'Absar Road', category: 'education', lat: 25.9965, lng: 63.0682, is_active: true },
   { id: 'lm-41', name: 'Law College Complex Turbat', shortName: 'Law College', nameUrdu: 'لاء کالج تربت', name_urdu: 'لاء کالج تربت', area: 'Court Road', category: 'education', lat: 26.0028, lng: 63.0570, is_active: true },
+  { id: 'lm-ed-1', name: 'Turbat Medical College (BMC Campus)', shortName: 'Medical College', nameUrdu: 'تربت میڈیکل کالج', name_urdu: 'تربت میڈیکل کالج', area: 'Hospital Road', category: 'education', lat: 26.0070, lng: 63.0475, is_active: true },
+  { id: 'lm-12', name: 'Turbat Public School & College', shortName: 'Public School', nameUrdu: 'تربت پبلک اسکول و کالج', name_urdu: 'تربت پبلک اسکول و کالج', area: 'Absar Road', category: 'education', lat: 25.9981, lng: 63.0699, is_active: true },
+  { id: 'lm-ed-2', name: 'Army Public School (APS) Turbat', shortName: 'APS Turbat', nameUrdu: 'آرمی پبلک اسکول تربت', name_urdu: 'آرمی پبلک اسکول تربت', area: 'Turbat Cantt', category: 'education', lat: 25.9995, lng: 63.0420, is_active: true },
 
-  // Government & Legal Complex
+  // Government & Civic
   { id: 'lm-22', name: 'Deputy Commissioner (DC) Office Complex', shortName: 'DC Office', nameUrdu: 'ڈی سی آفس کمپلیکس', name_urdu: 'ڈی سی آفس کمپلیکس', area: 'DC Office Road', category: 'govt', lat: 26.0090, lng: 63.0575, is_active: true },
   { id: 'lm-21', name: 'Session Courts Complex Turbat', shortName: 'Session Courts', nameUrdu: 'سیشن کورٹ تربت', name_urdu: 'سیشن کورٹ تربت', area: 'Court Road', category: 'govt', lat: 26.0020, lng: 63.0560, is_active: true },
   { id: 'lm-11', name: 'Circuit House Turbat', shortName: 'Circuit House', nameUrdu: 'سرکٹ ہاؤس تربت', name_urdu: 'سرکٹ ہاؤس تربت', area: 'Officers Colony', category: 'govt', lat: 26.0101, lng: 63.0588, is_active: true },
   { id: 'lm-20', name: 'Model Town Police Station', shortName: 'Model Town Thana', nameUrdu: 'ماڈل ٹاؤن تھانہ', name_urdu: 'ماڈل ٹاؤن تھانہ', area: 'Model Town', category: 'govt', lat: 26.0142, lng: 63.0610, is_active: true },
   { id: 'lm-23', name: 'Turbat Press Club', shortName: 'Press Club', nameUrdu: 'تربت پریس کلب', name_urdu: 'تربت پریس کلب', area: 'Officers Colony', category: 'govt', lat: 26.0088, lng: 63.0595, is_active: true },
   { id: 'lm-42', name: 'NADRA Mega Center, Airport Road', shortName: 'NADRA Center', nameUrdu: 'نادرا میگا سینٹر تربت', name_urdu: 'نادرا میگا سینٹر تربت', area: 'Airport Road', category: 'govt', lat: 25.9930, lng: 63.0410, is_active: true },
+  { id: 'lm-gv-1', name: 'GPO Main Post Office Turbat', shortName: 'GPO Post Office', nameUrdu: 'جی پی او پوسٹ آفس', name_urdu: 'جی پی او پوسٹ آفس', area: 'Post Office Road', category: 'govt', lat: 26.0040, lng: 63.0550, is_active: true },
+  { id: 'lm-gv-2', name: 'WAPDA / QESCO Sub-Division Office', shortName: 'WAPDA Office', nameUrdu: 'واپڈا سب ڈویژن آفس', name_urdu: 'واپڈا سب ڈویژن آفس', area: 'Civil Lines', category: 'govt', lat: 26.0075, lng: 63.0580, is_active: true },
 
-  // Neighborhoods, Chowks & Points
+  // Residential Colonies & Areas
+  { id: 'lm-ar-1', name: 'Jinnah Town (Residential Colony)', shortName: 'Jinnah Town', nameUrdu: 'جناح ٹاؤن تربت', name_urdu: 'جناح ٹاؤن تربت', area: 'Jinnah Town', category: 'area', lat: 26.0145, lng: 63.0635, is_active: true },
+  { id: 'lm-ar-2', name: 'Officers Colony Turbat', shortName: 'Officers Colony', nameUrdu: 'آفیسرز کالونی', name_urdu: 'آفیسرز کالونی', area: 'Officers Colony', category: 'area', lat: 26.0105, lng: 63.0590, is_active: true },
+  { id: 'lm-ar-3', name: 'Teachers Colony Turbat', shortName: 'Teachers Colony', nameUrdu: 'ٹیچرز کالونی', name_urdu: 'ٹیچرز کالونی', area: 'Teachers Colony', category: 'area', lat: 26.0130, lng: 63.0620, is_active: true },
+  { id: 'lm-ar-4', name: 'Doctors Colony / Civil Hospital Quarters', shortName: 'Doctors Colony', nameUrdu: 'ڈاکٹرز کالونی', name_urdu: 'ڈاکٹرز کالونی', area: 'Hospital Enclave', category: 'area', lat: 26.0089, lng: 63.0478, is_active: true },
   { id: 'lm-6', name: 'Absar Chowk', shortName: 'Absar Chowk', nameUrdu: 'ابسر چوک', name_urdu: 'ابسر چوک', area: 'Absar', category: 'area', lat: 25.9924, lng: 63.0721, is_active: true },
   { id: 'lm-7', name: 'Malikabad / Aabsar Road', shortName: 'Malikabad', nameUrdu: 'ملک آباد / ابسر روڈ', name_urdu: 'ملک آباد / ابسر روڈ', area: 'Malikabad', category: 'area', lat: 26.0125, lng: 63.0655, is_active: true },
   { id: 'lm-8', name: 'D-Baloch Chowk', shortName: 'D-Baloch', nameUrdu: 'ڈی بلوچ چوک', name_urdu: 'ڈی بلوچ چوک', area: 'D-Baloch', category: 'area', lat: 26.0188, lng: 63.0412, is_active: true },
