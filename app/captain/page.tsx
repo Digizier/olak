@@ -53,8 +53,10 @@ import {
   Camera,
   X,
   Ban,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
+import { getGoogleMapsNavigationUrl, getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
 import confetti from 'canvas-confetti';
 
 export default function CaptainHubPage() {
@@ -731,13 +733,44 @@ export default function CaptainHubPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
                         <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
-                          <div className="flex items-start gap-2">
-                            <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                            <span>Pickup: <strong className="text-slate-900">{activeAssignedTrip.pickup_location}</strong></span>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <span className="text-slate-500 block text-[11px]">Pickup Location:</span>
+                                <strong className="text-slate-900 block truncate">{activeAssignedTrip.pickup_location}</strong>
+                              </div>
+                            </div>
+                            <a
+                              href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
+                              title="1-Click Navigate to Pickup in Google Maps"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>Map</span>
+                            </a>
                           </div>
-                          <div className="flex items-start gap-2">
-                            <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
-                            <span>Destination: <strong className="text-slate-900">{activeAssignedTrip.dropoff_location}</strong></span>
+
+                          <div className="flex items-start justify-between gap-2 pt-2 border-t border-slate-200/60">
+                            <div className="flex items-start gap-2 flex-1 min-w-0">
+                              <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <span className="text-slate-500 block text-[11px]">Destination:</span>
+                                <strong className="text-slate-900 block truncate">{activeAssignedTrip.dropoff_location}</strong>
+                              </div>
+                            </div>
+                            <a
+                              href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 bg-teal-100 hover:bg-teal-200 text-teal-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
+                              title="1-Click Navigate to Destination in Google Maps"
+                            >
+                              <ExternalLink className="w-2.5 h-2.5" />
+                              <span>Map</span>
+                            </a>
                           </div>
                         </div>
 
@@ -770,8 +803,35 @@ export default function CaptainHubPage() {
                         </div>
                       </div>
 
+                      {/* 1-Click Live Turn-by-Turn Google Maps Navigation */}
+                      <div className="pt-2">
+                        {activeAssignedTrip.booking_status === 'assigned' ? (
+                          <a
+                            href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
+                            title="Open Google Maps Turn-by-Turn Live Navigation to Passenger"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            <span>🗺️ 1-Click Google Maps: Navigate to Passenger Pickup</span>
+                          </a>
+                        ) : (
+                          <a
+                            href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
+                            title="Open Google Maps Turn-by-Turn Live Navigation to Dropoff"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            <span>🏁 1-Click Google Maps: Navigate to Destination</span>
+                          </a>
+                        )}
+                      </div>
+
                       {/* Action Steps */}
-                      <div className="pt-2 flex flex-wrap gap-2.5">
+                      <div className="pt-1 flex flex-wrap gap-2.5">
                         {activeAssignedTrip.booking_status === 'assigned' && (
                           <button
                             onClick={() => handleStatusProgress(activeAssignedTrip.id, 'arrived')}
@@ -842,6 +902,16 @@ export default function CaptainHubPage() {
                           <div className="space-y-1.5 text-xs text-slate-700">
                             <p className="truncate">📍 Pickup: <strong className="text-slate-900">{b.pickup_location}</strong></p>
                             <p className="truncate">🏁 Destination: <strong className="text-slate-900">{b.dropoff_location}</strong></p>
+                            <a
+                              href={getGoogleMapsDirectionsUrl(b.pickup_coords || b.pickup_location, b.dropoff_coords || b.dropoff_location)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline pt-0.5"
+                              title="Preview route in Google Maps"
+                            >
+                              <ExternalLink className="w-3 h-3 text-emerald-600" />
+                              <span>1-Click View Route Map</span>
+                            </a>
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-slate-100">

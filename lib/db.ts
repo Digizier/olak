@@ -1484,7 +1484,12 @@ export const createBooking = async (bookingData: Omit<Booking, 'id' | 'booking_c
   }
 
   try {
-    await supabase.from('bookings').insert(newBooking);
+    const { error } = await supabase.from('bookings').insert(newBooking);
+    if (error) {
+      // Schema cache fallback: omit client-side extra fields and retry
+      const { pickup_coords, dropoff_coords, ...dbPayload } = newBooking as any;
+      await supabase.from('bookings').insert(dbPayload);
+    }
   } catch (err) {
     console.error('Remote DB booking insert error:', err);
   }

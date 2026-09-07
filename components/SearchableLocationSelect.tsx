@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { CityLandmark } from '@/lib/types';
-import { Search, X, Check, ChevronDown, MapPin, LucideIcon } from 'lucide-react';
+import { calculateRealtimeDistance } from '@/lib/db';
+import { Search, X, Check, ChevronDown, MapPin, LucideIcon, Compass } from 'lucide-react';
 
 interface Props {
   label: string;
@@ -14,6 +15,8 @@ interface Props {
   isUrdu?: boolean;
   placeholder?: string;
   badge?: string;
+  referenceCoords?: { lat: number; lng: number };
+  allowCurrentLocation?: boolean;
 }
 
 export const SearchableLocationSelect: React.FC<Props> = ({
@@ -26,6 +29,8 @@ export const SearchableLocationSelect: React.FC<Props> = ({
   isUrdu = false,
   placeholder,
   badge = 'Turbat',
+  referenceCoords,
+  allowCurrentLocation = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -83,6 +88,59 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     // Multi-word partial matching (e.g. "turbat road")
     return queryWords.some(w => name.includes(w) || area.includes(w) || urdu.includes(w));
   });
+
+  // Calculate live road distance from referenceCoords (e.g. pickup to dropoff or user GPS)
+  const landmarksWithDistance = filtered.map(lm => {
+    const dist = referenceCoords && lm.lat && lm.lng
+      ? calculateRealtimeDistance(referenceCoords, { lat: lm.lat, lng: lm.lng })
+      : null;
+    return { ...lm, distanceKm: dist };
+  });
+
+  // Sort by nearest distance first when referenceCoords is provided
+  if (referenceCoords) {
+    landmarksWithDistance.sort((a, b) => {
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
+    });
+  }
+
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleUseCurrentLocation = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert(isUrdu ? 'آپ کے براؤزر میں جی پی ایس لوکیشن سپورٹ نہیں ہے۔' : 'GPS location is not supported by your browser.');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const liveLm: CityLandmark = {
+          id: 'live-gps',
+          name: `My Live GPS Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+          nameUrdu: 'میری لائیو لوکیشن (GPS)',
+          area: 'Current Device Location',
+          lat,
+          lng,
+        };
+        onChange(liveLm.name, liveLm);
+        setIsOpen(false);
+        setSearchQuery('');
+      },
+      (err) => {
+        setIsLocating(false);
+        alert(isUrdu ? 'براہ کرم براؤزر / ڈیوائس میں لوکیشن کی اجازت آن کریں۔' : 'Please allow location permission in your browser or device settings.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
 
   const handleSelect = (lm: CityLandmark) => {
     onChange(lm.name, lm);
@@ -189,6 +247,35 @@ export const SearchableLocationSelect: React.FC<Props> = ({
 
           {/* Locations List */}
           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-1.5">
+            {/* Live GPS Current Location Detector Button */}
+            {allowCurrentLocation && !searchQuery.trim() && (
+              <button
+                type="button"
+                onClick={handleUseCurrentLocation}
+                disabled={isLocating}
+                className="w-full p-2.5 mb-1.5 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-300 rounded-xl text-left flex items-center justify-between gap-2 text-emerald-950 font-bold transition shadow-2xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2 truncate min-w-0">
+                  <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <Compass className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-white' : ''}`} />
+                  </div>
+                  <div className="truncate">
+                    <div className="text-xs font-black truncate text-emerald-900">
+                      {isUrdu ? '🎯 میری موجودہ لوکیشن (GPS)' : '🎯 Use My Live Location (GPS)'}
+                    </div>
+                    <div className="text-[10px] text-emerald-700 font-medium">
+                      {isLocating 
+                        ? (isUrdu ? 'سیٹلائٹ سگنل موصول ہو رہا ہے...' : 'Locating device via GPS...')
+                        : (isUrdu ? 'خودکار طور پر موجودہ جگہ کا پتہ لگائیں' : 'Auto-detect exact current spot')}
+                    </div>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-600 text-white px-2 py-0.5 rounded font-bold shrink-0">
+                  {isLocating ? '...' : (isUrdu ? 'شناخت کریں' : 'Locate')}
+                </span>
+              </button>
+            )}
+
             {/* Custom Location Option if Query is Typed */}
             {searchQuery.trim() && (
               <button
@@ -215,7 +302,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
               </button>
             )}
 
-            {filtered.length === 0 ? (
+            {landmarksWithDistance.length === 0 ? (
               <div className="py-5 text-center text-slate-500 space-y-2.5 px-2">
                 <p className="text-xs font-semibold text-slate-700">
                   {isUrdu ? `"${searchQuery}" کا کوئی پہلے سے درج لینڈ مارک نہیں ملا` : `No preset landmark matching "${searchQuery}"`}
@@ -233,7 +320,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
                 </p>
               </div>
             ) : (
-              filtered.map((lm) => {
+              landmarksWithDistance.map((lm) => {
                 const isSelected = lm.name === value;
                 return (
                   <button
@@ -260,11 +347,18 @@ export const SearchableLocationSelect: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {lm.distanceKm !== null && (
+                        <span className="text-[10px] font-black bg-emerald-50 text-emerald-800 border border-emerald-200 px-1.5 py-0.5 rounded-md font-mono">
+                          {lm.distanceKm} KM
+                        </span>
+                      )}
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </div>
+                      )}
+                    </div>
                   </button>
                 );
               })

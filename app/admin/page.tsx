@@ -41,6 +41,7 @@ import {
   getTodayActivityAlerts,
   getDetailedAnalytics
 } from '@/lib/db';
+import { getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
 import { supabase } from '@/lib/supabase';
 import { 
   SiteSettings, 
@@ -762,7 +763,7 @@ export default function AdminPage() {
   const getCaptainWhatsAppLink = (bk: Booking, cap: Captain) => {
     const cleanPhone = (cap.whatsapp_number || cap.phone).replace(/\D/g, '');
     const phoneWithCountry = cleanPhone.startsWith('92') ? cleanPhone : `92${cleanPhone.replace(/^0/, '')}`;
-    const mapsNavigationUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(bk.pickup_location + ', Turbat')}&destination=${encodeURIComponent(bk.dropoff_location + ', Turbat')}&travelmode=driving`;
+    const mapsNavigationUrl = getGoogleMapsDirectionsUrl(bk.pickup_coords || bk.pickup_location, bk.dropoff_coords || bk.dropoff_location);
     const text = `OLAK Dispatch Alert!\nNew Trip Assigned to Captain ${cap.full_name}.\n\nBooking: ${bk.booking_code}\nService: ${bk.service_type.toUpperCase()}\nCustomer: ${bk.customer_name} (${bk.customer_phone})\nPickup: ${bk.pickup_location}\nDropoff: ${bk.dropoff_location}\nFare: PKR ${bk.estimated_fare}\n\n1-Click Google Maps Route: ${mapsNavigationUrl}\n\nPlease head to the pickup location immediately.`;
     return `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(text)}`;
   };
@@ -1356,7 +1357,7 @@ export default function AdminPage() {
                             <span className="text-slate-800 block truncate font-medium">📍 {b.pickup_location}</span>
                             <span className="text-slate-500 block truncate">🏁 {b.dropoff_location}</span>
                             <a
-                              href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(b.pickup_location + ', Turbat')}&destination=${encodeURIComponent(b.dropoff_location + ', Turbat')}&travelmode=driving`}
+                              href={getGoogleMapsDirectionsUrl(b.pickup_coords || b.pickup_location, b.dropoff_coords || b.dropoff_location)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline mt-1"
@@ -2442,7 +2443,7 @@ export default function AdminPage() {
                                       <span className="text-[10px] text-emerald-700 font-bold block">{b.estimated_distance_km} KM</span>
                                     )}
                                     <a
-                                      href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(b.pickup_location)}&destination=${encodeURIComponent(b.dropoff_location)}&travelmode=driving`}
+                                      href={getGoogleMapsDirectionsUrl(b.pickup_coords || b.pickup_location, b.dropoff_coords || b.dropoff_location)}
                                       target="_blank"
                                       rel="noreferrer"
                                       className="inline-flex items-center gap-1 text-[10px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline mt-1"

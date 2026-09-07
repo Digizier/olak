@@ -138,6 +138,8 @@ export const DeliveryWidget = () => {
         customer_phone: sPhone,
         pickup_location: pickup,
         dropoff_location: dropoff,
+        pickup_coords: pickupCoords || { lat: pLat, lng: pLng },
+        dropoff_coords: dropoffCoords || { lat: dLat, lng: dLng },
         delivery_parcel_type: parcelType,
         delivery_weight_kg: parcelWeightKg,
         delivery_receiver_name: receiverName,
@@ -317,6 +319,7 @@ export const DeliveryWidget = () => {
               icon={MapPin}
               iconColor="text-emerald-600"
               value={pickup}
+              allowCurrentLocation={true}
               onChange={(name, lm) => {
                 setPickup(name);
                 if (lm) {
@@ -335,6 +338,7 @@ export const DeliveryWidget = () => {
               icon={Navigation}
               iconColor="text-teal-700"
               value={dropoff}
+              referenceCoords={pickupCoords || { lat: pLat, lng: pLng }}
               onChange={(name, lm) => {
                 setDropoff(name);
                 if (lm) {

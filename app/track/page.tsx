@@ -21,8 +21,10 @@ import {
   User, 
   MessageCircle,
   Truck,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-react';
+import { getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
 
 function TrackContent() {
   const { t, isUrdu } = useLanguage();
@@ -265,6 +267,18 @@ function TrackContent() {
                   <span className="text-[11px] text-slate-500 block">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
                   <span className="text-slate-900 font-semibold">{booking.dropoff_location}</span>
                 </div>
+              </div>
+
+              <div className="pt-1">
+                <a
+                  href={getGoogleMapsDirectionsUrl(booking.pickup_coords || booking.pickup_location, booking.dropoff_coords || booking.dropoff_location)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-100/70 hover:bg-emerald-100 px-2.5 py-1.5 rounded-xl transition shadow-2xs"
+                >
+                  <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>{isUrdu ? 'گوگل میپس پر لائیو روٹ دیکھیں' : '1-Click View Route in Google Maps'}</span>
+                </a>
               </div>
             </div>
 

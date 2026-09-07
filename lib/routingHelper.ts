@@ -3,6 +3,9 @@
  * 100% Free, zero API key, zero limits.
  */
 
+import { CityLandmark } from './types';
+import { TURBAT_LANDMARKS } from './constants';
+
 export interface RouteResult {
   coordinates: [number, number][]; // [lat, lng] array for Leaflet polyline
   distanceKm: number;
@@ -138,3 +141,86 @@ export async function getRoadRoute(
   routeCache.set(cacheKey, fallbackResult);
   return fallbackResult;
 }
+
+/**
+ * Extracts numeric coordinates from location strings like:
+ * "Custom Pin (26.0031, 63.0544)" or "DHQ Hospital (26.0082, 63.0485)"
+ */
+export function parseLocationCoords(text: string): { lat: number; lng: number } | null {
+  if (!text) return null;
+  const match = text.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
+  if (match) {
+    const lat = parseFloat(match[1]);
+    const lng = parseFloat(match[2]);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      return { lat, lng };
+    }
+  }
+  return null;
+}
+
+/**
+ * Safely resolves coordinates for any location name.
+ * 1. Checks explicit coordinates
+ * 2. Parses coordinates from text (e.g. Custom Pin)
+ * 3. Matches against TURBAT_LANDMARKS
+ * 4. Defaults to central Turbat
+ */
+export function resolveLocationCoords(
+  name: string,
+  explicitCoords?: { lat: number; lng: number } | null,
+  landmarks: CityLandmark[] = TURBAT_LANDMARKS
+): { lat: number; lng: number } {
+  if (explicitCoords && typeof explicitCoords.lat === 'number' && typeof explicitCoords.lng === 'number' && !isNaN(explicitCoords.lat) && !isNaN(explicitCoords.lng)) {
+    return explicitCoords;
+  }
+
+  const parsed = parseLocationCoords(name);
+  if (parsed) return parsed;
+
+  const cleanName = (name || '').trim().toLowerCase();
+  if (cleanName) {
+    const pool = landmarks.length > 0 ? landmarks : TURBAT_LANDMARKS;
+    const match = pool.find(lm => {
+      const lName = lm.name.toLowerCase();
+      const lUrdu = (lm.nameUrdu || lm.name_urdu || '').toLowerCase();
+      const lArea = (lm.area || '').toLowerCase();
+      return lName === cleanName || lUrdu === cleanName || cleanName.includes(lName) || lName.includes(cleanName) || cleanName.includes(lArea);
+    });
+
+    if (match && typeof match.lat === 'number' && typeof match.lng === 'number') {
+      return { lat: Number(match.lat), lng: Number(match.lng) };
+    }
+  }
+
+  // Central Turbat Fallback
+  return { lat: 26.0031, lng: 63.0544 };
+}
+
+/**
+ * Builds a 100% reliable 1-Click Google Maps turn-by-turn directions link.
+ * Uses exact GPS coordinates so navigation opens immediately on mobile & web.
+ */
+export function getGoogleMapsDirectionsUrl(
+  origin: { lat: number; lng: number } | string,
+  destination: { lat: number; lng: number } | string,
+  landmarks: CityLandmark[] = TURBAT_LANDMARKS
+): string {
+  const oCoords = typeof origin === 'string' ? resolveLocationCoords(origin, null, landmarks) : origin;
+  const dCoords = typeof destination === 'string' ? resolveLocationCoords(destination, null, landmarks) : destination;
+
+  return `https://www.google.com/maps/dir/?api=1&origin=${oCoords.lat},${oCoords.lng}&destination=${dCoords.lat},${dCoords.lng}&travelmode=driving`;
+}
+
+/**
+ * Builds a 1-Click turn-by-turn navigation link to a single destination point.
+ * Useful for drivers to navigate from their current device position directly to pickup or dropoff.
+ */
+export function getGoogleMapsNavigationUrl(
+  destination: { lat: number; lng: number } | string,
+  landmarks: CityLandmark[] = TURBAT_LANDMARKS
+): string {
+  const dCoords = typeof destination === 'string' ? resolveLocationCoords(destination, null, landmarks) : destination;
+  return `https://www.google.com/maps/dir/?api=1&destination=${dCoords.lat},${dCoords.lng}&travelmode=driving`;
+}
+
