@@ -67,13 +67,15 @@ export const LeafletRouteMap: React.FC<Props> = ({
     };
   }, [activePinMode, onMapClick, onSetPickup, onSetDropoff, isUrdu]);
 
+  const CARTO_API_KEY = 'cb1_30a9_1_52c71ad4bffb3a768ffb3eaf';
+
   // Handle map style change
   useEffect(() => {
     if (!mapInstanceRef.current || !tileLayerRef.current) return;
     mapInstanceRef.current.removeLayer(tileLayerRef.current);
 
     const tileUrl = mapStyle === 'voyager'
-      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+      ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
     const maxZoom = mapStyle === 'voyager' ? 20 : 19;
@@ -100,9 +102,9 @@ export const LeafletRouteMap: React.FC<Props> = ({
       attributionControl: false,
     });
 
-    // Detailed Streets Tile Layer (CartoDB Voyager) - ultra crisp labels for streets, shops, blocks
+    // Detailed Streets Tile Layer with verified CARTO API Key
     const tileUrl = mapStyle === 'voyager'
-      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+      ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`
       : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
     const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
 
@@ -141,7 +143,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
         return;
       }
 
-      // If in browsing / pan mode ('none'), show a confirmation popup with 2 explicit buttons
+      // If in browsing / pan mode ('none'), show a confirmation popup with 2 explicit buttons (with type="button" and event prevention)
       const popupDiv = document.createElement('div');
       popupDiv.style.textAlign = 'center';
       popupDiv.style.padding = '4px 2px';
@@ -154,10 +156,10 @@ export const LeafletRouteMap: React.FC<Props> = ({
           ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}
         </div>
         <div style="display: flex; gap: 4px; justify-content: center;">
-          <button id="btn-popup-set-pickup" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 5px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+          <button id="btn-popup-set-pickup" type="button" style="background: #059669; color: white; border: none; border-radius: 6px; padding: 5px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
             📍 ${current.isUrdu ? 'پک اپ بنائیں' : 'Set Pickup'}
           </button>
-          <button id="btn-popup-set-dropoff" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 5px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
+          <button id="btn-popup-set-dropoff" type="button" style="background: #0f766e; color: white; border: none; border-radius: 6px; padding: 5px 8px; font-size: 10px; font-weight: 800; cursor: pointer;">
             🏁 ${current.isUrdu ? 'منزل بنائیں' : 'Set Dropoff'}
           </button>
         </div>
@@ -172,14 +174,18 @@ export const LeafletRouteMap: React.FC<Props> = ({
         const btnP = document.getElementById('btn-popup-set-pickup');
         const btnD = document.getElementById('btn-popup-set-dropoff');
         if (btnP) {
-          btnP.onclick = () => {
+          btnP.onclick = (evt: MouseEvent) => {
+            evt.preventDefault();
+            evt.stopPropagation();
             map.closePopup();
             if (current.onSetPickup) current.onSetPickup(coords);
             else if (current.onMapClick) current.onMapClick(coords);
           };
         }
         if (btnD) {
-          btnD.onclick = () => {
+          btnD.onclick = (evt: MouseEvent) => {
+            evt.preventDefault();
+            evt.stopPropagation();
             map.closePopup();
             if (current.onSetDropoff) current.onSetDropoff(coords);
             else if (current.onMapClick) current.onMapClick(coords);
@@ -210,19 +216,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
     markersLayer.clearLayers();
     routeLayer.clearLayers();
 
-    // Helper for category icons
-    const getCategoryIcon = (category?: string, name?: string) => {
-      const n = (name || '').toLowerCase();
-      if (category === 'hospital' || n.includes('hospital')) return '🏥';
-      if (category === 'airport' || n.includes('airport')) return '✈️';
-      if (category === 'education' || n.includes('college') || n.includes('university') || n.includes('school')) return '🎓';
-      if (category === 'shopping' || n.includes('bazaar') || n.includes('market') || n.includes('mandi') || n.includes('plaza')) return '🛍️';
-      if (category === 'bank' || n.includes('bank')) return '🏦';
-      if (category === 'govt' || n.includes('office') || n.includes('court') || n.includes('police') || n.includes('thana')) return '🏛️';
-      if (category === 'transit' || n.includes('bus') || n.includes('adda') || n.includes('stop')) return '🚌';
-      if (category === 'park' || n.includes('park') || n.includes('river')) return '🌳';
-      return '📍';
-    };
+
 
     // 1. Pickup Icon (Compact Emerald)
     const pickupHtml = `
@@ -297,38 +291,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
       }
     });
 
-    // 3. Add Landmark Place Badges directly visible on map
-    landmarks.forEach((lm) => {
-      const isCurrentPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0006 && Math.abs(lm.lng - pickupCoords.lng) < 0.0006;
-      const isCurrentDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0006 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0006;
-      if (isCurrentPickup || isCurrentDropoff) return; // Already rendered as major pin
-
-      const catIcon = getCategoryIcon(lm.category, lm.name);
-      const displayName = isUrdu && lm.nameUrdu ? lm.nameUrdu : (lm.shortName || lm.name.split(',')[0]);
-
-      const badgeHtml = `
-        <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(255, 255, 255, 0.95); border: 1.5px solid #059669; padding: 2px 6px; border-radius: 9999px; box-shadow: 0 2px 5px rgba(0,0,0,0.18); font-size: 10px; font-weight: 800; color: #0f172a; white-space: nowrap; cursor: pointer; backdrop-filter: blur(2px);">
-          <span style="font-size: 11px;">${catIcon}</span>
-          <span style="max-width: 120px; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>
-        </div>
-      `;
-
-      const badgeIcon = L.divIcon({
-        html: badgeHtml,
-        className: 'landmark-place-pill',
-        iconSize: [110, 22],
-        iconAnchor: [55, 11],
-      });
-
-      const lmMarker = L.marker([lm.lat, lm.lng], { icon: badgeIcon, zIndexOffset: 200 })
-        .addTo(markersLayer);
-
-      if (onLandmarkSelect) {
-        lmMarker.on('click', () => onLandmarkSelect(lm));
-      }
-    });
-
-    // 4. Fetch Real Road Routing & Draw Polyline
+    // 3. Fetch Real Road Routing & Draw Polyline
     setIsLoadingRoute(true);
     getRoadRoute(pickupCoords, dropoffCoords)
       .then((routeResult) => {

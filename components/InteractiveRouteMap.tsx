@@ -222,7 +222,11 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[10px] font-bold">
             <button
               type="button"
-              onClick={() => setPinPlacementMode(prev => prev === 'pickup' ? 'none' : 'pickup')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setPinPlacementMode(prev => prev === 'pickup' ? 'none' : 'pickup');
+              }}
               className={`px-1.5 py-0.5 rounded transition cursor-pointer flex items-center gap-1 ${
                 pinPlacementMode === 'pickup' 
                   ? 'bg-emerald-600 text-white shadow-xs font-black' 
@@ -235,7 +239,11 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setPinPlacementMode(prev => prev === 'dropoff' ? 'none' : 'dropoff')}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setPinPlacementMode(prev => prev === 'dropoff' ? 'none' : 'dropoff');
+              }}
               className={`px-1.5 py-0.5 rounded transition cursor-pointer flex items-center gap-1 ${
                 pinPlacementMode === 'dropoff' 
                   ? 'bg-teal-700 text-white shadow-xs font-black' 

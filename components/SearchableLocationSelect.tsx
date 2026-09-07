@@ -43,11 +43,11 @@ const getCategoryEmoji = (category?: string) => {
 
 const POPULAR_QUICK_CHIPS = [
   { name: 'Turbat International Airport', short: '✈️ Airport', shortUrdu: '✈️ ایئرپورٹ' },
-  { name: 'DHQ Teaching Hospital Turbat', short: '🏥 DHQ Hospital', shortUrdu: '🏥 ہسپتال' },
-  { name: 'Shahi Bazaar Main Chowk', short: '🛍️ Shahi Bazaar', shortUrdu: '🛍️ شاہی بازار' },
-  { name: 'University of Turbat (UoT)', short: '🎓 UoT', shortUrdu: '🎓 یونیورسٹی' },
-  { name: 'Saddar Main Bus Adda', short: '🚌 Bus Adda', shortUrdu: '🚌 بس اڈا' },
-  { name: 'Fida Shaheed Chowk', short: '📍 Fida Chowk', shortUrdu: '📍 فدا چوک' },
+  { name: 'District Headquarters (DHQ) Hospital Turbat', short: '🏥 DHQ Hospital', shortUrdu: '🏥 ہسپتال' },
+  { name: 'Main Bazaar / Shahi Bazaar', short: '🛍️ Shahi Bazaar', shortUrdu: '🛍️ شاہی بازار' },
+  { name: 'University of Turbat (UoT) Campus', short: '🎓 UoT', shortUrdu: '🎓 یونیورسٹی' },
+  { name: 'Turbat Central Bus Terminal / Adda', short: '🚌 Bus Adda', shortUrdu: '🚌 بس اڈا' },
+  { name: 'City Thana (Police Station), Thana Road', short: '🏛️ City Thana', shortUrdu: '🏛️ سٹی تھانہ' },
 ];
 
 export const SearchableLocationSelect: React.FC<Props> = ({
@@ -103,7 +103,7 @@ export const SearchableLocationSelect: React.FC<Props> = ({
     }
   }, [isOpen]);
 
-  // Real-time online OpenStreetMap search (Photon API) debounced
+  // Real-time online OpenStreetMap search (Photon API) debounced - Strictly bounded to Turbat & Kech District
   useEffect(() => {
     const queryTrim = searchQuery.trim();
     if (!isOpen || queryTrim.length < 2) {
@@ -116,21 +116,34 @@ export const SearchableLocationSelect: React.FC<Props> = ({
       setIsSearchingOnline(true);
       try {
         const res = await fetch(
-          `https://photon.komoot.io/api/?q=${encodeURIComponent(queryTrim)}&lat=26.0031&lon=63.0544&limit=4`
+          `https://photon.komoot.io/api/?q=${encodeURIComponent(queryTrim)}&lat=26.0031&lon=63.0544&limit=6`
         );
         if (res.ok) {
           const data = await res.json();
+          const TURBAT_CENTER_LAT = 26.0031;
+          const TURBAT_CENTER_LNG = 63.0544;
+
           const items: OnlineResult[] = (data.features || [])
-            .filter((f: any) => f.geometry && f.geometry.coordinates && f.geometry.coordinates.length >= 2)
+            .filter((f: any) => {
+              if (!f.geometry || !f.geometry.coordinates || f.geometry.coordinates.length < 2) return false;
+              const fLng = Number(f.geometry.coordinates[0]);
+              const fLat = Number(f.geometry.coordinates[1]);
+              // Only accept locations within ~45 KM of Turbat / Kech Valley (lat ~25.6 to 26.4, lng ~62.6 to 63.5)
+              // Discards Karachi, Quetta, Islamabad or distant external places
+              const dLat = (fLat - TURBAT_CENTER_LAT) * 111;
+              const dLng = (fLng - TURBAT_CENTER_LNG) * 100;
+              const distKm = Math.hypot(dLat, dLng);
+              return distKm <= 45;
+            })
             .map((f: any) => {
               const p = f.properties || {};
               const name = p.name || p.street || queryTrim;
-              const placeDetails = [p.street, p.district, p.city, p.state, p.country]
+              const placeDetails = [p.street, p.district, p.city || 'Turbat', p.state, p.country]
                 .filter(Boolean)
                 .join(', ');
               return {
                 name: p.city ? `${name} (${p.city})` : name,
-                detail: placeDetails || 'Live OSM Location',
+                detail: placeDetails || 'Live OSM Location (Turbat)',
                 lat: Number(f.geometry.coordinates[1]),
                 lng: Number(f.geometry.coordinates[0]),
               };

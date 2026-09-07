@@ -172,8 +172,8 @@ export const DeliveryWidget = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
 
     // Check if customer is already logged in
     const activeCustomer = getCurrentCustomer() || currentCustomer;
@@ -270,7 +270,7 @@ export const DeliveryWidget = () => {
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3.5">
+        <form onSubmit={(e) => { e.preventDefault(); }} className="space-y-2.5 sm:space-y-3.5">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -545,7 +545,8 @@ export const DeliveryWidget = () => {
           </div>
 
           <button
-            type="submit"
+            type="button"
+            onClick={() => handleSubmit()}
             disabled={isSubmitting}
             className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-5 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-sm sm:text-base cursor-pointer"
           >
