@@ -179,22 +179,22 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   const estimatedMins = dynamicMins || Math.max(4, Math.round(displayKm * 2.5 + 2));
 
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl p-3.5 sm:p-5 shadow-md space-y-3.5">
+    <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-2.5 sm:p-3.5 shadow-sm space-y-2.5">
       
       {/* Top Map Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-            <Compass className="w-4 h-4 animate-spin-slow" />
+          <div className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+            <Compass className="w-3.5 h-3.5 animate-spin-slow" />
           </div>
           <div>
             <h4 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
               <span>{isUrdu ? 'تربت لائیو روٹ میپ' : 'Live Turbat Route Map'}</span>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+              <span className="text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full">
                 OSM Free
               </span>
             </h4>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[10px] text-slate-500">
               {isUrdu ? 'نقشے پر پن کھینچیں یا اوپر سے منتخب کریں' : 'Drag pins on map or tap to set exact pickup & dropoff'}
             </p>
           </div>
@@ -207,15 +207,15 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             type="button"
             onClick={handleGpsLocateMe}
             disabled={isLocatingUser}
-            className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border transition cursor-pointer ${
+            className={`inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2 py-1 rounded-lg border transition cursor-pointer ${
               isLocatingUser 
                 ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' 
                 : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
             }`}
             title={isUrdu ? 'میری لائیو ڈیوائس لوکیشن حاصل کریں' : 'Detect my live device GPS location'}
           >
-            <Crosshair className={`w-3.5 h-3.5 text-emerald-600 ${isLocatingUser ? 'animate-spin' : ''}`} />
-            <span className="hidden xs:inline">{isLocatingUser ? (isUrdu ? 'تلاش جاری...' : 'Locating...') : (isUrdu ? 'میری لوکیشن' : 'GPS Me')}</span>
+            <Crosshair className={`w-3 h-3 text-emerald-600 ${isLocatingUser ? 'animate-spin' : ''}`} />
+            <span className="hidden xs:inline">{isLocatingUser ? (isUrdu ? 'تلاش...' : 'Locating...') : (isUrdu ? 'میری لوکیشن' : 'GPS Me')}</span>
           </button>
 
           {/* Mode Selector (Mobile Friendly Toggle) */}
@@ -223,28 +223,28 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
             <button
               type="button"
               onClick={() => setPinPlacementMode(prev => prev === 'pickup' ? 'none' : 'pickup')}
-              className={`px-2 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
+              className={`px-1.5 py-0.5 rounded transition cursor-pointer flex items-center gap-1 ${
                 pinPlacementMode === 'pickup' 
                   ? 'bg-emerald-600 text-white shadow-xs font-black' 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Click to activate pickup pin placement on map"
             >
-              <MapPin className="w-3 h-3" />
-              <span>{isUrdu ? 'پک اپ پن' : 'Pickup Pin'}</span>
+              <MapPin className="w-2.5 h-2.5" />
+              <span>{isUrdu ? 'پک اپ' : 'Pickup'}</span>
             </button>
             <button
               type="button"
               onClick={() => setPinPlacementMode(prev => prev === 'dropoff' ? 'none' : 'dropoff')}
-              className={`px-2 py-1 rounded transition cursor-pointer flex items-center gap-1 ${
+              className={`px-1.5 py-0.5 rounded transition cursor-pointer flex items-center gap-1 ${
                 pinPlacementMode === 'dropoff' 
                   ? 'bg-teal-700 text-white shadow-xs font-black' 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Click to activate dropoff pin placement on map"
             >
-              <Navigation className="w-3 h-3" />
-              <span>{isUrdu ? 'منزل پن' : 'Dropoff Pin'}</span>
+              <Navigation className="w-2.5 h-2.5" />
+              <span>{isUrdu ? 'منزل' : 'Dropoff'}</span>
             </button>
           </div>
 
@@ -252,7 +252,7 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           <button
             type="button"
             onClick={handleOpenGoogleMaps}
-            className="inline-flex items-center gap-1 text-[11px] font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2.5 py-1.5 rounded-lg shadow-2xs transition cursor-pointer"
+            className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-black bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white px-2 py-1 rounded-lg shadow-2xs transition cursor-pointer"
             title={isUrdu ? '1-کلک گوگل میپس میں لائیو نیویگیشن کھولیں' : '1-Click Google Maps Live Navigation'}
           >
             <ExternalLink className="w-3 h-3" />
@@ -263,23 +263,23 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
 
       {/* Pin Placement Mode Active Alert Banner */}
       {pinPlacementMode !== 'none' && (
-        <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 ${
+        <div className={`p-2 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 ${
           pinPlacementMode === 'pickup' 
             ? 'bg-emerald-50 border-emerald-300 text-emerald-900' 
             : 'bg-teal-50 border-teal-300 text-teal-900'
         }`}>
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping"></span>
-            <span>
+          <div className="flex items-center gap-1.5 truncate">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping shrink-0"></span>
+            <span className="truncate">
               {pinPlacementMode === 'pickup' 
-                ? (isUrdu ? 'نقشے پر کہیں بھی کلک کریں تاکہ پک اپ پن لگایا جا سکے' : 'Tap anywhere on the map to place your PICKUP pin 📍')
-                : (isUrdu ? 'نقشے پر کہیں بھی کلک کریں تاکہ منزل کا پن لگایا جا سکے' : 'Tap anywhere on the map to place your DROPOFF pin 🏁')}
+                ? (isUrdu ? 'نقشے پر ٹیپ کر کے پک اپ پن لگائیں 📍' : 'Tap map to set PICKUP 📍')
+                : (isUrdu ? 'نقشے پر ٹیپ کر کے منزل پن لگائیں 🏁' : 'Tap map to set DROPOFF 🏁')}
             </span>
           </div>
           <button
             type="button"
             onClick={() => setPinPlacementMode('none')}
-            className="text-[10px] px-2 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 cursor-pointer font-bold"
+            className="text-[10px] px-2 py-0.5 rounded bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 cursor-pointer font-bold shrink-0"
           >
             {isUrdu ? 'منسوخ' : 'Cancel'}
           </button>
@@ -299,54 +299,50 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         onPickupDrag={handlePickupDrag}
         onDropoffDrag={handleDropoffDrag}
         activePinMode={pinPlacementMode}
+        heightClass="h-56 sm:h-64"
         isUrdu={isUrdu}
         onRouteCalculated={handleRouteCalculated}
       />
 
-      {/* AUTOMATED LIVE GPS DISTANCE METER — REAL TIME DISTANCE */}
-      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <Route className="w-4 h-4 text-emerald-600" />
-            <span className="text-xs font-black text-slate-900">
-              {isUrdu ? 'رئیل ٹائم جی پی ایس روٹ فاصلہ' : 'Real-Time GPS Route Distance'}
+      {/* AUTOMATED LIVE GPS DISTANCE METER — SLEEK SINGLE-ROW BAR */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 truncate min-w-0">
+          <Route className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          <div className="truncate">
+            <span className="text-xs font-black text-slate-900 block truncate leading-tight">
+              {pickupName.split('(')[0].trim()} ➔ {dropoffName.split('(')[0].trim()}
             </span>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-md">
-              Automated
+            <span className="text-[10px] text-slate-500 font-medium block truncate leading-tight">
+              {isUrdu ? 'خودکار اوپن اسٹریٹ میپ روٹ' : 'Automated Real-Time OSM Route'}
             </span>
           </div>
-          <p className="text-[11px] text-slate-500 truncate max-w-sm sm:max-w-md">
-            {isUrdu 
-              ? `${pickupName.split('(')[0]} ➔ ${dropoffName.split('(')[0]}`
-              : `${pickupName.split('(')[0]} ➔ ${dropoffName.split('(')[0]}`}
-          </p>
         </div>
 
         {/* Display Badge showing exact calculated KM & Travel Duration & 1-Click Link */}
-        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-          <div className="text-right">
-            <span className="text-[10px] font-bold text-slate-400 block uppercase">Est. Time</span>
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1">
-              <Clock className="w-3 h-3 text-slate-400" />
-              <span>~{estimatedMins} Mins</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <div className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-center hidden xs:block shadow-2xs">
+            <span className="text-[9px] font-bold text-slate-400 block uppercase leading-none">Time</span>
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-0.5 leading-tight">
+              <Clock className="w-2.5 h-2.5 text-slate-400" />
+              <span>~{estimatedMins}m</span>
             </span>
           </div>
 
-          <div className="bg-white border-2 border-emerald-500 rounded-xl px-3 py-1.5 text-center shadow-xs">
-            <span className="text-[10px] font-bold text-slate-500 block uppercase">Distance</span>
-            <span className="text-base font-black text-slate-900 leading-none">
-              {displayKm} <span className="text-xs font-bold text-emerald-600">KM</span>
+          <div className="bg-white border border-emerald-400 rounded-lg px-2 py-0.5 text-center shadow-2xs">
+            <span className="text-[9px] font-bold text-slate-400 block uppercase leading-none">Distance</span>
+            <span className="text-xs sm:text-sm font-black text-slate-900 leading-tight">
+              {displayKm} <span className="text-[10px] font-bold text-emerald-600">KM</span>
             </span>
           </div>
 
           <button
             type="button"
             onClick={handleOpenGoogleMaps}
-            className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+            className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg font-bold text-[10px] flex items-center gap-1 transition cursor-pointer shadow-2xs"
             title="Open in Google Maps Navigation"
           >
-            <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden xs:inline">1-Click Maps</span>
+            <ExternalLink className="w-3 h-3 text-emerald-600" />
+            <span className="hidden sm:inline">1-Click Maps</span>
           </button>
         </div>
       </div>

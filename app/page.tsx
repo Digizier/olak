@@ -49,13 +49,13 @@ export default function HomePage() {
 
       {/* Hero Section with Clean White & Slate Background */}
       <main className="flex-grow">
-        <section className="relative pt-3 pb-8 sm:pt-10 sm:pb-20 overflow-hidden bg-white">
+        <section className="relative pt-1 pb-6 sm:pt-6 sm:pb-16 overflow-hidden bg-white">
           
-          <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 relative z-10">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 lg:gap-12 items-start">
+          <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 sm:gap-6 lg:gap-10 items-start">
               
               {/* Left Column: Headings & Value Props (5 Cols) */}
-              <div className="lg:col-span-5 space-y-4 sm:space-y-6 lg:sticky lg:top-28">
+              <div className="lg:col-span-5 space-y-3 sm:space-y-5 lg:sticky lg:top-28">
                 
                 {/* Badge */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -256,10 +256,10 @@ export default function HomePage() {
         href="https://wa.me/923340468649?text=Hello%20OLAK%20Turbat%20I%20want%20to%20book%20a%20ride%20or%20delivery"
         target="_blank"
         rel="noreferrer"
-        className="fixed bottom-6 right-6 z-40 bg-emerald-500 hover:bg-emerald-600 text-white p-3.5 sm:p-4 rounded-full shadow-2xl flex items-center gap-2 transition-all hover:scale-105"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 bg-emerald-500 hover:bg-emerald-600 text-white p-3 sm:p-4 rounded-full shadow-2xl flex items-center gap-2 transition-all hover:scale-105"
         title="Chat on WhatsApp"
       >
-        <MessageCircle className="w-6 h-6" />
+        <MessageCircle className="w-5 h-5 sm:w-6 sm:h-6" />
         <span className="hidden sm:inline font-bold text-xs">OLAK WhatsApp</span>
       </a>
 

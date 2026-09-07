@@ -201,22 +201,22 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-7 shadow-xl space-y-3.5 sm:space-y-5">
+    <div className="bg-white border border-slate-200 rounded-2xl sm:rounded-3xl p-2.5 sm:p-5 shadow-lg space-y-2.5 sm:space-y-3.5">
       {confirmedBooking ? (
         /* Confirmation Voucher */
-        <div className="text-center py-6 space-y-5 animate-fadeIn">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
-            <CheckCircle2 className="w-10 h-10" />
+        <div className="text-center py-5 space-y-4 animate-fadeIn">
+          <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto border border-emerald-200 shadow-sm">
+            <CheckCircle2 className="w-8 h-8" />
           </div>
 
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3.5 py-1 rounded-full border border-emerald-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-0.5 rounded-full border border-emerald-200">
               {t.booking_success}
             </span>
-            <h3 className="text-2xl sm:text-3xl font-black text-slate-900 mt-2">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5">
               {confirmedBooking.booking_code}
             </h3>
-            <p className="text-sm text-slate-600 mt-1 font-urdu">
+            <p className="text-xs sm:text-sm text-slate-600 mt-1 font-urdu">
               {isUrdu 
                 ? 'آپ کی رائیڈ بکنگ درج ہوچکی ہے۔ تربت کے قریبی کیپٹن کو اطلاع روانہ کردی گئی ہے۔' 
                 : 'Your ride request has been dispatched to verified captains in Turbat.'}
@@ -224,37 +224,37 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </div>
 
           {/* Trip Summary Card */}
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-left space-y-2 text-xs sm:text-sm">
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+          <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-left space-y-1.5 text-xs sm:text-sm">
+            <div className="flex justify-between text-slate-700 pb-1.5 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'سروس' : 'Service'}:</span>
               <span className="font-bold text-slate-900 uppercase">{confirmedBooking.service_type}</span>
             </div>
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+            <div className="flex justify-between text-slate-700 pb-1.5 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'مسافر' : 'Passenger'}:</span>
               <span className="font-bold text-slate-900">{confirmedBooking.customer_name} ({confirmedBooking.customer_phone})</span>
             </div>
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+            <div className="flex justify-between text-slate-700 pb-1.5 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'پک اپ' : 'Pickup'}:</span>
               <span className="font-semibold text-slate-900">{confirmedBooking.pickup_location}</span>
             </div>
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+            <div className="flex justify-between text-slate-700 pb-1.5 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'منزل' : 'Dropoff'}:</span>
               <span className="font-semibold text-slate-900">{confirmedBooking.dropoff_location}</span>
             </div>
-            <div className="flex justify-between text-slate-700 pb-2 border-b border-slate-200">
+            <div className="flex justify-between text-slate-700 pb-1.5 border-b border-slate-200">
               <span className="text-slate-500">{isUrdu ? 'فاصلہ' : 'Distance'}:</span>
               <span className="font-bold text-emerald-700">{confirmedBooking.estimated_distance_km} KM</span>
             </div>
-            <div className="flex justify-between text-slate-900 pt-1 text-base">
+            <div className="flex justify-between text-slate-900 pt-1 text-sm sm:text-base">
               <span className="font-bold text-emerald-600">{isUrdu ? 'کرایہ' : 'Fare'}:</span>
               <span className="font-black text-emerald-600">PKR {confirmedBooking.estimated_fare}</span>
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
             <a
               href={`/track/?code=${confirmedBooking.booking_code}`}
-              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-md transition"
             >
               <span>{t.track_status_btn}</span>
               <ArrowRight className="w-4 h-4" />
@@ -262,31 +262,31 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
 
             <button
               onClick={() => setConfirmedBooking(null)}
-              className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition border border-slate-200 cursor-pointer"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition border border-slate-200 cursor-pointer text-xs sm:text-sm"
             >
               {isUrdu ? 'نئی بکنگ کریں' : 'Book Another Ride'}
             </button>
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-3.5 sm:space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-2.5 sm:space-y-3.5">
           
           {/* Header Title */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <h3 className="text-base sm:text-xl font-black text-slate-900">
+              <h3 className="text-sm sm:text-base font-black text-slate-900">
                 {isUrdu ? 'سواری کی فوری بکنگ' : 'Instant Ride Booking'}
               </h3>
             </div>
-            <span className="text-[11px] sm:text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              <Clock className="w-3.5 h-3.5" />
+            <span className="text-[10px] sm:text-xs text-emerald-700 font-bold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <Clock className="w-3 h-3" />
               <span>{isUrdu ? '3-7 منٹ میں آمد' : '3-7 Min Pickup'}</span>
             </span>
           </div>
 
           {/* Service Selector Tabs with Responsive Design */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 bg-slate-100 p-1 sm:p-1.5 rounded-2xl border border-slate-200">
+          <div className="grid grid-cols-3 gap-1 sm:gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {rates.filter(r => r.service_type !== 'delivery' && r.service_type !== 'intercity').map((rate) => {
               const isSelected = selectedService === rate.service_type;
               return (
@@ -294,21 +294,21 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                   key={rate.id}
                   type="button"
                   onClick={() => setSelectedService(rate.service_type)}
-                  className={`flex flex-col items-center justify-center py-2 sm:py-2.5 px-1 sm:px-2 rounded-xl transition-all cursor-pointer ${
+                  className={`flex flex-col items-center justify-center py-1.5 sm:py-2 px-1 sm:px-2 rounded-lg sm:rounded-xl transition-all cursor-pointer ${
                     isSelected 
-                      ? 'bg-emerald-600 text-white font-bold shadow-md scale-[1.02]' 
+                      ? 'bg-emerald-600 text-white font-bold shadow-md scale-[1.01]' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
-                  <div className="mb-1">
-                    {rate.service_type === 'bike' && <Bike className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    {rate.service_type === 'rickshaw' && <Truck className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    {rate.service_type === 'car' && <Car className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  <div className="mb-0.5">
+                    {rate.service_type === 'bike' && <Bike className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                    {rate.service_type === 'rickshaw' && <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                    {rate.service_type === 'car' && <Car className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                   </div>
-                  <span className="text-[11px] sm:text-xs font-bold text-center leading-tight">
+                  <span className="text-[10px] sm:text-xs font-bold text-center leading-tight">
                     {isUrdu ? (rate.service_name_urdu || rate.service_name) : rate.service_name}
                   </span>
-                  <span className={`text-[10px] sm:text-[11px] mt-0.5 font-semibold ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
+                  <span className={`text-[9px] sm:text-[10px] mt-0.5 font-semibold ${isSelected ? 'text-emerald-100' : 'text-slate-500'}`}>
                     Base PKR {rate.base_fare}
                   </span>
                 </button>
@@ -317,7 +317,7 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           </div>
 
           {/* Location Selection with Search Filter */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
             <SearchableLocationSelect
               label={t.pickup_label}
               icon={MapPin}
@@ -486,20 +486,20 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
           })()}
 
           {/* Live Dynamic Fare Estimation Card */}
-          <div className="bg-slate-100 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
+          <div className="bg-slate-100 border border-slate-200 rounded-xl p-2.5 sm:p-3 flex items-center justify-between">
             <div>
-              <span className="text-[11px] font-bold text-slate-500 block">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 block">
                 {t.est_fare} ({realTimeDistanceKm} KM @ PKR {activeRate.per_km_charge}/KM)
               </span>
               <div className="flex items-baseline gap-1">
                 <span className="text-xs font-bold text-emerald-600">PKR</span>
-                <span className="text-2xl sm:text-3xl font-black text-slate-900">
+                <span className="text-xl sm:text-2xl font-black text-slate-900">
                   {estimatedFare}
                 </span>
               </div>
             </div>
 
-            <div className="text-right text-[11px] text-slate-500 space-y-0.5">
+            <div className="text-right text-[10px] sm:text-[11px] text-slate-500 space-y-0.5">
               <span className="block font-bold text-slate-800">
                 {isUrdu ? 'کیش آن پک اپ' : 'Cash on Delivery'}
               </span>
@@ -523,16 +523,16 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
                     : 'Your account is suspended by admin. You cannot book rides. Contact OLAK support at +92 335 0455599.'
                 });
               }}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-red-600/20 transition text-base cursor-not-allowed"
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-3 px-5 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-red-600/20 transition text-sm sm:text-base cursor-not-allowed"
             >
-              <Ban className="w-5 h-5" />
+              <Ban className="w-4 h-4" />
               <span>{isUrdu ? 'اکاؤنٹ معطل ہے (سواری کی اجازت نہیں)' : 'Account Suspended — Booking Disabled'}</span>
             </button>
           ) : (
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-base cursor-pointer"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3 px-5 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition transform active:scale-[0.99] disabled:opacity-50 text-sm sm:text-base cursor-pointer"
             >
               {isSubmitting ? (
                 <span className="flex items-center gap-2">

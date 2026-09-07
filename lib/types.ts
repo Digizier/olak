@@ -23,9 +23,11 @@ export interface CityLandmark {
   name: string;
   name_urdu?: string;
   nameUrdu?: string;
+  shortName?: string;
   area: string;
   lat: number;
   lng: number;
+  category?: 'airport' | 'hospital' | 'shopping' | 'education' | 'bank' | 'govt' | 'transit' | 'area' | 'park' | 'mosque';
   is_active?: boolean;
 }
 

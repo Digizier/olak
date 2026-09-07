@@ -42,9 +42,11 @@ export const LeafletRouteMap: React.FC<Props> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   const routeLayerRef = useRef<L.LayerGroup | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [mapStyle, setMapStyle] = useState<'voyager' | 'osm'>('voyager');
 
   // Keep latest callbacks in ref for map click event handler
   const callbacksRef = useRef({
@@ -65,6 +67,21 @@ export const LeafletRouteMap: React.FC<Props> = ({
     };
   }, [activePinMode, onMapClick, onSetPickup, onSetDropoff, isUrdu]);
 
+  // Handle map style change
+  useEffect(() => {
+    if (!mapInstanceRef.current || !tileLayerRef.current) return;
+    mapInstanceRef.current.removeLayer(tileLayerRef.current);
+
+    const tileUrl = mapStyle === 'voyager'
+      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
+    const maxZoom = mapStyle === 'voyager' ? 20 : 19;
+
+    const newTile = L.tileLayer(tileUrl, { maxZoom, subdomains }).addTo(mapInstanceRef.current);
+    tileLayerRef.current = newTile;
+  }, [mapStyle]);
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -83,15 +100,21 @@ export const LeafletRouteMap: React.FC<Props> = ({
       attributionControl: false,
     });
 
-    // High-performance OpenStreetMap standard tiles (100% Free, zero API key, zero watermark)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      subdomains: ['a', 'b', 'c'],
+    // Detailed Streets Tile Layer (CartoDB Voyager) - ultra crisp labels for streets, shops, blocks
+    const tileUrl = mapStyle === 'voyager'
+      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const subdomains = mapStyle === 'voyager' ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
+
+    const tileLayer = L.tileLayer(tileUrl, {
+      maxZoom: 20,
+      subdomains,
     }).addTo(map);
+    tileLayerRef.current = tileLayer;
 
     // Attribution control in bottom right
     L.control.attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>')
+      .addAttribution('&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> &copy; <a href="https://carto.com/" target="_blank">CARTO</a>')
       .addTo(map);
 
     const routeLayer = L.layerGroup().addTo(map);
@@ -187,16 +210,30 @@ export const LeafletRouteMap: React.FC<Props> = ({
     markersLayer.clearLayers();
     routeLayer.clearLayers();
 
-    // 1. Pickup Icon (Emerald)
+    // Helper for category icons
+    const getCategoryIcon = (category?: string, name?: string) => {
+      const n = (name || '').toLowerCase();
+      if (category === 'hospital' || n.includes('hospital')) return '🏥';
+      if (category === 'airport' || n.includes('airport')) return '✈️';
+      if (category === 'education' || n.includes('college') || n.includes('university') || n.includes('school')) return '🎓';
+      if (category === 'shopping' || n.includes('bazaar') || n.includes('market') || n.includes('mandi') || n.includes('plaza')) return '🛍️';
+      if (category === 'bank' || n.includes('bank')) return '🏦';
+      if (category === 'govt' || n.includes('office') || n.includes('court') || n.includes('police') || n.includes('thana')) return '🏛️';
+      if (category === 'transit' || n.includes('bus') || n.includes('adda') || n.includes('stop')) return '🚌';
+      if (category === 'park' || n.includes('park') || n.includes('river')) return '🌳';
+      return '📍';
+    };
+
+    // 1. Pickup Icon (Compact Emerald)
     const pickupHtml = `
       <div style="display: flex; flex-direction: column; align-items: center; cursor: grab;">
-        <div style="width: 32px; height: 32px; border-radius: 50%; background: #059669; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 2.5px solid white;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="none">
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: #059669; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.35); border: 2px solid white;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="white" stroke="none">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
           </svg>
         </div>
-        <span style="margin-top: 3px; font-size: 10px; font-weight: 900; background: #064e3b; color: #a7f3d0; padding: 1px 6px; border-radius: 6px; border: 1px solid #10b981; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
-          ${isUrdu ? 'پک اپ (کھینچیں)' : 'PICKUP ↔ Drag'}
+        <span style="margin-top: 2px; font-size: 9px; font-weight: 800; background: #064e3b; color: #a7f3d0; padding: 1px 5px; border-radius: 5px; border: 1px solid #10b981; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.25);">
+          ${isUrdu ? 'پک اپ' : '📍 Pickup'}
         </span>
       </div>
     `;
@@ -204,20 +241,20 @@ export const LeafletRouteMap: React.FC<Props> = ({
     const pickupIcon = L.divIcon({
       html: pickupHtml,
       className: 'custom-pickup-pin',
-      iconSize: [40, 52],
-      iconAnchor: [20, 50],
+      iconSize: [36, 46],
+      iconAnchor: [18, 44],
     });
 
-    // 2. Dropoff Icon (Teal/Dark Slate)
+    // 2. Dropoff Icon (Compact Teal)
     const dropoffHtml = `
       <div style="display: flex; flex-direction: column; align-items: center; cursor: grab;">
-        <div style="width: 32px; height: 32px; border-radius: 50%; background: #0f766e; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); border: 2.5px solid white;">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none">
+        <div style="width: 28px; height: 28px; border-radius: 50%; background: #0f766e; color: white; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 10px rgba(0,0,0,0.35); border: 2px solid white;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
             <polygon points="3 11 22 2 13 21 11 13 3 11"/>
           </svg>
         </div>
-        <span style="margin-top: 3px; font-size: 10px; font-weight: 900; background: #0f172a; color: #5eead4; padding: 1px 6px; border-radius: 6px; border: 1px solid #14b8a6; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.25);">
-          ${isUrdu ? 'منزل (کھینچیں)' : 'DROPOFF ↔ Drag'}
+        <span style="margin-top: 2px; font-size: 9px; font-weight: 800; background: #0f172a; color: #5eead4; padding: 1px 5px; border-radius: 5px; border: 1px solid #14b8a6; white-space: nowrap; box-shadow: 0 1px 4px rgba(0,0,0,0.25);">
+          ${isUrdu ? 'منزل' : '🏁 Dropoff'}
         </span>
       </div>
     `;
@@ -225,8 +262,8 @@ export const LeafletRouteMap: React.FC<Props> = ({
     const dropoffIcon = L.divIcon({
       html: dropoffHtml,
       className: 'custom-dropoff-pin',
-      iconSize: [40, 52],
-      iconAnchor: [20, 50],
+      iconSize: [36, 46],
+      iconAnchor: [18, 44],
     });
 
     // Add Pickup & Dropoff Markers as DRAGGABLE pins
@@ -260,26 +297,31 @@ export const LeafletRouteMap: React.FC<Props> = ({
       }
     });
 
-    // 3. Add Landmark Hotspots (Clickable dots)
+    // 3. Add Landmark Place Badges directly visible on map
     landmarks.forEach((lm) => {
-      const isCurrentPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0005 && Math.abs(lm.lng - pickupCoords.lng) < 0.0005;
-      const isCurrentDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0005 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0005;
+      const isCurrentPickup = Math.abs(lm.lat - pickupCoords.lat) < 0.0006 && Math.abs(lm.lng - pickupCoords.lng) < 0.0006;
+      const isCurrentDropoff = Math.abs(lm.lat - dropoffCoords.lat) < 0.0006 && Math.abs(lm.lng - dropoffCoords.lng) < 0.0006;
       if (isCurrentPickup || isCurrentDropoff) return; // Already rendered as major pin
 
-      const dotHtml = `
-        <div style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3); transition: all 0.2s;" title="${lm.name}"></div>
+      const catIcon = getCategoryIcon(lm.category, lm.name);
+      const displayName = isUrdu && lm.nameUrdu ? lm.nameUrdu : (lm.shortName || lm.name.split(',')[0]);
+
+      const badgeHtml = `
+        <div style="display: inline-flex; align-items: center; gap: 3px; background: rgba(255, 255, 255, 0.95); border: 1.5px solid #059669; padding: 2px 6px; border-radius: 9999px; box-shadow: 0 2px 5px rgba(0,0,0,0.18); font-size: 10px; font-weight: 800; color: #0f172a; white-space: nowrap; cursor: pointer; backdrop-filter: blur(2px);">
+          <span style="font-size: 11px;">${catIcon}</span>
+          <span style="max-width: 120px; overflow: hidden; text-overflow: ellipsis;">${displayName}</span>
+        </div>
       `;
 
-      const dotIcon = L.divIcon({
-        html: dotHtml,
-        className: 'landmark-dot',
-        iconSize: [10, 10],
-        iconAnchor: [5, 5],
+      const badgeIcon = L.divIcon({
+        html: badgeHtml,
+        className: 'landmark-place-pill',
+        iconSize: [110, 22],
+        iconAnchor: [55, 11],
       });
 
-      const lmMarker = L.marker([lm.lat, lm.lng], { icon: dotIcon, zIndexOffset: 100 })
-        .addTo(markersLayer)
-        .bindTooltip(lm.name.split(',')[0], { direction: 'top', offset: [0, -5] });
+      const lmMarker = L.marker([lm.lat, lm.lng], { icon: badgeIcon, zIndexOffset: 200 })
+        .addTo(markersLayer);
 
       if (onLandmarkSelect) {
         lmMarker.on('click', () => onLandmarkSelect(lm));
@@ -296,8 +338,8 @@ export const LeafletRouteMap: React.FC<Props> = ({
         // Base glow line
         L.polyline(routeResult.coordinates, {
           color: '#059669',
-          weight: 6,
-          opacity: 0.85,
+          weight: 5,
+          opacity: 0.9,
           lineCap: 'round',
           lineJoin: 'round',
         }).addTo(routeLayerRef.current);
@@ -306,7 +348,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
         L.polyline(routeResult.coordinates, {
           color: '#ffffff',
           weight: 2,
-          opacity: 0.9,
+          opacity: 0.95,
           dashArray: '5, 8',
           lineCap: 'round',
         }).addTo(routeLayerRef.current);
@@ -315,14 +357,14 @@ export const LeafletRouteMap: React.FC<Props> = ({
           onRouteCalculated(routeResult.distanceKm, routeResult.durationMins);
         }
 
-        // Fit map bounds smoothly
+        // Fit map bounds smoothly with high street zoom
         const bounds = L.latLngBounds([
           [pickupCoords.lat, pickupCoords.lng],
           [dropoffCoords.lat, dropoffCoords.lng],
         ]);
         map.fitBounds(bounds, {
-          padding: [45, 45],
-          maxZoom: 15,
+          padding: [35, 35],
+          maxZoom: 16,
           animate: true,
         });
       })
@@ -345,6 +387,16 @@ export const LeafletRouteMap: React.FC<Props> = ({
       {/* Map DOM Container */}
       <div ref={mapContainerRef} className={`w-full ${heightClass} z-0`} />
 
+      {/* Map Style Switcher Toggle */}
+      <button
+        type="button"
+        onClick={() => setMapStyle(prev => prev === 'voyager' ? 'osm' : 'voyager')}
+        className="absolute top-2.5 right-2.5 z-[500] bg-white/95 hover:bg-white text-slate-800 text-[10px] font-black px-2.5 py-1 rounded-lg border border-slate-300 shadow-md flex items-center gap-1 transition cursor-pointer backdrop-blur-xs"
+        title="Toggle between Detailed Street Map and Standard OSM"
+      >
+        <span>{mapStyle === 'voyager' ? '🗺️ Detailed Streets' : '🌍 OSM Standard'}</span>
+      </button>
+
       {/* Floating Mode Indicator / Instruction (when pin mode is active) */}
       {activePinMode !== 'none' && (
         <div className="absolute top-2.5 left-2.5 z-[500] bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-emerald-300 shadow-md text-xs font-black text-emerald-950 flex items-center gap-2 animate-pulse">
@@ -359,7 +411,7 @@ export const LeafletRouteMap: React.FC<Props> = ({
 
       {/* Loading Indicator */}
       {isLoadingRoute && (
-        <div className="absolute top-2.5 right-2.5 z-[500] bg-emerald-900/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-md flex items-center gap-1.5 shadow-sm">
+        <div className="absolute top-11 right-2.5 z-[500] bg-emerald-900/90 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg backdrop-blur-md flex items-center gap-1.5 shadow-sm">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-spin"></span>
           <span>{isUrdu ? 'روٹ کا حساب ہو رہا ہے...' : 'Routing...'}</span>
         </div>
