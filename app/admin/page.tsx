@@ -70,6 +70,31 @@ import {
 import { PrintableReceipt } from '@/components/PrintableReceipt';
 import { AnalyticsReportModal } from '@/components/AnalyticsReportModal';
 import { Toast, ToastMessage } from '@/components/Toast';
+import dynamic from 'next/dynamic';
+
+const AdminLocationPickerMap = dynamic(
+  () => import('@/components/AdminLocationPickerMap').then((m) => m.AdminLocationPickerMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-44 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-400">
+        Loading Interactive Location Map...
+      </div>
+    ),
+  }
+);
+
+const AdminSimulatorRouteMap = dynamic(
+  () => import('@/components/AdminSimulatorRouteMap').then((m) => m.AdminSimulatorRouteMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-40 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-400">
+        Loading Simulator Route Map...
+      </div>
+    ),
+  }
+);
 import { 
   Lock, 
   ShieldCheck, 
@@ -2054,6 +2079,14 @@ export default function AdminPage() {
 
                 return (
                   <div className="space-y-3 pt-2">
+                    {/* Live OpenStreetMap Simulator Route Preview */}
+                    <AdminSimulatorRouteMap
+                      pickupCoords={{ lat: Number(simP.lat), lng: Number(simP.lng) }}
+                      dropoffCoords={{ lat: Number(simD.lat), lng: Number(simD.lng) }}
+                      pickupName={simP.name}
+                      dropoffName={simD.name}
+                    />
+
                     <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
                       <div>
                         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Calculated Road Distance</span>
@@ -3907,6 +3940,20 @@ export default function AdminPage() {
                   className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900"
                 />
               </div>
+
+              {/* Interactive OpenStreetMap Pin Picker */}
+              <AdminLocationPickerMap
+                lat={editingLandmark.lat !== undefined ? Number(editingLandmark.lat) : 26.0031}
+                lng={editingLandmark.lng !== undefined ? Number(editingLandmark.lng) : 63.0544}
+                onLocationChange={(newLat, newLng) => {
+                  setEditingLandmark(prev => ({
+                    ...prev,
+                    lat: newLat,
+                    lng: newLng,
+                  }));
+                }}
+                placeName={editingLandmark.name || 'New Landmark'}
+              />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>

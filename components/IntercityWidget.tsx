@@ -24,6 +24,19 @@ import {
   UserCheck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import dynamic from 'next/dynamic';
+
+const IntercityRouteMap = dynamic(
+  () => import('@/components/IntercityRouteMap').then((m) => m.IntercityRouteMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-48 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-400">
+        Loading Highway Route Map...
+      </div>
+    ),
+  }
+);
 
 export const IntercityWidget = () => {
   const { t, isUrdu } = useLanguage();
@@ -266,6 +279,15 @@ export const IntercityWidget = () => {
               ))}
             </select>
           </div>
+
+          {/* Live Balochistan Highway Corridor Map */}
+          <IntercityRouteMap
+            originCity={currentRoute.origin_city}
+            destinationCity={currentRoute.destination_city}
+            distanceKm={currentRoute.estimated_distance_km}
+            duration={currentRoute.estimated_duration}
+            isUrdu={isUrdu}
+          />
 
           {/* Vehicle Class Selector */}
           <div>

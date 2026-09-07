@@ -14,6 +14,21 @@ import {
   Route
 } from 'lucide-react';
 
+import dynamic from 'next/dynamic';
+
+const LeafletRouteMap = dynamic(
+  () => import('@/components/LeafletRouteMap').then((mod) => mod.LeafletRouteMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-64 sm:h-72 rounded-2xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center gap-2 text-slate-400 animate-pulse">
+        <Compass className="w-7 h-7 animate-spin text-emerald-500" />
+        <span className="text-xs font-bold text-slate-600">Loading Live Turbat OpenStreetMap...</span>
+      </div>
+    ),
+  }
+);
+
 interface InteractiveRouteMapProps {
   pickupName: string;
   dropoffName: string;
@@ -34,27 +49,16 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
   isUrdu = false,
 }) => {
   const [activePinSelection, setActivePinSelection] = useState<'pickup' | 'dropoff'>('pickup');
+  const [dynamicKm, setDynamicKm] = useState<number>(distanceKm);
+  const [dynamicMins, setDynamicMins] = useState<number>(Math.max(4, Math.round(distanceKm * 2.5 + 2)));
 
   // Find landmarks coords
   const currentLandmarks = landmarks.length > 0 ? landmarks : TURBAT_LANDMARKS;
   const pickupLandmark = currentLandmarks.find(l => l.name === pickupName) || currentLandmarks[0];
   const dropoffLandmark = currentLandmarks.find(l => l.name === dropoffName) || currentLandmarks[2] || currentLandmarks[0];
 
-  // Turbat coordinate bounds
-  const minLat = 25.9800;
-  const maxLat = 26.0400;
-  const minLng = 63.0200;
-  const maxLng = 63.1200;
-
-  // Convert coords to percentage position on canvas
-  const getCanvasCoords = (lat: number, lng: number) => {
-    const x = Math.max(10, Math.min(90, ((lng - minLng) / (maxLng - minLng)) * 100));
-    const y = Math.max(10, Math.min(90, 100 - ((lat - minLat) / (maxLat - minLat)) * 100));
-    return { x, y };
-  };
-
-  const pPos = getCanvasCoords(pickupLandmark.lat, pickupLandmark.lng);
-  const dPos = getCanvasCoords(dropoffLandmark.lat, dropoffLandmark.lng);
+  const pickupCoords = { lat: Number(pickupLandmark.lat), lng: Number(pickupLandmark.lng) };
+  const dropoffCoords = { lat: Number(dropoffLandmark.lat), lng: Number(dropoffLandmark.lng) };
 
   // Google Maps Direction URL for live GPS navigation
   const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${pickupLandmark.lat},${pickupLandmark.lng}&destination=${dropoffLandmark.lat},${dropoffLandmark.lng}&travelmode=driving`;
@@ -69,8 +73,43 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
     }
   };
 
-  // Estimated driving time (approx 2.5 min per km + 2 min pickup buffer)
-  const estimatedMins = Math.max(4, Math.round(distanceKm * 2.5 + 2));
+  // When clicking on an arbitrary location on map, snap to nearest landmark or create custom point
+  const handleMapClick = (coords: { lat: number; lng: number }) => {
+    // Find nearest landmark to user click
+    let nearest: CityLandmark = currentLandmarks[0];
+    let minDist = Infinity;
+
+    for (const lm of currentLandmarks) {
+      const d = Math.hypot(lm.lat - coords.lat, lm.lng - coords.lng);
+      if (d < minDist) {
+        minDist = d;
+        nearest = lm;
+      }
+    }
+
+    if (minDist < 0.015) {
+      // Snapped to nearby landmark
+      handleLandmarkClick(nearest);
+    } else {
+      // Custom coordinate location
+      const label = `Location (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)})`;
+      if (activePinSelection === 'pickup') {
+        if (onPickupChange) onPickupChange(label, coords);
+        setActivePinSelection('dropoff');
+      } else {
+        if (onDropoffChange) onDropoffChange(label, coords);
+        setActivePinSelection('pickup');
+      }
+    }
+  };
+
+  const handleRouteCalculated = (km: number, mins: number) => {
+    setDynamicKm(km);
+    setDynamicMins(mins);
+  };
+
+  const displayKm = dynamicKm || distanceKm;
+  const estimatedMins = dynamicMins || Math.max(4, Math.round(displayKm * 2.5 + 2));
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-md space-y-4">
@@ -83,13 +122,13 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
           </div>
           <div>
             <h4 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-              <span>{isUrdu ? 'تربت لائیو روٹ میپ' : 'Live Turbat Route Map'}</span>
+              <span>{isUrdu ? 'تربت لائیو اوپن اسٹریٹ میپ' : 'Live Turbat Route Map'}</span>
               <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
-                GPS
+                OSM Free
               </span>
             </h4>
             <p className="text-[11px] text-slate-500">
-              {isUrdu ? 'نقشے پر مقام منتخب کریں — فاصلہ خودکار طریقے سے طے ہوگا' : 'Select points on map — Real-time distance is calculated automatically'}
+              {isUrdu ? 'نقشے پر مقام منتخب کریں — فاصلہ خودکار طریقے سے طے ہوگا' : 'Select points on real map — Real-time road distance is calculated automatically'}
             </p>
           </div>
         </div>
@@ -134,125 +173,19 @@ export const InteractiveRouteMap: React.FC<InteractiveRouteMapProps> = ({
         </div>
       </div>
 
-      {/* Interactive Map Visualizer Container */}
-      <div className="relative w-full h-64 sm:h-72 rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-50 select-none">
-        
-        {/* Background Map Graphic (Vector Turbat City Grid + Roads) */}
-        <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="grid-pattern-user" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e2e8f0" strokeWidth="0.8" />
-            </pattern>
-            {/* Kech River Flow Pattern */}
-            <linearGradient id="riverGradientUser" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#bfdbfe" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#93c5fd" stopOpacity="0.8" />
-            </linearGradient>
-            {/* Pulsing Dash on Route */}
-            <linearGradient id="routeGradientUser" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#00D084" />
-              <stop offset="100%" stopColor="#0284c7" />
-            </linearGradient>
-          </defs>
-
-          {/* City Grid Background */}
-          <rect width="100%" height="100%" fill="url(#grid-pattern-user)" />
-
-          {/* Kech River Flow Simulation Path */}
-          <path
-            d="M 0 160 Q 150 180 300 130 T 600 110"
-            fill="none"
-            stroke="url(#riverGradientUser)"
-            strokeWidth="14"
-            strokeLinecap="round"
-          />
-
-          {/* Main M-8 CPEC Arterial Road Across Turbat */}
-          <line x1="0" y1="60" x2="600" y2="240" stroke="#cbd5e1" strokeWidth="6" strokeLinecap="round" />
-          <line x1="0" y1="60" x2="600" y2="240" stroke="#f8fafc" strokeWidth="2" strokeDasharray="6 6" />
-
-          {/* Thana Road & Hospital Road Crossings */}
-          <line x1="160" y1="0" x2="220" y2="300" stroke="#e2e8f0" strokeWidth="5" />
-          <line x1="380" y1="0" x2="320" y2="300" stroke="#e2e8f0" strokeWidth="5" />
-
-          {/* Live Connecting Route Vector between Pickup & Dropoff */}
-          <path
-            d={`M ${pPos.x}% ${pPos.y}% Q ${(pPos.x + dPos.x) / 2 + 5}% ${(pPos.y + dPos.y) / 2 - 10}% ${dPos.x}% ${dPos.y}%`}
-            fill="none"
-            stroke="url(#routeGradientUser)"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeDasharray="8 6"
-            className="animate-pulse"
-          />
-        </svg>
-
-        {/* Real Landmarks Points Clickable on Map */}
-        {currentLandmarks.map((lm, idx) => {
-          const pos = getCanvasCoords(lm.lat, lm.lng);
-          const isPickup = lm.name === pickupLandmark.name;
-          const isDropoff = lm.name === dropoffLandmark.name;
-
-          return (
-            <div
-              key={lm.id || idx}
-              onClick={() => handleLandmarkClick(lm)}
-              style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
-              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group z-20"
-              title={`${lm.name} (${lm.area})`}
-            >
-              {isPickup ? (
-                /* Pickup Marker (Emerald Pin) */
-                <div className="relative flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
-                    <MapPin className="w-5 h-5 fill-white text-emerald-600" />
-                  </div>
-                  <span className="mt-1 text-[10px] font-black bg-emerald-900 text-white px-2 py-0.5 rounded-md shadow-md whitespace-nowrap border border-emerald-500">
-                    {isUrdu ? 'پک اپ پوائنٹ' : 'PICKUP'}
-                  </span>
-                </div>
-              ) : isDropoff ? (
-                /* Dropoff Marker (Teal Pin) */
-                <div className="relative flex flex-col items-center">
-                  <div className="w-8 h-8 rounded-full bg-teal-800 text-white flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
-                    <Navigation className="w-4 h-4 fill-white text-teal-800" />
-                  </div>
-                  <span className="mt-1 text-[10px] font-black bg-slate-900 text-teal-300 px-2 py-0.5 rounded-md shadow-md whitespace-nowrap border border-teal-500">
-                    {isUrdu ? 'منزل' : 'DROPOFF'}
-                  </span>
-                </div>
-              ) : (
-                /* Subtle City Landmark Dots */
-                <div className="flex flex-col items-center">
-                  <div className="w-3 h-3 rounded-full bg-slate-400 group-hover:bg-emerald-500 group-hover:scale-150 transition-all border border-white shadow-xs"></div>
-                  <span className="opacity-0 group-hover:opacity-100 transition-opacity absolute top-4 text-[9px] font-bold bg-white text-slate-800 px-1.5 py-0.5 rounded shadow border border-slate-200 whitespace-nowrap pointer-events-none">
-                    {lm.name.split(',')[0]}
-                  </span>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Floating Route Badge */}
-        <div className="absolute top-3 left-3 z-30 bg-white/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm text-xs font-bold text-slate-800 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-          <span>{pickupLandmark.area} ➔ {dropoffLandmark.area}</span>
-        </div>
-
-        {/* Map Legend */}
-        <div className="absolute bottom-2 left-2 z-30 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-200 text-[10px] text-slate-600 font-semibold flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>Pickup</span>
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-teal-800"></span>
-            <span>Dropoff</span>
-          </span>
-          <span className="hidden sm:inline text-slate-400">| Turbat City Network</span>
-        </div>
-      </div>
+      {/* Real Interactive Leaflet OpenStreetMap Visualizer */}
+      <LeafletRouteMap
+        pickupCoords={pickupCoords}
+        dropoffCoords={dropoffCoords}
+        pickupName={pickupLandmark.name}
+        dropoffName={dropoffLandmark.name}
+        landmarks={currentLandmarks}
+        onMapClick={handleMapClick}
+        onLandmarkSelect={handleLandmarkClick}
+        activePinMode={activePinSelection}
+        isUrdu={isUrdu}
+        onRouteCalculated={handleRouteCalculated}
+      />
 
       {/* AUTOMATED LIVE GPS DISTANCE METER — NO CONFUSING MANUAL USER INPUT */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

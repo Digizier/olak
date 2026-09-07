@@ -432,24 +432,29 @@ export const savePricingRate = async (rate: PricingRate): Promise<PricingRate> =
 // 3.1 REAL-TIME DISTANCE & FARE CALCULATOR
 // ==========================================
 export const calculateRealtimeDistance = (
-  p1: { lat: number; lng: number },
-  p2: { lat: number; lng: number }
+  p1: { lat: number | string; lng: number | string },
+  p2: { lat: number | string; lng: number | string }
 ): number => {
   if (!p1 || !p2) return 3.5;
-  if (p1.lat === p2.lat && p1.lng === p2.lng) return 1.5;
+  const lat1 = Number(p1.lat);
+  const lng1 = Number(p1.lng);
+  const lat2 = Number(p2.lat);
+  const lng2 = Number(p2.lng);
+  if (!Number.isFinite(lat1) || !Number.isFinite(lng1) || !Number.isFinite(lat2) || !Number.isFinite(lng2)) return 3.5;
+  if (Math.abs(lat1 - lat2) < 0.0001 && Math.abs(lng1 - lng2) < 0.0001) return 1.0;
 
   const R = 6371; // Earth radius in km
-  const dLat = (p2.lat - p1.lat) * (Math.PI / 180);
-  const dLng = (p2.lng - p1.lng) * (Math.PI / 180);
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(p1.lat * (Math.PI / 180)) * Math.cos(p2.lat * (Math.PI / 180)) *
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const aerialKm = R * c;
   // Turbat road network curvature factor (1.30)
   const roadKm = aerialKm * 1.30;
-  return Math.max(1.5, Math.round(roadKm * 10) / 10);
+  return Math.max(1.0, Math.round(roadKm * 10) / 10);
 };
 
 export const calculateTripFare = (
