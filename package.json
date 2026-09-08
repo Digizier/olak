@@ -35,7 +35,6 @@
     "pg": "^8.13.3",
     "postcss": "^8.5.3",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5.8.2",
-    "wrangler": "^4.129.1"
+    "typescript": "^5.8.2"
   }
 }
