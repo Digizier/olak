@@ -38,8 +38,9 @@ export const CaptainPromoSection = () => {
     window.addEventListener('olak_driver_promos_updated', handleUpdate);
 
     // 0ms Supabase Realtime Channel
+    const channelName = 'driver-promos-live-' + Math.random().toString(36).slice(2, 9);
     const channel = supabase
-      .channel('driver-promos-live-feed')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'driver_promos' }, () => {
         handleUpdate();
       })

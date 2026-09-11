@@ -35,8 +35,9 @@ export const PromotionBannerCarousel: React.FC<Props> = ({ isUrdu = false }) => 
     window.addEventListener('olak_promotions_updated', handleUpdate);
 
     // 0ms Supabase Realtime Channel
+    const channelName = 'promotions-live-feed-' + Math.random().toString(36).slice(2, 9);
     const channel = supabase
-      .channel('promotions-live-feed')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'promotions' }, () => {
         handleUpdate();
       })

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -25,6 +25,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
+import { CustomerBottomNav, CustomerNavTab } from '@/components/CustomerBottomNav';
 
 function TrackContent() {
   const { t, isUrdu } = useLanguage();
@@ -36,6 +37,10 @@ function TrackContent() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [captain, setCaptain] = useState<Captain | null>(null);
   const [searched, setSearched] = useState(false);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
 
   const fetchStatus = async (codeToSearch: string) => {
     if (!codeToSearch.trim()) return;
@@ -328,13 +333,29 @@ function TrackContent() {
 }
 
 export default function TrackPage() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
-      <Suspense fallback={<div className="text-center py-20 text-slate-500">Loading Tracker...</div>}>
-        <TrackContent />
-      </Suspense>
-      <Footer />
+      <div className="flex-grow pb-28 sm:pb-0">
+        <Suspense fallback={<div className="text-center py-20 text-slate-500">Loading Tracker...</div>}>
+          <TrackContent />
+        </Suspense>
+      </div>
+
+      {/* Mobile Sticky Customer Bottom Navigation Bar */}
+      <CustomerBottomNav
+        activeTab="track"
+        onTabChange={(tab) => {
+          if (tab === 'home') router.push('/');
+          else if (tab === 'book') router.push('/?tab=book');
+          else if (tab === 'rides') router.push('/customer/');
+          else if (tab === 'account') router.push('/customer/');
+        }}
+      />
+
+      <Footer className="hidden sm:block" />
     </div>
   );
 }

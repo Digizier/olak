@@ -54,14 +54,19 @@ import {
   X,
   Ban,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  ReceiptText,
+  PackageCheck,
+  Home
 } from 'lucide-react';
 import { getGoogleMapsNavigationUrl, getGoogleMapsDirectionsUrl } from '@/lib/routingHelper';
+import { CaptainBottomNav, CaptainNavTab } from '@/components/CaptainBottomNav';
 import confetti from 'canvas-confetti';
 
 export default function CaptainHubPage() {
   const { t, isUrdu } = useLanguage();
   const [activeTab, setActiveTab] = useState<'workplace' | 'register' | 'login'>('workplace');
+  const [captainNavTab, setCaptainNavTab] = useState<CaptainNavTab>('home');
   
   // Current Session
   const [currentCaptain, setCurrentCaptain] = useState<Captain | null>(null);
@@ -82,6 +87,10 @@ export default function CaptainHubPage() {
   // Form State
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [whatsapp, setWhatsapp] = useState('');
   const [cnic, setCnic] = useState('');
   const [city, setCity] = useState('Turbat');
@@ -99,7 +108,9 @@ export default function CaptainHubPage() {
   const [registeredCaptain, setRegisteredCaptain] = useState<Captain | null>(null);
 
   // Captain Login State
-  const [loginPhone, setLoginPhone] = useState('');
+  const [loginEmailOrPhone, setLoginEmailOrPhone] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
 
   // Live Workplace & Trips State
@@ -233,9 +244,10 @@ export default function CaptainHubPage() {
     window.addEventListener('olak_settlements_updated', loadData);
     window.addEventListener('olak_settings_updated', handleSettings);
 
-    // Supabase 0ms Real-Time Listener
+    // Supabase 0ms Real-Time Listener with unique channel name
+    const channelName = 'captain-portal-live-' + Math.random().toString(36).slice(2, 9);
     const channel = supabase
-      .channel('captain-portal-live')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'captains' }, () => {
         loadData();
       })
@@ -254,13 +266,36 @@ export default function CaptainHubPage() {
     };
   }, []);
 
+  // Instant scroll to top when captain navigation tab changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [captainNavTab]);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !phone || !cnic || !numberPlate) {
+    if (!fullName || !phone || !cnic || !numberPlate || !password) {
       setToast({
         type: 'error',
         title: 'Incomplete Details',
-        message: isUrdu ? 'تمام ضروری فیلڈز مکمل کریں۔' : 'Please fill all required fields.'
+        message: isUrdu ? 'تمام ضروری فیلڈز اور پاس ورڈ درج کریں۔' : 'Please fill all required fields and enter a password.'
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setToast({
+        type: 'error',
+        title: 'Weak Password',
+        message: isUrdu ? 'پاس ورڈ کم از کم 6 ہندسوں کا ہونا چاہیے۔' : 'Password must be at least 6 characters long.'
+      });
+      return;
+    }
+
+    if (confirmPassword && password !== confirmPassword) {
+      setToast({
+        type: 'error',
+        title: 'Password Mismatch',
+        message: isUrdu ? 'پاس ورڈ اور کنفرم پاس ورڈ یکساں نہیں ہیں۔' : 'Passwords do not match.'
       });
       return;
     }
@@ -277,16 +312,21 @@ export default function CaptainHubPage() {
       if (licenseFile) licenseUrl = await uploadFileToStorage(licenseFile, 'licenses');
       if (vehiclePhotoFile) vehicleUrl = await uploadFileToStorage(vehiclePhotoFile, 'vehicles');
 
+      const cleanPhone = phone.trim();
+      const cleanEmail = email.trim() ? email.trim().toLowerCase() : `${cleanPhone.replace(/\D/g, '') || Date.now()}@captain.olak.pk`;
+
       const captain = await createCaptain({
-        full_name: fullName,
-        phone: phone.trim(),
-        whatsapp_number: whatsapp.trim() || phone.trim(),
+        full_name: fullName.trim(),
+        email: cleanEmail,
+        password_hash: password,
+        phone: cleanPhone,
+        whatsapp_number: whatsapp.trim() || cleanPhone,
         cnic_number: cnic.trim(),
         city: city,
         service_type: serviceType,
-        vehicle_name: vehicleName,
-        vehicle_model_year: modelYear,
-        vehicle_number_plate: numberPlate.toUpperCase(),
+        vehicle_name: vehicleName.trim(),
+        vehicle_model_year: modelYear.trim(),
+        vehicle_number_plate: numberPlate.toUpperCase().trim(),
         cnic_front_url: cnicUrl,
         license_url: licenseUrl,
         vehicle_photo_url: vehicleUrl,
@@ -299,7 +339,7 @@ export default function CaptainHubPage() {
       setToast({
         type: 'success',
         title: 'Captain Registered!',
-        message: isUrdu ? 'آپ کی رجسٹریشن کامیابی سے مکمل ہو گئی ہے۔' : 'Your captain profile has been created successfully!'
+        message: isUrdu ? 'آپ کی رجسٹریشن کامیابی سے مکمل ہو گئی ہے۔ دستاویزات جانچ کے لیے بھیج دی گئی ہیں۔' : 'Your captain profile has been submitted for admin verification!'
       });
 
       try {
@@ -310,22 +350,23 @@ export default function CaptainHubPage() {
           colors: ['#00D084', '#10B981', '#ffffff']
         });
       } catch (e) {}
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setIsSubmitting(false);
       setToast({
         type: 'error',
         title: 'Registration Error',
-        message: 'Registration failed. Please try again.'
+        message: err?.message || 'Registration failed. Please try again.'
       });
     }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!loginPhone) return;
+    if (!loginEmailOrPhone.trim()) return;
 
-    const logged = await loginCaptain(loginPhone);
+    setLoginError('');
+    const logged = await loginCaptain(loginEmailOrPhone.trim(), loginPassword ? loginPassword : undefined);
     if (logged) {
       setCurrentCaptain(logged);
       const fin = await getCaptainFinancialSummary(logged.id);
@@ -337,7 +378,7 @@ export default function CaptainHubPage() {
         message: `Logged in as Captain ${logged.full_name}`
       });
     } else {
-      setLoginError(isUrdu ? 'کوئی منظور شدہ کیپٹن نہیں ملا۔' : 'No captain account found. Please register.');
+      setLoginError(isUrdu ? 'ای میل/فون یا پاس ورڈ درست نہیں ہے۔ دوبارہ کوشش کریں۔' : 'Invalid email/phone or password. Please try again or register.');
     }
   };
 
@@ -436,56 +477,149 @@ export default function CaptainHubPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
 
-      <main className="flex-grow py-6 sm:py-12">
+      <main className="flex-grow py-6 sm:py-12 pb-28 sm:pb-12">
         <div className="max-w-6xl mx-auto px-3.5 sm:px-6 lg:px-8 space-y-6 sm:space-y-8">
           
-          {/* Top Header Strip */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-0.5 rounded-full border border-emerald-300">
-                  {isUrdu ? 'اولاک کیپٹن پورٹل' : 'OLAK Driver & Captain Portal'}
-                </span>
+          {/* Top Header Strip - On mobile, only shown in Account / Settings tab */}
+          {(!currentCaptain || captainNavTab === 'account') ? (
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-emerald-700 bg-emerald-100 px-3 py-0.5 rounded-full border border-emerald-300">
+                    {isUrdu ? 'اولاک کیپٹن پورٹل' : 'OLAK Driver & Captain Portal'}
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900">
+                  {currentCaptain ? `${currentCaptain.full_name} (${currentCaptain.vehicle_name})` : (isUrdu ? 'اپنی گاڑی رجسٹر کروائیں' : 'Drive with OLAK')}
+                </h1>
+                <p className="text-xs text-slate-500 font-urdu">
+                  {isUrdu ? 'تربت شہر، ایئرپورٹ اور بلوچستان بھر میں رائیڈز اور ڈلیوری قبول کریں۔' : 'On-demand ride dispatch & real-time driver earnings in Turbat.'}
+                </p>
               </div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900">
-                {currentCaptain ? `${currentCaptain.full_name} (${currentCaptain.vehicle_name})` : (isUrdu ? 'اپنی گاڑی رجسٹر کروائیں' : 'Drive with OLAK')}
-              </h1>
-              <p className="text-xs text-slate-500 font-urdu">
-                {isUrdu ? 'تربت شہر، ایئرپورٹ اور بلوچستان بھر میں رائیڈز اور ڈلیوری قبول کریں۔' : 'On-demand ride dispatch & real-time driver earnings in Turbat.'}
-              </p>
-            </div>
 
-            {/* Navigation Switchers */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                onClick={() => setActiveTab('workplace')}
-                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeTab === 'workplace' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {isUrdu ? 'ورک پلیس' : 'Dashboard'}
-              </button>
+              {/* Navigation Switchers */}
+              {currentCaptain ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Desktop Tabs */}
+                  <div className="hidden sm:flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs">
+                    {[
+                      { id: 'home', label: isUrdu ? 'ہوم' : 'Home', icon: Home },
+                      { id: 'earnings', label: isUrdu ? 'آمدنی' : 'Earnings', icon: DollarSign },
+                      { id: 'trips', label: isUrdu ? 'ٹرپس' : 'Trips', icon: ReceiptText },
+                      { id: 'requests', label: isUrdu ? `آرڈرز (${availablePendingBookings.length})` : `Requests (${availablePendingBookings.length})`, icon: PackageCheck },
+                      { id: 'account', label: isUrdu ? 'اکاؤنٹ' : 'Account', icon: User },
+                    ].map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setCaptainNavTab(tab.id as any)}
+                          className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                            captainNavTab === tab.id ? 'bg-white text-emerald-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-              <button
-                onClick={() => setActiveTab('register')}
-                className={`flex-1 sm:flex-none px-3.5 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                  activeTab === 'register' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {isUrdu ? 'رجسٹریشن' : 'Register'}
-              </button>
+                  <Link
+                    href="/"
+                    className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
+                    title="Switch to Customer Storefront"
+                  >
+                    <Car className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="hidden md:inline">{isUrdu ? 'کسٹمر پورٹل' : 'Rider Portal'}</span>
+                  </Link>
 
-              {currentCaptain && (
-                <button
-                  onClick={handleLogout}
-                  className="p-2.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl border border-slate-200 transition cursor-pointer"
-                  title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+                  <button
+                    onClick={handleLogout}
+                    className="p-2 sm:px-3 sm:py-2 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl border border-slate-200 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                    title="Logout"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{isUrdu ? 'لاگ آؤٹ' : 'Logout'}</span>
+                  </button>
+                </div>
+              ) : (
+                /* Logged-out state: Sign In vs Register Tabs */
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => setActiveTab('workplace')}
+                    className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      activeTab === 'workplace' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {isUrdu ? 'لاگ ان' : 'Sign In'}
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('register')}
+                    className={`flex-1 sm:flex-none px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      activeTab === 'register' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {isUrdu ? 'رجسٹریشن' : 'Register Vehicle'}
+                  </button>
+                </div>
               )}
             </div>
-          </div>
+          ) : (
+            /* On Home, Earnings, Trips, Requests tabs - hidden on mobile, compact on desktop */
+            <div className="hidden sm:flex items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl px-5 py-3 shadow-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm font-black text-slate-900">{currentCaptain.full_name}</span>
+                <span className="text-xs text-slate-400">({currentCaptain.vehicle_name} • {currentCaptain.vehicle_number_plate})</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                  {[
+                    { id: 'home', label: isUrdu ? 'ہوم' : 'Home', icon: Home },
+                    { id: 'earnings', label: isUrdu ? 'آمدنی' : 'Earnings', icon: DollarSign },
+                    { id: 'trips', label: isUrdu ? 'ٹرپس' : 'Trips', icon: ReceiptText },
+                    { id: 'requests', label: isUrdu ? `آرڈرز (${availablePendingBookings.length})` : `Requests (${availablePendingBookings.length})`, icon: PackageCheck },
+                    { id: 'account', label: isUrdu ? 'اکاؤنٹ' : 'Account', icon: User },
+                  ].map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setCaptainNavTab(tab.id as any)}
+                        className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                          captainNavTab === tab.id ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <Link
+                  href="/"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-slate-200"
+                >
+                  <Car className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="hidden md:inline">{isUrdu ? 'کسٹمر پورٹل' : 'Rider'}</span>
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="p-1.5 bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-xl border border-slate-200 transition cursor-pointer"
+                  title="Logout"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* TAB 1: WORKPLACE & DRIVER DASHBOARD */}
           {activeTab === 'workplace' && (
@@ -497,24 +631,59 @@ export default function CaptainHubPage() {
                   <div className="w-14 h-14 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto border border-emerald-200">
                     <User className="w-7 h-7" />
                   </div>
-                  <h3 className="text-xl font-bold text-slate-900">Captain Login Required</h3>
-                  <p className="text-xs text-slate-500">Enter your registered mobile number or number plate to access your queue and earnings.</p>
+                  <h3 className="text-xl font-bold text-slate-900">{isUrdu ? 'کیپٹن لاگ ان' : 'Captain Login'}</h3>
+                  <p className="text-xs text-slate-500">{isUrdu ? 'اپنا رجسٹرڈ ای میل یا موبائل نمبر اور پاس ورڈ درج کریں۔' : 'Enter your registered Email or Mobile number and Password to access your workplace.'}</p>
                   
-                  <form onSubmit={handleLogin} className="space-y-3 pt-2">
-                    <input
-                      type="text"
-                      required
-                      placeholder="0334 1234567 or Plate (TRB-1234)"
-                      value={loginPhone}
-                      onChange={(e) => setLoginPhone(e.target.value)}
-                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
-                    />
+                  <form onSubmit={handleLogin} className="space-y-3 pt-2 text-left">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        {isUrdu ? 'ای میل یا موبائل نمبر' : 'Email or Mobile Number'}
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="0334 1234567 or captain@example.com"
+                        value={loginEmailOrPhone}
+                        onChange={(e) => {
+                          setLoginEmailOrPhone(e.target.value);
+                          setLoginError('');
+                        }}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          {isUrdu ? 'پاس ورڈ' : 'Password'}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowLoginPassword(!showLoginPassword)}
+                          className="text-[11px] text-emerald-700 hover:underline font-bold cursor-pointer"
+                        >
+                          {showLoginPassword ? (isUrdu ? 'چھپائیں' : 'Hide') : (isUrdu ? 'دیکھیں' : 'Show')}
+                        </button>
+                      </div>
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        required
+                        placeholder="••••••••"
+                        value={loginPassword}
+                        onChange={(e) => {
+                          setLoginPassword(e.target.value);
+                          setLoginError('');
+                        }}
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
                     {loginError && <p className="text-xs text-red-600 font-bold">{loginError}</p>}
                     <button
                       type="submit"
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-md cursor-pointer"
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-sm shadow-md cursor-pointer transition"
                     >
-                      Sign In to Workplace
+                      {isUrdu ? 'لاگ ان کریں' : 'Sign In to Driver Workplace'}
                     </button>
                   </form>
 
@@ -571,33 +740,80 @@ export default function CaptainHubPage() {
                   </div>
                 </div>
               ) : currentCaptain.status === 'pending' ? (
-                /* Pending Admin Approval Banner */
-                <div className="bg-white border border-amber-300 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
-                  <div className="w-16 h-16 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto border border-amber-200">
-                    <Clock className="w-8 h-8" />
+                /* Pending Admin Approval & Under Review Banner */
+                <div className="bg-white border-2 border-amber-300/80 rounded-3xl p-6 sm:p-9 text-center space-y-5 shadow-lg animate-fadeIn">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center mx-auto border-2 border-amber-300 shadow-xs">
+                    <Clock className="w-8 h-8 sm:w-10 sm:h-10 animate-pulse" />
                   </div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-3 py-1 rounded-full border border-amber-200">
-                    Application Status: Pending Admin Verification
-                  </span>
-                  <h3 className="text-xl sm:text-2xl font-black text-slate-900">
-                    Hello, Captain {currentCaptain.full_name}!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto font-urdu leading-relaxed">
-                    {isUrdu 
-                      ? 'آپ کی بائیک/گاڑی کی رجسٹریشن اور دستاویزات موصول ہوچکی ہیں۔ ایڈمن ٹیم جانچ کے بعد آپ کا اکاؤنٹ فعال کر دے گی۔' 
-                      : 'Your documents (CNIC & Driving License) are under review by our Turbat dispatch desk. You will be able to accept rides as soon as admin approves your account.'}
-                  </p>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 max-w-md mx-auto text-xs text-left space-y-1 text-slate-700">
-                    <p>Vehicle: <strong>{currentCaptain.vehicle_name} ({currentCaptain.vehicle_number_plate})</strong></p>
-                    <p>Phone: <strong>{currentCaptain.phone}</strong></p>
-                    <p>Head Office: <strong>Near City Thana, Turbat</strong></p>
+                  
+                  <div className="inline-flex items-center gap-2 bg-amber-100 text-amber-900 px-4 py-1 rounded-full text-xs font-black uppercase tracking-wider border border-amber-300">
+                    <span className="w-2 h-2 rounded-full bg-amber-600 animate-ping" />
+                    <span>{isUrdu ? 'دستاویزات کی جانچ جاری ہے (Under Review)' : 'Under Review — 24 to 48 Hours'}</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-2xl sm:text-3xl font-black text-slate-900">
+                      {isUrdu ? `خوش آمدید، کیپٹن ${currentCaptain.full_name}!` : `Welcome, Captain ${currentCaptain.full_name}!`}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-slate-600 max-w-xl mx-auto font-urdu leading-relaxed">
+                      {isUrdu 
+                        ? 'آپ کی درخواست اور دستاویزات (شناختی کارڈ، ڈرائیونگ لائسنس، گاڑی کی تصاویر) اولاک ایڈمن ڈیسک پر موصول ہو چکی ہیں۔ جانچ کے بعد آپ کا اکاؤنٹ رائیڈز کے لیے فعال کر دیا جائے گا۔' 
+                        : 'Your submitted documents (CNIC, Driving License, Vehicle Details) are currently being reviewed by our Turbat dispatch safety desk. You will be authorized to go online and accept rides upon approval.'}
+                    </p>
+                  </div>
+
+                  {/* 3-Step Verification Pipeline */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl mx-auto pt-2">
+                    <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-3 text-left">
+                      <div className="flex items-center gap-2 text-emerald-800 font-bold text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>1. Account Created</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">{currentCaptain.phone}</p>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-left">
+                      <div className="flex items-center gap-2 text-amber-900 font-bold text-xs">
+                        <RefreshCw className="w-4 h-4 text-amber-700 shrink-0 animate-spin" />
+                        <span>2. Under Review</span>
+                      </div>
+                      <p className="text-[10px] text-amber-800 mt-1">Verification in progress</p>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 text-left opacity-75">
+                      <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
+                        <ShieldCheck className="w-4 h-4 text-slate-400 shrink-0" />
+                        <span>3. Ride Dispatch</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">Pending admin pass</p>
+                    </div>
+                  </div>
+
+                  {/* Captain Details Box */}
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 max-w-lg mx-auto text-xs text-left space-y-1.5 text-slate-700">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Vehicle:</span>
+                      <strong className="text-slate-900">{currentCaptain.vehicle_name} ({currentCaptain.vehicle_number_plate})</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">CNIC Number:</span>
+                      <span className="font-mono font-bold text-slate-800">{currentCaptain.cnic_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">City & Service:</span>
+                      <span className="font-bold text-emerald-700 uppercase">{currentCaptain.city} • {currentCaptain.service_type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Turbat Safety Office:</span>
+                      <span className="font-bold text-slate-800">Near City Thana Road (+92 335 0455599)</span>
+                    </div>
                   </div>
 
                   <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
                     <button
                       type="button"
                       onClick={() => openEditModal(currentCaptain)}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-6 py-3 rounded-2xl shadow-sm cursor-pointer transition transform active:scale-95"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-6 py-3.5 rounded-2xl shadow-sm cursor-pointer transition transform active:scale-95"
                     >
                       <Edit3 className="w-4 h-4" />
                       <span>{isUrdu ? 'درخواست میں ترمیم کریں' : 'Edit Application Details'}</span>
@@ -607,10 +823,10 @@ export default function CaptainHubPage() {
                       type="button"
                       onClick={handleManualRefresh}
                       disabled={isRefreshing}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-5 py-3 rounded-2xl cursor-pointer transition"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold px-6 py-3.5 rounded-2xl border border-slate-300 cursor-pointer transition"
                     >
-                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                      <span>{isRefreshing ? (isUrdu ? 'تازہ کاری ہو رہی ہے...' : 'Checking...') : (isUrdu ? 'اسٹیٹس چیک کریں (Refresh)' : 'Check Status (Refresh)')}</span>
+                      <RefreshCw className={`w-4 h-4 text-emerald-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                      <span>{isRefreshing ? (isUrdu ? 'تازہ کاری ہو رہی ہے...' : 'Checking...') : (isUrdu ? 'منظوری چیک کریں (Refresh)' : 'Check Approval Status')}</span>
                     </button>
                   </div>
                 </div>
@@ -618,388 +834,620 @@ export default function CaptainHubPage() {
                 /* APPROVED CAPTAIN LIVE DASHBOARD */
                 <div className="space-y-6 animate-fadeIn">
                   
-                  {/* Status & Online Availability Header */}
-                  <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
-                    <div className="flex items-center gap-3.5 sm:gap-4">
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 font-black text-xl sm:text-2xl flex-shrink-0">
-                        {currentCaptain.full_name.charAt(0)}
+                  {/* Status & Online Availability Header - Only in Account / Settings Tab */}
+                  {captainNavTab === 'account' && (
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+                      <div className="flex items-center gap-3.5 sm:gap-4">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 font-black text-xl sm:text-2xl flex-shrink-0">
+                          {currentCaptain.full_name.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-lg sm:text-xl font-black text-slate-900">{currentCaptain.full_name}</h2>
+                            <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                              <ShieldCheck className="w-3 h-3" />
+                              <span>Approved</span>
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-1">
+                            Vehicle: <span className="text-slate-900 font-bold">{currentCaptain.vehicle_name}</span> • Plate: <span className="font-mono text-emerald-700 font-bold">{currentCaptain.vehicle_number_plate}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={handleManualRefresh}
+                          disabled={isRefreshing}
+                          className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          title="Refresh Workplace"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          <span>{isRefreshing ? '...' : (isUrdu ? 'تازہ کریں' : 'Refresh')}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(currentCaptain)}
+                          className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          title="Edit Profile"
+                        >
+                          <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{isUrdu ? 'پروفائل میں ترمیم' : 'Edit Profile'}</span>
+                        </button>
+
+                        <button
+                          onClick={handleToggleOnline}
+                          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer ${
+                            currentCaptain.is_online
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
+                              : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                          }`}
+                        >
+                          <Power className="w-4 h-4" />
+                          <span>{currentCaptain.is_online ? 'ONLINE (Accepting Rides)' : 'OFFLINE (Tap to Go Online)'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAB CONTENT BASED ON captainNavTab */}
+
+                  {/* 1. HOME TAB */}
+                  {captainNavTab === 'home' && (
+                    <div className="space-y-6 animate-fadeIn min-h-[calc(100vh-180px)]">
+                      {/* Clean Driver Workplace Status & Quick Switch */}
+                      <div className={`border rounded-3xl p-4 sm:p-5 flex items-center justify-between gap-3 shadow-sm transition-all ${
+                        currentCaptain.is_online 
+                          ? 'bg-emerald-50/90 border-emerald-300' 
+                          : 'bg-white border-slate-200'
+                      }`}>
+                        <div className="flex items-center gap-3">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition shadow-xs ${
+                            currentCaptain.is_online ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'
+                          }`}>
+                            <Power className={`w-5 h-5 ${currentCaptain.is_online ? 'animate-pulse' : ''}`} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                                {currentCaptain.is_online ? (isUrdu ? 'آپ آن لائن ہیں (سواریاں فعال)' : 'You are ONLINE') : (isUrdu ? 'آپ آف لائن ہیں' : 'You are OFFLINE')}
+                              </h3>
+                              <span className={`w-2.5 h-2.5 rounded-full ${currentCaptain.is_online ? 'bg-emerald-500 animate-ping' : 'bg-slate-300'}`} />
+                            </div>
+                            <p className="text-[11px] text-slate-500 mt-0.5 font-urdu">
+                              {currentCaptain.is_online 
+                                ? (isUrdu ? 'تربت میں سواریاں موصول کرنے کے لیے ریڈار فعال ہے' : 'Active and receiving passenger rides in Turbat') 
+                                : (isUrdu ? 'سواریاں وصول کرنے کے لیے بٹن دبائیں' : 'Tap Go Online to start receiving passenger rides')}
+                            </p>
+                          </div>
+                        </div>
+
                         <div className="flex items-center gap-2">
-                          <h2 className="text-lg sm:text-xl font-black text-slate-900">{currentCaptain.full_name}</h2>
-                          <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
-                            <ShieldCheck className="w-3 h-3" />
-                            <span>Approved</span>
+                          <button
+                            type="button"
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer"
+                            title="Refresh"
+                          >
+                            <RefreshCw className={`w-4 h-4 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                          </button>
+
+                          <button
+                            onClick={handleToggleOnline}
+                            className={`px-4 sm:px-5 py-2.5 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                              currentCaptain.is_online
+                                ? 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                            }`}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>{currentCaptain.is_online ? (isUrdu ? 'آف لائن ہوں' : 'Go Offline') : (isUrdu ? 'آن لائن جائیں' : 'Go Online')}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Active Ongoing Trip Card */}
+                      {activeAssignedTrip ? (
+                        <div className="bg-white border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                              <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-200">
+                                Active: {activeAssignedTrip.booking_code}
+                              </span>
+                            </div>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider bg-emerald-600 text-white">
+                              {activeAssignedTrip.booking_status.replace('_', ' ')}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
+                            <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-slate-500 block text-[11px]">Pickup Location:</span>
+                                    <strong className="text-slate-900 block truncate">{activeAssignedTrip.pickup_location}</strong>
+                                  </div>
+                                </div>
+                                <a
+                                  href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
+                                  title="1-Click Navigate to Pickup in Google Maps"
+                                >
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                  <span>Map</span>
+                                </a>
+                              </div>
+
+                              <div className="flex items-start justify-between gap-2 pt-2 border-t border-slate-200/60">
+                                <div className="flex items-start gap-2 flex-1 min-w-0">
+                                  <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
+                                  <div className="min-w-0">
+                                    <span className="text-slate-500 block text-[11px]">Destination:</span>
+                                    <strong className="text-slate-900 block truncate">{activeAssignedTrip.dropoff_location}</strong>
+                                  </div>
+                                </div>
+                                <a
+                                  href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1 bg-teal-100 hover:bg-teal-200 text-teal-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
+                                  title="1-Click Navigate to Destination in Google Maps"
+                                >
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                  <span>Map</span>
+                                </a>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500">Passenger:</span>
+                                <span className="font-bold text-slate-900">{activeAssignedTrip.customer_name}</span>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className="text-slate-500">Collect Cash:</span>
+                                <span className="font-black text-emerald-600 text-base">PKR {activeAssignedTrip.estimated_fare}</span>
+                              </div>
+                              <div className="flex gap-2 pt-1">
+                                <a
+                                  href={`tel:${activeAssignedTrip.customer_phone}`}
+                                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-center py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                                >
+                                  <Phone className="w-3.5 h-3.5" />
+                                  <span>Call</span>
+                                </a>
+                                <a
+                                  href={`https://wa.me/${activeAssignedTrip.customer_phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl border border-emerald-200 transition"
+                                >
+                                  <MessageCircle className="w-4 h-4" />
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 1-Click Live Turn-by-Turn Google Maps Navigation */}
+                          <div className="pt-2">
+                            {activeAssignedTrip.booking_status === 'assigned' ? (
+                              <a
+                                href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
+                                title="Open Google Maps Turn-by-Turn Live Navigation to Passenger"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                <span>🗺️ 1-Click Google Maps: Navigate to Passenger Pickup</span>
+                              </a>
+                            ) : (
+                              <a
+                                href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="w-full bg-teal-700 hover:bg-teal-800 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
+                                title="Open Google Maps Turn-by-Turn Live Navigation to Dropoff"
+                              >
+                                <ExternalLink className="w-4 h-4" />
+                                <span>🏁 1-Click Google Maps: Navigate to Destination</span>
+                              </a>
+                            )}
+                          </div>
+
+                          {/* Action Steps */}
+                          <div className="pt-1 flex flex-wrap gap-2.5">
+                            {activeAssignedTrip.booking_status === 'assigned' && (
+                              <button
+                                onClick={() => handleStatusProgress(activeAssignedTrip.id, 'arrived')}
+                                className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
+                              >
+                                Mark as "Arrived at Pickup Point"
+                              </button>
+                            )}
+                            {activeAssignedTrip.booking_status === 'arrived' && (
+                              <button
+                                onClick={() => handleStatusProgress(activeAssignedTrip.id, 'in_progress')}
+                                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
+                              >
+                                Start Trip to Destination
+                              </button>
+                            )}
+                            {activeAssignedTrip.booking_status === 'in_progress' && (
+                              <button
+                                onClick={() => handleStatusProgress(activeAssignedTrip.id, 'completed')}
+                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-2xl text-sm transition shadow-md cursor-pointer"
+                              >
+                                Complete Trip & Collect Cash (PKR {activeAssignedTrip.estimated_fare})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Radar Standby Banner when no active trip */
+                        <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                          <div className="flex items-center gap-3.5">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${currentCaptain.is_online ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'}`}>
+                              <Navigation className={`w-6 h-6 ${currentCaptain.is_online ? 'animate-pulse' : ''}`} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-black text-slate-900 text-base">
+                                  {currentCaptain.is_online ? 'Radar Active — Ready for Rides' : 'You are Currently Offline'}
+                                </h3>
+                                {currentCaptain.is_online && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                                )}
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {currentCaptain.is_online 
+                                  ? `${availablePendingBookings.length} passenger requests waiting in Turbat` 
+                                  : 'Turn switch to Online above to receive incoming passenger requests'}
+                              </p>
+                            </div>
+                          </div>
+                          {availablePendingBookings.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setCaptainNavTab('requests')}
+                              className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-4 py-2.5 rounded-xl shadow-xs transition cursor-pointer"
+                            >
+                              View {availablePendingBookings.length} Requests →
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Snapshot Financial Strip */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Gross Cash Collected</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs font-bold text-slate-500">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-slate-900">{grossEarnings}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">From Riders (Cash in Hand)</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">Captain Net Share</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs font-bold text-emerald-600">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-emerald-700">{netEarnings}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">{captainSharePercent}% of Total Fares</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">{commissionRate}% Platform Fee</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs text-amber-600 font-bold">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-amber-700">{platformFee}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">Commission for OLAK ({commissionRate}%)</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Office Clearance</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className={`text-lg sm:text-xl font-black ${financialSummary && financialSummary.netBalanceDue > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                              {financialSummary && financialSummary.netBalanceDue > 0 ? `PKR ${financialSummary.netBalanceDue} Due` : 'All Cleared ✓'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            {financialSummary ? `PKR ${financialSummary.totalSettled} paid` : 'Settled at Office'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-600 mt-1">
-                          Vehicle: <span className="text-slate-900 font-bold">{currentCaptain.vehicle_name}</span> • Plate: <span className="font-mono text-emerald-700 font-bold">{currentCaptain.vehicle_number_plate}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. EARNINGS TAB */}
+                  {captainNavTab === 'earnings' && (
+                    <div className="space-y-6 animate-fadeIn">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Gross Cash Collected</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs font-bold text-slate-500">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-slate-900">{grossEarnings}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">From Riders (Cash in Hand)</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">Captain Net Share</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs font-bold text-emerald-600">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-emerald-700">{netEarnings}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">{captainSharePercent}% of Total Fares</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">{commissionRate}% Platform Fee</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className="text-xs text-amber-600 font-bold">PKR</span>
+                            <span className="text-xl sm:text-2xl font-black text-amber-700">{platformFee}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">Commission for OLAK ({commissionRate}%)</span>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
+                          <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Office Clearance</span>
+                          <div className="flex items-baseline gap-1 mt-1">
+                            <span className={`text-lg sm:text-xl font-black ${financialSummary && financialSummary.netBalanceDue > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                              {financialSummary && financialSummary.netBalanceDue > 0 ? `PKR ${financialSummary.netBalanceDue} Due` : 'All Cleared ✓'}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-500">
+                            {financialSummary ? `PKR ${financialSummary.totalSettled} paid` : 'Settled at Office'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Financial Guidelines & Office Settlement Desk */}
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-4">
+                        <h3 className="font-black text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                          <DollarSign className="w-5 h-5 text-emerald-600" />
+                          <span>Cash Settlement & Commission Policy</span>
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-urdu">
+                          {isUrdu 
+                            ? 'اولاک پلیٹ فارم پر کیپٹن تمام کرایہ نقد مسافر سے خود وصول کرتا ہے۔ ہر سفر پر صرف 10% فیس اولاک کے دفتر میں جمع کروانی ہوتی ہے، جبکہ 90% خالص رقم کیپٹن کا منافع ہے۔' 
+                            : 'On OLAK, captains collect 100% cash directly from riders upon trip completion. A fixed 10% platform fee is payable to the OLAK Turbat settlement office, allowing you to keep 90% of your hard-earned revenue.'}
                         </p>
+
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2">
+                          <div className="flex justify-between"><span className="text-slate-500">Completed Trips:</span> <strong className="text-slate-900">{completedTrips.length}</strong></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Commission Rate:</span> <strong className="text-emerald-700">{commissionRate}%</strong></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Settlement Status:</span> <strong className={financialSummary && financialSummary.netBalanceDue > 0 ? 'text-red-600' : 'text-emerald-700'}>{financialSummary && financialSummary.netBalanceDue > 0 ? `PKR ${financialSummary.netBalanceDue} Pending Clearance` : 'Up-to-date ✓'}</strong></div>
+                          <div className="flex justify-between"><span className="text-slate-500">Turbat Head Office:</span> <span className="text-slate-800 font-bold">Near City Thana Road, Turbat (+92 335 0455599)</span></div>
+                        </div>
                       </div>
                     </div>
+                  )}
 
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <button
-                        type="button"
-                        onClick={handleManualRefresh}
-                        disabled={isRefreshing}
-                        className="px-3.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        title="Refresh Workplace"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 text-slate-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-                        <span>{isRefreshing ? '...' : (isUrdu ? 'تازہ کریں' : 'Refresh')}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(currentCaptain)}
-                        className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                        title="Edit Profile"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-slate-500" />
-                        <span>{isUrdu ? 'پروفائل میں ترمیم' : 'Edit Profile'}</span>
-                      </button>
-
-                      <button
-                        onClick={handleToggleOnline}
-                        className={`w-full sm:w-auto flex items-center justify-center gap-2 px-5 sm:px-6 py-3 rounded-2xl font-black text-xs transition transform active:scale-95 shadow-sm cursor-pointer ${
-                          currentCaptain.is_online
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
-                            : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                        }`}
-                      >
-                        <Power className="w-4 h-4" />
-                        <span>{currentCaptain.is_online ? 'ONLINE (Accepting Rides)' : 'OFFLINE (Tap to Go Online)'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* REAL-TIME DRIVER FINANCIAL ANALYTICS & CASH CLEARANCE STRIP */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Gross Cash Collected</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs font-bold text-slate-500">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-slate-900">{grossEarnings}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">From Riders (Cash in Hand)</span>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-700 block">Captain Net Share</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs font-bold text-emerald-600">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-emerald-700">{netEarnings}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">{captainSharePercent}% of Total Fares</span>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-700 block">{commissionRate}% Platform Fee</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className="text-xs text-amber-600 font-bold">PKR</span>
-                        <span className="text-xl sm:text-2xl font-black text-amber-700">{platformFee}</span>
-                      </div>
-                      <span className="text-[10px] text-slate-500">Commission for OLAK ({commissionRate}%)</span>
-                    </div>
-
-                    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm">
-                      <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-500 block">Office Clearance</span>
-                      <div className="flex items-baseline gap-1 mt-1">
-                        <span className={`text-lg sm:text-xl font-black ${financialSummary && financialSummary.netBalanceDue > 0 ? 'text-red-600' : 'text-emerald-700'}`}>
-                          {financialSummary && financialSummary.netBalanceDue > 0 ? `PKR ${financialSummary.netBalanceDue} Due` : 'All Cleared ✓'}
+                  {/* 3. TRIPS TAB */}
+                  {captainNavTab === 'trips' && (
+                    <div className="space-y-4 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                          <span>{isUrdu ? 'مکمل شدہ سفر' : 'Completed Trips & Earnings'}</span>
+                        </h3>
+                        <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                          {completedTrips.length} Completed
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-500">
-                        {financialSummary ? `PKR ${financialSummary.totalSettled} paid` : 'Settled at Office'}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* ACTIVE ONGOING TRIP CARD */}
-                  {activeAssignedTrip && (
-                    <div className="bg-white border-2 border-emerald-500 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
-                      <div className="flex items-center justify-between">
+                      {/* Mobile Cards */}
+                      <div className="space-y-3 sm:hidden">
+                        {completedTrips.map((b) => (
+                          <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-sm">
+                            <div className="flex justify-between text-xs">
+                              <span className="font-mono font-bold text-slate-900">{b.booking_code}</span>
+                              <span className="font-bold text-emerald-700">
+                                Net: PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-700 truncate">👤 {b.customer_name}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{b.pickup_location} ➔ {b.dropoff_location}</p>
+                          </div>
+                        ))}
+                        {completedTrips.length === 0 && (
+                          <div className="p-6 text-center text-slate-500 text-xs font-urdu bg-white rounded-2xl border border-slate-200">
+                            {isUrdu ? 'ابھی تک کوئی مکمل سفر درج نہیں۔' : 'No completed trips recorded yet.'}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Desktop Table */}
+                      <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                        <table className="w-full text-left text-xs text-slate-700">
+                          <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-3">Token</th>
+                              <th className="px-4 py-3">Passenger</th>
+                              <th className="px-4 py-3">Route</th>
+                              <th className="px-4 py-3">Gross Fare</th>
+                              <th className="px-4 py-3">Net Earning (90%)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200">
+                            {completedTrips.map((b) => (
+                              <tr key={b.id} className="hover:bg-slate-50 transition">
+                                <td className="px-4 py-3 font-mono font-bold text-slate-900">{b.booking_code}</td>
+                                <td className="px-4 py-3">{b.customer_name}</td>
+                                <td className="px-4 py-3 max-w-xs truncate">{b.pickup_location} ➔ {b.dropoff_location}</td>
+                                <td className="px-4 py-3 text-slate-600">PKR {b.final_fare || b.estimated_fare}</td>
+                                <td className="px-4 py-3 font-black text-emerald-700">
+                                  PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4. REQUESTS TAB */}
+                  {captainNavTab === 'requests' && (
+                    <div className="space-y-4 animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                          <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                          <span>{isUrdu ? 'تربت میں دستیاب سواریاں و پارسل' : 'Live Available Bookings in Turbat'}</span>
+                        </h3>
                         <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-                          <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-200">
-                            Active: {activeAssignedTrip.booking_code}
+                          <button
+                            type="button"
+                            onClick={handleManualRefresh}
+                            disabled={isRefreshing}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-2xs transition cursor-pointer transform active:scale-95 disabled:opacity-50"
+                            title="Refresh Available Bookings"
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+                            <span>{isRefreshing ? (isUrdu ? 'تازہ کاری...' : 'Refreshing...') : (isUrdu ? 'تازہ کریں (Refresh)' : 'Refresh Rides')}</span>
+                          </button>
+                          <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                            {availablePendingBookings.length} Requests
                           </span>
                         </div>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black uppercase tracking-wider bg-emerald-600 text-white">
-                          {activeAssignedTrip.booking_status.replace('_', ' ')}
-                        </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-xs sm:text-sm">
-                        <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <MapPin className="w-4 h-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <span className="text-slate-500 block text-[11px]">Pickup Location:</span>
-                                <strong className="text-slate-900 block truncate">{activeAssignedTrip.pickup_location}</strong>
-                              </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                        {availablePendingBookings.map((b) => (
+                          <div 
+                            key={b.id}
+                            className="bg-white border border-slate-200 hover:border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-3.5 transition shadow-sm hover:shadow-md"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
+                                {b.booking_code}
+                              </span>
+                              <span className="text-[10px] sm:text-xs font-bold uppercase text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                {b.service_type}
+                              </span>
                             </div>
-                            <a
-                              href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
-                              title="1-Click Navigate to Pickup in Google Maps"
-                            >
-                              <ExternalLink className="w-2.5 h-2.5" />
-                              <span>Map</span>
-                            </a>
-                          </div>
 
-                          <div className="flex items-start justify-between gap-2 pt-2 border-t border-slate-200/60">
-                            <div className="flex items-start gap-2 flex-1 min-w-0">
-                              <Navigation className="w-4 h-4 text-teal-700 mt-0.5 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <span className="text-slate-500 block text-[11px]">Destination:</span>
-                                <strong className="text-slate-900 block truncate">{activeAssignedTrip.dropoff_location}</strong>
-                              </div>
+                            <div className="space-y-1.5 text-xs text-slate-700">
+                              <p className="truncate">📍 Pickup: <strong className="text-slate-900">{b.pickup_location}</strong></p>
+                              <p className="truncate">🏁 Destination: <strong className="text-slate-900">{b.dropoff_location}</strong></p>
+                              <a
+                                href={getGoogleMapsDirectionsUrl(b.pickup_coords || b.pickup_location, b.dropoff_coords || b.dropoff_location)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline pt-0.5"
+                                title="Preview route in Google Maps"
+                              >
+                                <ExternalLink className="w-3 h-3 text-emerald-600" />
+                                <span>1-Click View Route Map</span>
+                              </a>
                             </div>
-                            <a
-                              href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-2.5 py-1 bg-teal-100 hover:bg-teal-200 text-teal-800 rounded-lg text-[10px] font-black flex items-center gap-1 flex-shrink-0 transition shadow-2xs"
-                              title="1-Click Navigate to Destination in Google Maps"
-                            >
-                              <ExternalLink className="w-2.5 h-2.5" />
-                              <span>Map</span>
-                            </a>
-                          </div>
-                        </div>
 
-                        <div className="space-y-2 bg-slate-50 p-3.5 sm:p-4 rounded-2xl border border-slate-200 flex flex-col justify-between">
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500">Passenger:</span>
-                            <span className="font-bold text-slate-900">{activeAssignedTrip.customer_name}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-500">Collect Cash:</span>
-                            <span className="font-black text-emerald-600 text-base">PKR {activeAssignedTrip.estimated_fare}</span>
-                          </div>
-                          <div className="flex gap-2 pt-1">
-                            <a
-                              href={`tel:${activeAssignedTrip.customer_phone}`}
-                              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-center py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
-                            >
-                              <Phone className="w-3.5 h-3.5" />
-                              <span>Call</span>
-                            </a>
-                            <a
-                              href={`https://wa.me/${activeAssignedTrip.customer_phone.replace(/\D/g, '')}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-2 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl border border-emerald-200 transition"
-                            >
-                              <MessageCircle className="w-4 h-4" />
-                            </a>
-                          </div>
-                        </div>
-                      </div>
+                            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                              <div>
+                                <span className="text-[10px] text-slate-400 block">Cash Fare</span>
+                                <span className="text-base font-black text-emerald-600">PKR {b.estimated_fare}</span>
+                              </div>
 
-                      {/* 1-Click Live Turn-by-Turn Google Maps Navigation */}
-                      <div className="pt-2">
-                        {activeAssignedTrip.booking_status === 'assigned' ? (
-                          <a
-                            href={getGoogleMapsNavigationUrl(activeAssignedTrip.pickup_coords || activeAssignedTrip.pickup_location)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
-                            title="Open Google Maps Turn-by-Turn Live Navigation to Passenger"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            <span>🗺️ 1-Click Google Maps: Navigate to Passenger Pickup</span>
-                          </a>
-                        ) : (
-                          <a
-                            href={getGoogleMapsNavigationUrl(activeAssignedTrip.dropoff_coords || activeAssignedTrip.dropoff_location)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition flex items-center justify-center gap-2 shadow-md cursor-pointer transform active:scale-98"
-                            title="Open Google Maps Turn-by-Turn Live Navigation to Dropoff"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                            <span>🏁 1-Click Google Maps: Navigate to Destination</span>
-                          </a>
-                        )}
-                      </div>
+                              <button
+                                onClick={() => handleAcceptRide(b.id)}
+                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-4 h-4" />
+                                <span>{isUrdu ? 'قبول کریں' : 'Accept Ride'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
 
-                      {/* Action Steps */}
-                      <div className="pt-1 flex flex-wrap gap-2.5">
-                        {activeAssignedTrip.booking_status === 'assigned' && (
-                          <button
-                            onClick={() => handleStatusProgress(activeAssignedTrip.id, 'arrived')}
-                            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
-                          >
-                            Mark as "Arrived at Pickup Point"
-                          </button>
-                        )}
-                        {activeAssignedTrip.booking_status === 'arrived' && (
-                          <button
-                            onClick={() => handleStatusProgress(activeAssignedTrip.id, 'in_progress')}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-2xl text-xs sm:text-sm transition cursor-pointer"
-                          >
-                            Start Trip to Destination
-                          </button>
-                        )}
-                        {activeAssignedTrip.booking_status === 'in_progress' && (
-                          <button
-                            onClick={() => handleStatusProgress(activeAssignedTrip.id, 'completed')}
-                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-3.5 rounded-2xl text-sm transition shadow-md cursor-pointer"
-                          >
-                            Complete Trip & Collect Cash (PKR {activeAssignedTrip.estimated_fare})
-                          </button>
+                        {availablePendingBookings.length === 0 && (
+                          <div className="col-span-2 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 text-center text-slate-500 text-xs font-urdu shadow-sm">
+                            {isUrdu 
+                              ? 'اس وقت کوئی نئی پینڈنگ رائیڈ نہیں ہے۔ جیسے ہی کوئی مسافر بکنگ کرے گا، یہاں شو ہوگی۔' 
+                              : 'No pending requests currently. Keeping radar active for new customer bookings in Turbat...'}
+                          </div>
                         )}
                       </div>
                     </div>
                   )}
 
-                  {/* AVAILABLE PENDING RIDES QUEUE */}
-                  <div className="space-y-3 sm:space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-                        <span>{isUrdu ? 'تربت میں دستیاب سواریاں و پارسل' : 'Live Available Bookings in Turbat'}</span>
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={handleManualRefresh}
-                          disabled={isRefreshing}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-black shadow-2xs transition cursor-pointer transform active:scale-95 disabled:opacity-50"
-                          title="Refresh Available Bookings"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-                          <span>{isRefreshing ? (isUrdu ? 'تازہ کاری...' : 'Refreshing...') : (isUrdu ? 'تازہ کریں (Refresh)' : 'Refresh Rides')}</span>
-                        </button>
-                        <span className="text-xs text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                          {availablePendingBookings.length} Requests
-                        </span>
+                  {/* 5. ACCOUNT TAB */}
+                  {captainNavTab === 'account' && (
+                    <div className="space-y-6 animate-fadeIn">
+                      <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-sm space-y-5">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-800 font-black text-2xl">
+                              {currentCaptain.full_name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h2 className="text-lg sm:text-xl font-black text-slate-900">{currentCaptain.full_name}</h2>
+                                <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                  {currentCaptain.status.toUpperCase()}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-0.5">{currentCaptain.phone} • {currentCaptain.city}</p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => openEditModal(currentCaptain)}
+                            className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{isUrdu ? 'ترمیم کریں' : 'Edit Profile'}</span>
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Vehicle Information</span>
+                            <p className="flex justify-between"><span className="text-slate-500">Vehicle Type:</span> <strong className="text-slate-900 uppercase">{currentCaptain.service_type} ({currentCaptain.vehicle_name})</strong></p>
+                            <p className="flex justify-between"><span className="text-slate-500">License Plate:</span> <span className="font-mono font-bold text-emerald-700">{currentCaptain.vehicle_number_plate}</span></p>
+                            <p className="flex justify-between"><span className="text-slate-500">Model Year:</span> <span className="font-bold text-slate-800">{currentCaptain.vehicle_model_year || 'N/A'}</span></p>
+                          </div>
+
+                          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Driver Identity</span>
+                            <p className="flex justify-between"><span className="text-slate-500">CNIC:</span> <span className="font-mono font-bold text-slate-800">{currentCaptain.cnic_number}</span></p>
+                            <p className="flex justify-between"><span className="text-slate-500">WhatsApp:</span> <span className="font-bold text-slate-800">{currentCaptain.whatsapp_number || currentCaptain.phone}</span></p>
+                            <p className="flex justify-between"><span className="text-slate-500">Email:</span> <span className="text-slate-800">{currentCaptain.email || 'N/A'}</span></p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                          <Link
+                            href="/"
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold border border-slate-200 transition"
+                          >
+                            <Car className="w-4 h-4 text-emerald-600" />
+                            <span>Switch to Customer / Passenger Portal</span>
+                          </Link>
+
+                          <button
+                            onClick={handleLogout}
+                            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold border border-red-200 transition cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            <span>Log Out from Captain Workplace</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-                      {availablePendingBookings.map((b) => (
-                        <div 
-                          key={b.id}
-                          className="bg-white border border-slate-200 hover:border-emerald-500 rounded-2xl p-4 sm:p-5 space-y-3.5 transition shadow-sm hover:shadow-md"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200">
-                              {b.booking_code}
-                            </span>
-                            <span className="text-[10px] sm:text-xs font-bold uppercase text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-                              {b.service_type}
-                            </span>
-                          </div>
-
-                          <div className="space-y-1.5 text-xs text-slate-700">
-                            <p className="truncate">📍 Pickup: <strong className="text-slate-900">{b.pickup_location}</strong></p>
-                            <p className="truncate">🏁 Destination: <strong className="text-slate-900">{b.dropoff_location}</strong></p>
-                            <a
-                              href={getGoogleMapsDirectionsUrl(b.pickup_coords || b.pickup_location, b.dropoff_coords || b.dropoff_location)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 font-bold hover:underline pt-0.5"
-                              title="Preview route in Google Maps"
-                            >
-                              <ExternalLink className="w-3 h-3 text-emerald-600" />
-                              <span>1-Click View Route Map</span>
-                            </a>
-                          </div>
-
-                          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                            <div>
-                              <span className="text-[10px] text-slate-400 block">Cash Fare</span>
-                              <span className="text-base font-black text-emerald-600">PKR {b.estimated_fare}</span>
-                            </div>
-
-                            <button
-                              onClick={() => handleAcceptRide(b.id)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
-                            >
-                              <CheckCircle2 className="w-4 h-4" />
-                              <span>{isUrdu ? 'قبول کریں' : 'Accept Ride'}</span>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-
-                      {availablePendingBookings.length === 0 && (
-                        <div className="col-span-2 bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 text-center text-slate-500 text-xs font-urdu shadow-sm">
-                          {isUrdu 
-                            ? 'اس وقت کوئی نئی پینڈنگ رائیڈ نہیں ہے۔ جیسے ہی کوئی مسافر بکنگ کرے گا، یہاں شو ہوگی۔' 
-                            : 'No pending requests currently. Keeping radar active for new customer bookings in Turbat...'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* DRIVER COMPLETED TRIPS LIST */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-                        <span>{isUrdu ? 'مکمل شدہ سفر' : 'Completed Trips & Earnings'}</span>
-                      </h3>
-                      <span className="text-xs text-slate-500">{completedTrips.length} Completed</span>
-                    </div>
-
-                    {/* Mobile Cards */}
-                    <div className="space-y-3 sm:hidden">
-                      {completedTrips.map((b) => (
-                        <div key={b.id} className="bg-white border border-slate-200 rounded-2xl p-4 space-y-2 shadow-sm">
-                          <div className="flex justify-between text-xs">
-                            <span className="font-mono font-bold text-slate-900">{b.booking_code}</span>
-                            <span className="font-bold text-emerald-700">
-                              Net: PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-700 truncate">👤 {b.customer_name}</p>
-                          <p className="text-[11px] text-slate-500 truncate">{b.pickup_location} ➔ {b.dropoff_location}</p>
-                        </div>
-                      ))}
-                      {completedTrips.length === 0 && (
-                        <div className="p-6 text-center text-slate-500 text-xs font-urdu bg-white rounded-2xl border border-slate-200">
-                          {isUrdu ? 'ابھی تک کوئی مکمل سفر درج نہیں۔' : 'No completed trips recorded yet.'}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Desktop Table */}
-                    <div className="hidden sm:block bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                      <table className="w-full text-left text-xs text-slate-700">
-                        <thead className="bg-slate-100 text-slate-700 uppercase font-bold border-b border-slate-200">
-                          <tr>
-                            <th className="px-4 py-3">Token</th>
-                            <th className="px-4 py-3">Passenger</th>
-                            <th className="px-4 py-3">Route</th>
-                            <th className="px-4 py-3">Gross Fare</th>
-                            <th className="px-4 py-3">Net Earning (90%)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {completedTrips.map((b) => (
-                            <tr key={b.id} className="hover:bg-slate-50 transition">
-                              <td className="px-4 py-3 font-mono font-bold text-slate-900">{b.booking_code}</td>
-                              <td className="px-4 py-3">{b.customer_name}</td>
-                              <td className="px-4 py-3 max-w-xs truncate">{b.pickup_location} ➔ {b.dropoff_location}</td>
-                              <td className="px-4 py-3 text-slate-600">PKR {b.final_fare || b.estimated_fare}</td>
-                              <td className="px-4 py-3 font-black text-emerald-700">
-                                PKR {Math.round((b.final_fare || b.estimated_fare) * 0.90)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  )}
 
                 </div>
               )}
@@ -1119,6 +1567,53 @@ export default function CaptainHubPage() {
                           placeholder="0334 1234567"
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address</label>
+                        <input
+                          type="email"
+                          required
+                          placeholder="captain@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-semibold text-slate-700">Password</label>
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="text-[10px] text-emerald-700 hover:underline font-bold cursor-pointer"
+                          >
+                            {showPassword ? 'Hide' : 'Show'}
+                          </button>
+                        </div>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          placeholder="•••••••• (Min 6)"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Confirm Password</label>
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          required
+                          placeholder="••••••••"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
                           className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-slate-900 focus:outline-none focus:border-emerald-500"
                         />
                       </div>
@@ -1536,7 +2031,17 @@ export default function CaptainHubPage() {
         </div>
       )}
 
-      <Footer />
+      {/* Mobile Sticky Bottom Navigation Bar */}
+      {currentCaptain && (
+        <CaptainBottomNav
+          activeTab={captainNavTab}
+          onTabChange={setCaptainNavTab}
+          requestsCount={availablePendingBookings.length}
+          hasActiveTrip={!!activeAssignedTrip}
+        />
+      )}
+
+      <Footer className="hidden sm:block" />
     </div>
   );
 }

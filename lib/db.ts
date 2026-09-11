@@ -182,32 +182,35 @@ export const loginCustomer = async (emailOrPhone: string, password?: string): Pr
   const cleanInput = emailOrPhone.trim().toLowerCase();
   const all = await getCustomers();
   
-  const match = all.find(c => 
+  let match = all.find(c => 
     c.email.toLowerCase() === cleanInput || 
     c.phone.replace(/\D/g, '') === cleanInput.replace(/\D/g, '')
   );
 
-  if (match) {
-    setCurrentCustomer(match);
-    return match;
-  }
+  if (!match) {
+    try {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .or(`email.eq.${cleanInput},phone.eq.${cleanInput}`)
+        .maybeSingle();
 
-  try {
-    const { data, error } = await supabase
-      .from('customers')
-      .select('*')
-      .or(`email.eq.${cleanInput},phone.eq.${cleanInput}`)
-      .maybeSingle();
-
-    if (data && !error) {
-      setCurrentCustomer(data as Customer);
-      return data as Customer;
+      if (data && !error && data) {
+        match = data as Customer;
+      }
+    } catch (err) {
+      console.warn('Login lookup failed:', err);
     }
-  } catch (err) {
-    console.warn('Login lookup failed:', err);
   }
 
-  return null;
+  if (!match) return null;
+  if (match.is_suspended || match.is_blocked) return null;
+  if (password && match.password_hash && match.password_hash !== password) {
+    return null;
+  }
+
+  setCurrentCustomer(match);
+  return match;
 };
 
 export const logoutCustomer = () => {
@@ -1131,18 +1134,22 @@ export const generateUUID = (): string => {
 };
 
 const serializeCaptainForSupabase = (captain: Partial<Captain>) => {
-  const { profile_photo_url, ...rest } = captain as any;
   return {
-    ...rest,
-    // Store profile_photo_url in cnic_back_url column in Supabase captains table
-    cnic_back_url: profile_photo_url || captain.cnic_back_url || null,
+    ...captain,
+    email: captain.email || null,
+    password_hash: captain.password_hash || null,
+    profile_photo_url: captain.profile_photo_url || null,
+    rejection_reason: captain.rejection_reason || null,
   };
 };
 
 const deserializeCaptainFromSupabase = (row: any): Captain => {
   return {
     ...row,
+    email: row.email || '',
+    password_hash: row.password_hash || '',
     profile_photo_url: row.profile_photo_url || row.cnic_back_url || '',
+    rejection_reason: row.rejection_reason || '',
   };
 };
 
@@ -1333,20 +1340,45 @@ export const logoutCaptain = () => {
   setCurrentCaptain(null);
 };
 
-export const loginCaptain = async (phoneOrPlate: string): Promise<Captain | null> => {
-  const clean = phoneOrPlate.trim().toLowerCase();
+export const loginCaptain = async (emailOrPhoneOrPlate: string, password?: string): Promise<Captain | null> => {
+  const clean = emailOrPhoneOrPlate.trim().toLowerCase();
   const all = await getCaptains();
-  const match = all.find(c => 
+  let match = all.find(c => 
+    (c.email && c.email.toLowerCase() === clean) ||
     c.phone.replace(/\D/g, '').includes(clean.replace(/\D/g, '')) ||
     (c.whatsapp_number && c.whatsapp_number.replace(/\D/g, '').includes(clean.replace(/\D/g, ''))) ||
     c.vehicle_number_plate.toLowerCase().replace(/\s/g, '') === clean.replace(/\s/g, '')
   );
 
-  if (match) {
-    setCurrentCaptain(match);
-    return match;
+  if (!match) {
+    try {
+      const { data, error } = await supabase
+        .from('captains')
+        .select('*')
+        .or(`email.eq.${clean},phone.eq.${clean}`)
+        .maybeSingle();
+
+      if (data && !error && data) {
+        match = deserializeCaptainFromSupabase(data);
+      }
+    } catch (err) {
+      console.warn('Captain Supabase lookup warning:', err);
+    }
   }
-  return null;
+
+  if (!match) return null;
+  if (password && match.password_hash && match.password_hash !== password) {
+    return null;
+  }
+
+  setCurrentCaptain(match);
+  return match;
+};
+
+export const registerCaptain = async (
+  captainData: Omit<Captain, 'id' | 'created_at' | 'status' | 'is_online' | 'total_trips_completed' | 'total_earnings' | 'rating'>
+): Promise<Captain> => {
+  return await createCaptain(captainData);
 };
 
 export const toggleCaptainOnline = async (id: string, is_online: boolean): Promise<void> => {

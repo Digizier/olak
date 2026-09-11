@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useLanguage } from '@/lib/LanguageContext';
@@ -34,10 +35,13 @@ import {
   Calendar
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { CustomerBottomNav, CustomerNavTab } from '@/components/CustomerBottomNav';
 
 export default function CustomerPortalPage() {
+  const router = useRouter();
   const { t, isUrdu } = useLanguage();
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [customerNavTab, setCustomerNavTab] = useState<CustomerNavTab>('account');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   
   // Auth Form State
@@ -80,6 +84,10 @@ export default function CustomerPortalPage() {
     };
   }, []);
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [customerNavTab]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!emailOrPhone) {
@@ -90,22 +98,17 @@ export default function CustomerPortalPage() {
     setLoading(true);
     setErrorMsg('');
     try {
-      const logged = await loginCustomer(emailOrPhone, password);
+      const logged = await loginCustomer(emailOrPhone, password || undefined);
       if (logged) {
         setCustomer(logged);
         loadCustomerData(logged);
       } else {
-        const autoCust = await registerCustomer({
-          full_name: 'OLAK Passenger',
-          email: emailOrPhone.includes('@') ? emailOrPhone : `${emailOrPhone}@olak.pk`,
-          phone: emailOrPhone.replace(/\D/g, '') || '03340000000',
-          password: password || 'password123',
-        });
-        setCustomer(autoCust);
-        loadCustomerData(autoCust);
+        setErrorMsg(isUrdu 
+          ? 'ای میل/موبائل نمبر یا پاس ورڈ درست نہیں ہے۔ اگر آپ نئے ہیں تو نیا اکاؤنٹ بنائیں (Register Free) کریں۔' 
+          : 'Invalid email/phone or password. If you are new, please register below.');
       }
     } catch (err) {
-      setErrorMsg('Login failed. Please check credentials.');
+      setErrorMsg(isUrdu ? 'لاگ ان کرنے میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔' : 'Login failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
@@ -113,8 +116,13 @@ export default function CustomerPortalPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName || !phone) {
-      setErrorMsg(isUrdu ? 'براہ کرم تمام لازمی فیلڈز مکمل کریں۔' : 'Please fill all required fields.');
+    if (!fullName || !phone || !password) {
+      setErrorMsg(isUrdu ? 'براہ کرم اپنا نام، موبائل نمبر اور پاس ورڈ درج کریں۔' : 'Please fill all required fields and create a password.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setErrorMsg(isUrdu ? 'پاس ورڈ کم از کم 6 ہندسوں کا ہونا چاہیے۔' : 'Password must be at least 6 characters long.');
       return;
     }
 
@@ -125,7 +133,7 @@ export default function CustomerPortalPage() {
         full_name: fullName,
         email: email || `${phone.replace(/\D/g, '')}@olak.pk`,
         phone,
-        password: password || 'password123',
+        password: password,
       });
       setCustomer(newCust);
       loadCustomerData(newCust);
@@ -133,7 +141,7 @@ export default function CustomerPortalPage() {
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
       } catch (e) {}
     } catch (err) {
-      setErrorMsg('Could not register account. Please try again.');
+      setErrorMsg(isUrdu ? 'اکاؤنٹ بنانے میں مسئلہ پیش آیا۔ دوبارہ کوشش کریں۔' : 'Could not register account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -152,7 +160,7 @@ export default function CustomerPortalPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
 
-      <main className="flex-grow py-8 sm:py-16">
+      <main className="flex-grow py-8 sm:py-16 pb-28 sm:pb-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {!customer ? (
@@ -225,12 +233,13 @@ export default function CustomerPortalPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        {isUrdu ? 'پاس ورڈ (اختیاری)' : 'Password (Optional)'}
+                        {isUrdu ? 'پاس ورڈ' : 'Password'}
                       </label>
                       <div className="relative">
                         <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                         <input
                           type="password"
+                          required
                           placeholder="••••••••"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
@@ -302,6 +311,7 @@ export default function CustomerPortalPage() {
                       </label>
                       <input
                         type="password"
+                        required
                         placeholder="At least 6 characters"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -572,7 +582,23 @@ export default function CustomerPortalPage() {
         </div>
       </main>
 
-      <Footer />
+      {/* Mobile Sticky Customer Bottom Navigation Bar */}
+      <CustomerBottomNav
+        activeTab={customerNavTab}
+        onTabChange={(tab) => {
+          setCustomerNavTab(tab);
+          if (tab === 'home') {
+            router.push('/');
+          } else if (tab === 'book') {
+            router.push('/?tab=book');
+          } else if (tab === 'track') {
+            router.push('/track/');
+          }
+        }}
+        activeRidesCount={activeTrips.length}
+      />
+
+      <Footer className="hidden sm:block" />
     </div>
   );
 }

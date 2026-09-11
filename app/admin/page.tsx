@@ -219,7 +219,11 @@ import {
   Award,
   FileText,
   ArrowUpRight,
-  Sparkles
+  Sparkles,
+  Menu,
+  X,
+  ArrowRight,
+  ChevronRight
 } from 'lucide-react';
 
 interface DeleteModalState {
@@ -242,6 +246,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<
     'alerts' | 'bookings' | 'captains' | 'settlements' | 'customers' | 'pricing' | 'intercity' | 'promotions' | 'analytics' | 'settings'
   >('bookings');
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Live Alerts Filters
   const [alertCategory, setAlertCategory] = useState<'all' | 'booking' | 'captain' | 'customer' | 'financial'>('all');
@@ -982,137 +987,373 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col lg:flex-row">
       
-      {/* Top Admin Header with Transparent Vector Logo on White */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      {/* 1. Mobile Backdrop Drawer */}
+      {mobileSidebarOpen && (
+        <div 
+          onClick={() => setMobileSidebarOpen(false)}
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 lg:hidden animate-fadeIn"
+        />
+      )}
+
+      {/* 2. Permanent Dark Emerald/Slate Left Sidebar (Desktop Fixed, Mobile Drawer) */}
+      <aside
+        className={`fixed top-0 bottom-0 left-0 z-50 w-72 bg-gradient-to-b from-[#061c16] via-[#08231c] to-[#04120e] text-white flex flex-col border-r border-emerald-900/40 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+          mobileSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'
+        }`}
+      >
+        {/* Sidebar Header with Brand and Live Engine Dot */}
+        <div className="p-4 sm:p-5 border-b border-emerald-800/40 flex items-center justify-between bg-black/20">
           <div className="flex items-center gap-3">
             <OlakLogo size="sm" />
             <div>
-              <span className="font-black text-slate-900 text-base sm:text-lg">Admin Command Center</span>
-              <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full ml-2 hidden sm:inline">
-                Turbat Control Desk
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-white text-base tracking-tight">OLAK Admin</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
+                Turbat Command Desk
               </span>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={loadData}
-              className="p-2 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition"
-              title="Refresh Data"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-
-            <Link
-              href="/"
-              target="_blank"
-              className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-emerald-600 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"
-            >
-              <span>View Storefront</span>
-              <ExternalLink className="w-3 h-3" />
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              className="text-xs text-red-600 hover:text-white hover:bg-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
-            >
-              Lock / Logout
-            </button>
-          </div>
+          <button
+            onClick={() => setMobileSidebarOpen(false)}
+            className="lg:hidden w-8 h-8 rounded-lg bg-white/10 text-white/80 hover:text-white flex items-center justify-center cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <main className="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 w-full">
-        
-        {/* REAL-TIME KPI STRIP */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
-          <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block flex items-center gap-1">
-              <Activity className="w-3 h-3" />
-              <span>Today's Bookings</span>
+        {/* Categorized Nav Menu */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-4 text-xs">
+          {/* Section: OPERATIONS */}
+          <div className="space-y-1">
+            <span className="px-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 block mb-1">
+              OPERATIONS
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-2xl font-black text-slate-900">{todayBookings.length}</span>
-              <span className="text-[10px] text-slate-500">Total: {bookings.length}</span>
-            </div>
+            <button
+              onClick={() => { setActiveTab('bookings'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'bookings'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Navigation className="w-4 h-4 text-emerald-400" />
+                <span>Live Bookings & Dispatch</span>
+              </div>
+              {bookings.filter(b => b.booking_status === 'pending').length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950">
+                  {bookings.filter(b => b.booking_status === 'pending').length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('intercity'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'intercity'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+                <span>Intercity Highway Routes</span>
+              </div>
+              <span className="text-[10px] text-emerald-300/70 font-mono">
+                {intercityRoutes.length}
+              </span>
+            </button>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Today's Volume</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xs text-emerald-600 font-bold">PKR</span>
-              <span className="text-2xl font-black text-slate-900">{todayGrossRevenue.toLocaleString()}</span>
-            </div>
+          {/* Section: USERS */}
+          <div className="space-y-1">
+            <span className="px-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 block mb-1">
+              USERS & FLEET
+            </span>
+            <button
+              onClick={() => { setActiveTab('captains'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'captains'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Users className="w-4 h-4 text-emerald-400" />
+                <span>Captains & Drivers</span>
+              </div>
+              {pendingCaptainsCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-red-500 text-white animate-pulse">
+                  {pendingCaptainsCount} pending
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('customers'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'customers'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <UserCheck className="w-4 h-4 text-emerald-400" />
+                <span>Customer Database</span>
+              </div>
+              <span className="text-[10px] text-emerald-300/70 font-mono">
+                {customers.length}
+              </span>
+            </button>
           </div>
 
-          <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Today's Commission</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xs text-amber-600 font-bold">PKR</span>
-              <span className="text-2xl font-black text-amber-700">{todayCommission.toLocaleString()}</span>
-            </div>
+          {/* Section: PRICING & PROMOTIONS */}
+          <div className="space-y-1">
+            <span className="px-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 block mb-1">
+              PRICING & PROMOTIONS
+            </span>
+            <button
+              onClick={() => { setActiveTab('pricing'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'pricing'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <DollarSign className="w-4 h-4 text-emerald-400" />
+                <span>Fare Rates & Pricing</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('promotions'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'promotions'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Tag className="w-4 h-4 text-emerald-400" />
+                <span>Ads & Promo Banners</span>
+              </div>
+              <span className="text-[10px] text-emerald-300/70 font-mono">
+                {promotions.length}
+              </span>
+            </button>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 block">Cleared Cash Paid</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xs text-teal-600 font-bold">PKR</span>
-              <span className="text-2xl font-black text-teal-700">{totalSettledCash.toLocaleString()}</span>
-            </div>
+          {/* Section: FINANCE */}
+          <div className="space-y-1">
+            <span className="px-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 block mb-1">
+              FINANCE & AUDIT
+            </span>
+            <button
+              onClick={() => { setActiveTab('settlements'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'settlements'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Banknote className="w-4 h-4 text-emerald-400" />
+                <span>Driver Cash Settlements</span>
+              </div>
+              {totalPendingSettlements > 0 && (
+                <span className="text-[10px] text-amber-400 font-mono">
+                  PKR {Math.round(totalPendingSettlements / 1000)}k
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('analytics'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <TrendingUp className="w-4 h-4 text-emerald-400" />
+                <span>Analytics & Reports</span>
+              </div>
+            </button>
           </div>
 
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm col-span-2 sm:col-span-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Clearance</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xs text-red-600 font-bold">PKR</span>
-              <span className="text-2xl font-black text-red-600">{totalPendingSettlements.toLocaleString()}</span>
-            </div>
+          {/* Section: SYSTEM */}
+          <div className="space-y-1">
+            <span className="px-3 text-[10px] font-black uppercase tracking-widest text-emerald-400/80 block mb-1">
+              SYSTEM
+            </span>
+            <button
+              onClick={() => { setActiveTab('alerts'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'alerts'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Bell className="w-4 h-4 text-emerald-400" />
+                <span>Live Activity Feed</span>
+              </div>
+              {todayAlerts.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500 text-slate-950">
+                  {todayAlerts.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => { setActiveTab('settings'); setMobileSidebarOpen(false); }}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold transition cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Settings className="w-4 h-4 text-emerald-400" />
+                <span>Settings & Admin PIN</span>
+              </div>
+            </button>
           </div>
         </div>
 
-        {/* Tab Navigation Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-200">
-          {[
-            { id: 'alerts', label: "Live Alerts", icon: Bell, badge: todayAlerts.length, isAlert: true },
-            { id: 'bookings', label: 'Live Bookings & Dispatch', icon: Navigation, badge: bookings.filter(b => b.booking_status === 'pending').length },
-            { id: 'captains', label: 'Captains & Drivers', icon: Users, badge: pendingCaptainsCount },
-            { id: 'settlements', label: 'Driver Cash Clearance', icon: Banknote },
-            { id: 'customers', label: 'Customer Database', icon: UserCheck, count: customers.length },
-            { id: 'pricing', label: 'Fare Rates & Pricing', icon: DollarSign },
-            { id: 'intercity', label: 'Intercity Routes Editor', icon: MapPin },
-            { id: 'promotions', label: 'Ads & Promotion Banners', icon: Tag },
-            { id: 'analytics', label: 'Analytics & Financials', icon: TrendingUp },
-            { id: 'settings', label: 'System Settings', icon: Settings },
-          ].map((tab) => {
-            const isSel = activeTab === tab.id;
-            const Icon = tab.icon;
-            return (
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-emerald-900/40 space-y-2 bg-black/30 text-xs">
+          <Link
+            href="/"
+            target="_blank"
+            className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition"
+          >
+            <div className="flex items-center gap-2">
+              <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+              <span>View Storefront</span>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 font-bold transition cursor-pointer border border-red-800/40"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            <span>Lock & Exit Desk</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* 3. Main Workspace Area */}
+      <div className="flex-1 min-w-0 lg:pl-72 flex flex-col min-h-screen bg-slate-50">
+        {/* Workspace Top Bar */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+          <div className="px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition cursor-pointer ${
-                  isSel
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
-                }`}
+                onClick={() => setMobileSidebarOpen(true)}
+                className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                aria-label="Open Sidebar Menu"
               >
-                <Icon className="w-4 h-4" />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && tab.badge > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                    isSel ? 'bg-white text-emerald-700' : (tab as any).isAlert ? 'bg-emerald-600 text-white' : 'bg-red-500 text-white'
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
+                <Menu className="w-5 h-5" />
               </button>
-            );
-          })}
-        </div>
+
+              <div>
+                <h1 className="font-black text-slate-900 text-sm sm:text-base lg:text-lg capitalize">
+                  {activeTab === 'bookings' && 'Live Bookings & Dispatch'}
+                  {activeTab === 'captains' && 'Captains & Document Verification'}
+                  {activeTab === 'settlements' && 'Driver Cash Settlements & Audit'}
+                  {activeTab === 'customers' && 'Registered Customers & Riders'}
+                  {activeTab === 'pricing' && 'Fare Rates & Pricing Matrix'}
+                  {activeTab === 'intercity' && 'Intercity Highway Routes'}
+                  {activeTab === 'promotions' && 'Marketing Banners & Promotional Ads'}
+                  {activeTab === 'analytics' && 'Financial Analytics & Audit'}
+                  {activeTab === 'alerts' && "Live Activity Feed & Today's Alerts"}
+                  {activeTab === 'settings' && 'System Configuration & Security PIN'}
+                </h1>
+                <p className="text-[11px] text-slate-500 hidden sm:block">
+                  Turbat Central Control Desk • OLAK Balochistan
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={loadData}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                title="Refresh All Data"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+
+              <Link
+                href="/"
+                target="_blank"
+                className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold transition"
+              >
+                <span>Storefront</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Workspace Body */}
+        <main className="flex-grow p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-7xl mx-auto">
+          
+          {/* REAL-TIME KPI STRIP */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
+            <div className="bg-white border border-emerald-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                <span>Today's Bookings</span>
+              </span>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-2xl font-black text-slate-900">{todayBookings.length}</span>
+                <span className="text-[10px] text-slate-500">Total: {bookings.length}</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Today's Volume</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xs text-emerald-600 font-bold">PKR</span>
+                <span className="text-2xl font-black text-slate-900">{todayGrossRevenue.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-amber-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 block">Today's Commission</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xs text-amber-600 font-bold">PKR</span>
+                <span className="text-2xl font-black text-amber-700">{todayCommission.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-teal-700 block">Cleared Cash Paid</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xs text-teal-600 font-bold">PKR</span>
+                <span className="text-2xl font-black text-teal-700">{totalSettledCash.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Pending Clearance</span>
+              <div className="flex items-baseline gap-1 mt-1">
+                <span className="text-xs text-red-600 font-bold">PKR</span>
+                <span className="text-2xl font-black text-red-600">{totalPendingSettlements.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
 
         {/* TAB 0: LIVE ALERTS & TODAY'S ACTIVITY FEED */}
         {activeTab === 'alerts' && (
@@ -3409,6 +3650,7 @@ export default function AdminPage() {
         )}
 
       </main>
+      </div>
 
       {/* DRIVER CASH SETTLEMENT MODAL */}
       {settleModalOpen && selectedCaptainForSettle && (

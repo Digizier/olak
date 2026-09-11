@@ -86,6 +86,8 @@ export interface IntercityRoute {
 export interface Captain {
   id: string;
   full_name: string;
+  email?: string;
+  password_hash?: string;
   phone: string;
   whatsapp_number?: string;
   cnic_number: string;
@@ -100,6 +102,7 @@ export interface Captain {
   vehicle_photo_url?: string;
   profile_photo_url?: string;
   status: CaptainStatus;
+  rejection_reason?: string;
   is_online: boolean;
   total_trips_completed: number;
   total_earnings: number;
