@@ -131,11 +131,6 @@ export const Footer: React.FC<{ className?: string }> = ({ className = '' }) => 
                   <span>{isUrdu ? 'لائیو ٹرپ ٹریکنگ (بکنگ ٹوکن)' : 'Live Trip Tracker'}</span>
                 </Link>
               </li>
-              <li>
-                <Link href="/admin/" prefetch={false} className="hover:text-white flex items-center gap-1.5 transition">
-                  <span>{isUrdu ? 'ایڈمن کمانڈ سینٹر' : 'Admin Command Center'}</span>
-                </Link>
-              </li>
             </ul>
           </div>
 

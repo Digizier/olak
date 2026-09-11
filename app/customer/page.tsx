@@ -582,21 +582,23 @@ export default function CustomerPortalPage() {
         </div>
       </main>
 
-      {/* Mobile Sticky Customer Bottom Navigation Bar */}
-      <CustomerBottomNav
-        activeTab={customerNavTab}
-        onTabChange={(tab) => {
-          setCustomerNavTab(tab);
-          if (tab === 'home') {
-            router.push('/');
-          } else if (tab === 'book') {
-            router.push('/?tab=book');
-          } else if (tab === 'track') {
-            router.push('/track/');
-          }
-        }}
-        activeRidesCount={activeTrips.length}
-      />
+      {/* Mobile Sticky Customer Bottom Navigation Bar - Only visible when customer is logged in */}
+      {customer && (
+        <CustomerBottomNav
+          activeTab={customerNavTab}
+          onTabChange={(tab) => {
+            setCustomerNavTab(tab);
+            if (tab === 'home') {
+              router.push('/');
+            } else if (tab === 'book') {
+              router.push('/?tab=book');
+            } else if (tab === 'track') {
+              router.push('/track/');
+            }
+          }}
+          activeRidesCount={activeTrips.length}
+        />
+      )}
 
       <Footer className="hidden sm:block" />
     </div>

@@ -90,15 +90,23 @@ export const RideBookingWidget: React.FC<Props> = ({ initialRates }) => {
       }
     };
 
+    const handleSelectService = (e: any) => {
+      if (e?.detail && ['bike', 'rickshaw', 'car'].includes(e.detail)) {
+        setSelectedService(e.detail as ServiceType);
+      }
+    };
+
     window.addEventListener('olak_fares_updated', handleRatesUpdate);
     window.addEventListener('olak_landmarks_updated', handleLandmarksUpdate);
     window.addEventListener('olak_customer_auth_changed', handleCustomerAuth);
     window.addEventListener('olak_customers_updated', handleCustomersUpdated);
+    window.addEventListener('olak_select_service', handleSelectService);
     return () => {
       window.removeEventListener('olak_fares_updated', handleRatesUpdate);
       window.removeEventListener('olak_landmarks_updated', handleLandmarksUpdate);
       window.removeEventListener('olak_customer_auth_changed', handleCustomerAuth);
       window.removeEventListener('olak_customers_updated', handleCustomersUpdated);
+      window.removeEventListener('olak_select_service', handleSelectService);
     };
   }, []);
 

@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/LanguageContext';
 import { INITIAL_PRICING_RATES } from '@/lib/constants';
 import { getPricingRates } from '@/lib/db';
 import { PricingRate } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 import { 
   Bike, 
   Car, 
@@ -17,17 +18,54 @@ import {
   ArrowRight
 } from 'lucide-react';
 
-export const FaresChartSection = () => {
+interface FaresChartSectionProps {
+  onSelectService?: (serviceType: string) => void;
+}
+
+export const FaresChartSection: React.FC<FaresChartSectionProps> = ({ onSelectService }) => {
   const { isUrdu } = useLanguage();
   const [rates, setRates] = useState<PricingRate[]>(INITIAL_PRICING_RATES);
 
   useEffect(() => {
-    getPricingRates().then(setRates);
-    const handleUpdate = (e: any) => {
-      if (e.detail) setRates(e.detail);
+    let isMounted = true;
+
+    const fetchFreshRates = async () => {
+      try {
+        const fresh = await getPricingRates();
+        if (isMounted && fresh && fresh.length > 0) {
+          setRates(fresh);
+        }
+      } catch (err) {
+        console.warn('Error fetching pricing rates:', err);
+      }
     };
-    window.addEventListener('olak_fares_updated', handleUpdate);
-    return () => window.removeEventListener('olak_fares_updated', handleUpdate);
+
+    fetchFreshRates();
+
+    const handleLocalUpdate = (e: any) => {
+      if (e?.detail) {
+        setRates(e.detail);
+      } else {
+        fetchFreshRates();
+      }
+    };
+
+    window.addEventListener('olak_fares_updated', handleLocalUpdate);
+
+    // 0ms Supabase Realtime Channel
+    const channelName = 'fares-live-feed-' + Math.random().toString(36).slice(2, 9);
+    const channel = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pricing_rates' }, () => {
+        fetchFreshRates();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('olak_fares_updated', handleLocalUpdate);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const getIcon = (type: string) => {
@@ -122,13 +160,22 @@ export const FaresChartSection = () => {
                 </div>
 
                 <div className="pt-6">
-                  <a
-                    href="#top"
-                    className="w-full bg-slate-900 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-xs"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onSelectService) {
+                        onSelectService(rate.service_type);
+                      } else {
+                        window.dispatchEvent(new CustomEvent('olak_select_service', { detail: rate.service_type }));
+                        const el = document.getElementById('booking') || document.getElementById('top');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    className="w-full bg-slate-900 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-xs cursor-pointer active:scale-98"
                   >
                     <span>{isUrdu ? 'یہ سروس بک کریں' : 'Book This Service'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />
-                  </a>
+                  </button>
                 </div>
 
               </div>

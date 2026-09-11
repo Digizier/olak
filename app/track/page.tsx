@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { useLanguage } from '@/lib/LanguageContext';
-import { getBookingByCode, getCaptains } from '@/lib/db';
+import { getBookingByCode, getCaptains, getCurrentCustomer } from '@/lib/db';
 import { Booking, Captain } from '@/lib/types';
 import { 
   Search, 
@@ -334,6 +334,11 @@ function TrackContent() {
 
 export default function TrackPage() {
   const router = useRouter();
+  const [customer, setCustomer] = useState<any>(null);
+
+  useEffect(() => {
+    setCustomer(getCurrentCustomer());
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
@@ -344,16 +349,18 @@ export default function TrackPage() {
         </Suspense>
       </div>
 
-      {/* Mobile Sticky Customer Bottom Navigation Bar */}
-      <CustomerBottomNav
-        activeTab="track"
-        onTabChange={(tab) => {
-          if (tab === 'home') router.push('/');
-          else if (tab === 'book') router.push('/?tab=book');
-          else if (tab === 'rides') router.push('/customer/');
-          else if (tab === 'account') router.push('/customer/');
-        }}
-      />
+      {/* Mobile Sticky Customer Bottom Navigation Bar - Only when customer logged in */}
+      {customer && (
+        <CustomerBottomNav
+          activeTab="track"
+          onTabChange={(tab) => {
+            if (tab === 'home') router.push('/');
+            else if (tab === 'book') router.push('/?tab=book');
+            else if (tab === 'rides') router.push('/customer/');
+            else if (tab === 'account') router.push('/customer/');
+          }}
+        />
+      )}
 
       <Footer className="hidden sm:block" />
     </div>

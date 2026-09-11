@@ -20,9 +20,12 @@ import {
   getCaptains,
   loginCustomer,
   registerCustomer,
-  logoutCustomer
+  logoutCustomer,
+  getIntercityRoutes
 } from '@/lib/db';
-import { Customer, Captain, Booking } from '@/lib/types';
+import { Customer, Captain, Booking, IntercityRoute } from '@/lib/types';
+import { INITIAL_INTERCITY_ROUTES } from '@/lib/constants';
+import { supabase } from '@/lib/supabase';
 import { 
   Bike, 
   Car, 
@@ -58,6 +61,7 @@ export default function HomePage() {
   const [loggedInCaptain, setLoggedInCaptain] = useState<Captain | null>(null);
   const [showRoleGateway, setShowRoleGateway] = useState(false);
   const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
+  const [intercityRoutes, setIntercityRoutes] = useState<IntercityRoute[]>(INITIAL_INTERCITY_ROUTES);
 
   // Auth in Account tab
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
@@ -133,31 +137,83 @@ export default function HomePage() {
     const capt = getCurrentCaptain();
     setLoggedInCaptain(capt);
 
-    // Auto-prompt role gateway on very first visit
+    // Auto-prompt login / role gateway if user is not logged in
     if (typeof window !== 'undefined') {
-      const hasChosen = localStorage.getItem('olak_user_role_selected');
-      if (!hasChosen && !cust && !capt) {
+      if (!cust && !capt) {
         setShowRoleGateway(true);
       }
     }
   };
 
   useEffect(() => {
+    let isMounted = true;
     loadData();
 
+    // Fetch and sync intercity routes
+    const fetchRoutes = async () => {
+      try {
+        const routes = await getIntercityRoutes();
+        if (isMounted && routes && routes.length > 0) {
+          setIntercityRoutes(routes.filter(r => r.is_active));
+        }
+      } catch (err) {
+        console.warn('Error loading intercity routes:', err);
+      }
+    };
+    fetchRoutes();
+
     const handleAuthChange = (e: any) => {
+      if (!isMounted) return;
       setCurrentCustomer(e.detail);
       if (e.detail) {
-        getCustomerBookings(e.detail.phone || e.detail.email).then(setCustomerBookings);
+        getCustomerBookings(e.detail.phone || e.detail.email).then(bks => {
+          if (isMounted) setCustomerBookings(bks);
+        });
+      }
+    };
+
+    const handleIntercityUpdate = (e?: any) => {
+      if (!isMounted) return;
+      if (e?.detail) {
+        setIntercityRoutes(e.detail.filter((r: IntercityRoute) => r.is_active));
+      } else {
+        fetchRoutes();
       }
     };
 
     window.addEventListener('olak_customer_auth_changed', handleAuthChange);
     window.addEventListener('olak_bookings_updated', loadData);
+    window.addEventListener('olak_intercity_updated', handleIntercityUpdate);
+
+    // 0ms Supabase Realtime Channel for intercity_routes
+    const channelName = 'home-intercity-feed-' + Math.random().toString(36).slice(2, 9);
+    const channel = supabase
+      .channel(channelName)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'intercity_routes' }, () => {
+        fetchRoutes();
+      })
+      .subscribe();
+
+    // Smooth scroll for hash URLs (e.g. /#fares, /#intercity)
+    const handleHash = () => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const hash = window.location.hash.replace('#', '');
+        setTimeout(() => {
+          const el = document.getElementById(hash);
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('olak_customer_auth_changed', handleAuthChange);
       window.removeEventListener('olak_bookings_updated', loadData);
+      window.removeEventListener('olak_intercity_updated', handleIntercityUpdate);
+      window.removeEventListener('hashchange', handleHash);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -230,25 +286,6 @@ export default function HomePage() {
       <Navbar />
       <RoleGatewayModal isOpen={showRoleGateway} onClose={() => setShowRoleGateway(false)} />
 
-      {/* Returning Captain Quick Banner */}
-      {loggedInCaptain && (
-        <div className="bg-gradient-to-r from-emerald-950 via-[#0a271f] to-slate-950 text-white px-3 sm:px-6 py-2.5 flex items-center justify-between text-xs border-b border-emerald-800/40">
-          <div className="flex items-center gap-2 truncate">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="truncate">
-              {isUrdu ? 'آپ بطور کیپٹن لاگ ان ہیں:' : 'Logged in as Captain:'} <strong className="text-emerald-300">{loggedInCaptain.full_name}</strong>
-            </span>
-          </div>
-          <Link
-            href="/captain/"
-            className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1 rounded-xl transition shrink-0 flex items-center gap-1 shadow-xs"
-          >
-            <span>{isUrdu ? 'ڈرائیور پورٹل' : 'Open Captain Workplace'}</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-      )}
-
       {/* MAIN VIEWPORT */}
       <main className="flex-grow pb-24 sm:pb-0">
 
@@ -277,15 +314,46 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <button
-                  onClick={() => setShowRoleGateway(true)}
-                  className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1 cursor-pointer"
-                  title="Switch between Rider and Captain"
-                >
-                  <Shuffle className="w-3 h-3 text-emerald-600" />
-                  <span>{isUrdu ? 'پورٹل تبدیل' : 'Switch Role'}</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  {!currentCustomer && (
+                    <button
+                      onClick={() => setCustomerNavTab('account')}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black rounded-xl shadow-2xs transition active:scale-95 cursor-pointer"
+                    >
+                      {isUrdu ? 'لاگ ان' : 'Sign In'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowRoleGateway(true)}
+                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 text-[11px] font-bold rounded-xl border border-slate-200 shadow-2xs flex items-center gap-1 cursor-pointer"
+                    title="Switch between Rider and Captain"
+                  >
+                    <Shuffle className="w-3 h-3 text-emerald-600" />
+                    <span>{isUrdu ? 'پورٹل' : 'Portal'}</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Unauthenticated Quick Login Notice */}
+              {!currentCustomer && (
+                <div className="mx-3 p-3 bg-gradient-to-r from-emerald-700 to-teal-800 rounded-2xl text-white flex items-center justify-between shadow-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                      <User className="w-4 h-4 text-emerald-200" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black">{isUrdu ? 'سواری و ڈلیوری کے لیے لاگ ان کریں' : 'Login to Ride or Register'}</h4>
+                      <p className="text-[10px] text-emerald-100/90">{isUrdu ? 'لاگ ان کے بعد مینیو بار اور رائڈز دستیاب ہوں گے' : 'Sign in to access bottom navigation & your trips'}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setCustomerNavTab('account')}
+                    className="bg-white text-emerald-900 text-xs font-black px-3 py-1.5 rounded-xl shadow-xs active:scale-95 shrink-0 hover:bg-emerald-50 transition"
+                  >
+                    {isUrdu ? 'لاگ ان' : 'Sign In'}
+                  </button>
+                </div>
+              )}
 
               {/* Promotional Ads Carousel */}
               <div className="px-2.5">
@@ -370,11 +438,24 @@ export default function HomePage() {
 
               {/* Fares Rate Chart Section */}
               <div className="pt-2">
-                <FaresChartSection />
+                <FaresChartSection 
+                  onSelectService={(serviceType) => {
+                    if (serviceType === 'delivery') {
+                      setActiveMainTab('delivery');
+                    } else {
+                      setActiveMainTab('rides');
+                      window.dispatchEvent(new CustomEvent('olak_select_service', { detail: serviceType }));
+                    }
+                    setCustomerNavTab('book');
+                    setTimeout(() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
+                  }}
+                />
               </div>
 
               {/* Balochistan Corridors */}
-              <div className="px-3 pt-2">
+              <div id="intercity-mobile" className="px-3 pt-2">
                 <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
@@ -392,16 +473,18 @@ export default function HomePage() {
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { city: 'Gwadar', time: '2.5h', fare: 'PKR 3,500' },
-                      { city: 'Pasni', time: '2h', fare: 'PKR 3,000' },
-                      { city: 'Panjgur', time: '3.5h', fare: 'PKR 4,500' },
-                      { city: 'Karachi', time: '11h', fare: 'PKR 16,000' },
-                    ].map((route, i) => (
-                      <div key={i} className="bg-white p-2.5 rounded-xl border border-slate-200 text-center">
-                        <span className="text-[10px] text-slate-400 block">{route.time}</span>
-                        <h4 className="text-xs font-bold text-slate-900">{route.city}</h4>
-                        <span className="text-[11px] font-black text-emerald-700">{route.fare}</span>
+                    {(intercityRoutes.length > 0 ? intercityRoutes.slice(0, 4) : INITIAL_INTERCITY_ROUTES.slice(0, 4)).map((route, i) => (
+                      <div 
+                        key={route.id || i}
+                        onClick={() => {
+                          setActiveMainTab('intercity');
+                          setCustomerNavTab('book');
+                        }}
+                        className="bg-white p-2.5 rounded-xl border border-slate-200 text-center cursor-pointer hover:border-emerald-500 transition shadow-2xs active:scale-95"
+                      >
+                        <span className="text-[10px] text-slate-400 block">{route.estimated_duration}</span>
+                        <h4 className="text-xs font-bold text-slate-900 truncate">{route.destination_city}</h4>
+                        <span className="text-[11px] font-black text-emerald-700">PKR {route.car_economy_fare.toLocaleString()}</span>
                       </div>
                     ))}
                   </div>
@@ -1115,7 +1198,19 @@ export default function HomePage() {
           <FeaturesSection />
 
           {/* Transparent Fare Rate Chart */}
-          <FaresChartSection />
+          <FaresChartSection 
+            onSelectService={(serviceType) => {
+              if (serviceType === 'delivery') {
+                setActiveMainTab('delivery');
+              } else {
+                setActiveMainTab('rides');
+                window.dispatchEvent(new CustomEvent('olak_select_service', { detail: serviceType }));
+              }
+              const el = document.getElementById('booking') || document.getElementById('top');
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+              else window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
 
           {/* Intercity Routes Overview */}
           <section id="intercity" className="py-16 sm:py-24 bg-white border-t border-slate-200 relative">
@@ -1135,26 +1230,23 @@ export default function HomePage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                {[
-                  { city: 'Gwadar (گوادر)', km: '170 KM', time: '2.5h', fare: 'PKR 3,500' },
-                  { city: 'Pasni (پسنی)', km: '135 KM', time: '2h', fare: 'PKR 3,000' },
-                  { city: 'Panjgur (پنجگور)', km: '220 KM', time: '3.5h', fare: 'PKR 4,500' },
-                  { city: 'Jiwani (جیوانی)', km: '210 KM', time: '3.5h', fare: 'PKR 4,500' },
-                  { city: 'Karachi (کراچی)', km: '780 KM', time: '11h', fare: 'PKR 16,000' },
-                  { city: 'Quetta (کوئٹہ)', km: '760 KM', time: '12h', fare: 'PKR 17,000' },
-                ].map((route, i) => (
+                {(intercityRoutes.length > 0 ? intercityRoutes : INITIAL_INTERCITY_ROUTES).map((route, i) => (
                   <div 
-                    key={i} 
-                    className="bg-slate-50 border border-slate-200 hover:border-emerald-500 hover:bg-white rounded-2xl p-4 text-center transition group shadow-xs hover:shadow-md"
+                    key={route.id || i} 
+                    onClick={() => {
+                      setActiveMainTab('intercity');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="bg-slate-50 border border-slate-200 hover:border-emerald-500 hover:bg-white rounded-2xl p-4 text-center transition group shadow-xs hover:shadow-md cursor-pointer"
                   >
                     <span className="text-xs font-bold text-slate-500 block group-hover:text-emerald-600">
-                      {route.km} • {route.time}
+                      {route.estimated_distance_km} KM • {route.estimated_duration}
                     </span>
-                    <h4 className="text-sm font-black text-slate-900 mt-1">
-                      {route.city}
+                    <h4 className="text-sm font-black text-slate-900 mt-1 truncate">
+                      {route.destination_city}
                     </h4>
                     <span className="inline-block mt-2 text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg">
-                      {route.fare}
+                      PKR {route.car_economy_fare.toLocaleString()}
                     </span>
                   </div>
                 ))}
@@ -1180,12 +1272,14 @@ export default function HomePage() {
         <span className="hidden sm:inline font-bold text-xs">OLAK WhatsApp</span>
       </a>
 
-      {/* Mobile Sticky Customer Bottom Navigation Bar */}
-      <CustomerBottomNav
-        activeTab={customerNavTab}
-        onTabChange={setCustomerNavTab}
-        activeRidesCount={activeBooking ? 1 : 0}
-      />
+      {/* Mobile Sticky Customer Bottom Navigation Bar - Only visible when customer is logged in */}
+      {currentCustomer && (
+        <CustomerBottomNav
+          activeTab={customerNavTab}
+          onTabChange={setCustomerNavTab}
+          activeRidesCount={customerBookings.filter(b => ['pending', 'assigned', 'in_progress', 'arrived'].includes(b.booking_status)).length}
+        />
+      )}
 
       <Footer className="hidden sm:block" />
     </div>

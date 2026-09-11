@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { OlakLogo } from '@/components/OlakLogo';
 import { useLanguage } from '@/lib/LanguageContext';
 import { getCurrentCustomer, getCurrentCaptain, logoutCustomer, logoutCaptain } from '@/lib/db';
@@ -23,6 +24,10 @@ import {
 } from 'lucide-react';
 
 export const Navbar = () => {
+  const pathname = usePathname();
+  const router = useRouter();
+  const isCaptainSide = pathname?.startsWith('/captain');
+
   const { lang, setLang, t, isUrdu } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentCustomer, setCurrentCustomerState] = useState<Customer | null>(null);
@@ -48,6 +53,35 @@ export const Navbar = () => {
     if (currentCaptain) logoutCaptain();
     setCurrentCustomerState(null);
     setCurrentCaptainState(null);
+  };
+
+  const handleNavClick = (e: React.MouseEvent, href: string) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+
+    if (href === '/') {
+      if (pathname === '/') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        router.push('/');
+      }
+      return;
+    }
+
+    if (href.startsWith('/#')) {
+      const targetId = href.replace('/#', '');
+      if (pathname === '/') {
+        const el = document.getElementById(targetId) || document.getElementById(`${targetId}-mobile`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
+      }
+      router.push(href);
+      return;
+    }
+
+    router.push(href);
   };
 
   return (
@@ -147,62 +181,93 @@ export const Navbar = () => {
               <span>{t.nav_track}</span>
             </Link>
 
-            {/* Captain / Driver Portal CTA */}
-            <Link 
-              href="/captain/" 
-              prefetch={false}
-              className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3.5 py-2 rounded-xl border border-emerald-300/80 transition shadow-xs"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>{currentCaptain ? (isUrdu ? 'کیپٹن ڈیش بورڈ' : 'Captain Hub') : (isUrdu ? 'کیپٹن بنیں' : 'Drive with OLAK')}</span>
-            </Link>
-
-            {/* Customer Login / Dashboard Link */}
-            {currentCustomer ? (
-              <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1">
-                <Link
-                  href="/customer/"
-                  className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-emerald-600"
-                >
-                  <User className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="truncate max-w-[110px]">{currentCustomer.full_name}</span>
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="text-slate-400 hover:text-red-500 p-1"
-                  title="Logout"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ) : (
+            {/* Captain / Rider Switch CTA */}
+            {isCaptainSide ? (
               <Link 
                 href="/customer/" 
                 prefetch={false}
-                className="flex items-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-xl border border-slate-300 transition shadow-xs"
+                className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3.5 py-2 rounded-xl border border-emerald-300/80 transition shadow-xs"
               >
-                <User className="w-3.5 h-3.5 text-slate-500" />
-                <span>{isUrdu ? 'کسٹمر لاگ ان' : 'Customer Login'}</span>
+                <Car className="w-4 h-4" />
+                <span>{isUrdu ? 'کسٹمر پورٹل' : 'Ride with OLAK (Customer)'}</span>
+              </Link>
+            ) : (
+              <Link 
+                href="/captain/" 
+                prefetch={false}
+                className="flex items-center gap-1.5 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white px-3.5 py-2 rounded-xl border border-emerald-300/80 transition shadow-xs"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>{currentCaptain ? (isUrdu ? 'کیپٹن ڈیش بورڈ' : 'Captain Hub') : (isUrdu ? 'کیپٹن بنیں' : 'Drive with OLAK')}</span>
               </Link>
             )}
 
-            {/* Admin Console Entry */}
-            <Link 
-              href="/admin/" 
-              prefetch={false}
-              className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition"
-              title="Admin Portal"
-            >
-              <Lock className="w-4 h-4" />
-            </Link>
+            {/* Login / Dashboard Link */}
+            {isCaptainSide ? (
+              currentCaptain ? (
+                <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1">
+                  <Link
+                    href="/captain/"
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-emerald-600"
+                  >
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="truncate max-w-[110px]">{currentCaptain.full_name}</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="text-slate-400 hover:text-red-500 p-1"
+                    title="Logout"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  href="/captain/" 
+                  prefetch={false}
+                  className="flex items-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-xl border border-slate-300 transition shadow-xs"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{isUrdu ? 'کیپٹن لاگ ان' : 'Captain Login'}</span>
+                </Link>
+              )
+            ) : (
+              currentCustomer ? (
+                <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1">
+                  <Link
+                    href="/customer/"
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-800 hover:text-emerald-600"
+                  >
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="truncate max-w-[110px]">{currentCustomer.full_name}</span>
+                  </Link>
+                  <button
+                    onClick={handleLogout}
+                    className="text-slate-400 hover:text-red-500 p-1"
+                    title="Logout"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <Link 
+                  href="/customer/" 
+                  prefetch={false}
+                  className="flex items-center gap-1.5 text-xs font-bold bg-white hover:bg-slate-100 text-slate-700 px-3 py-2 rounded-xl border border-slate-300 transition shadow-xs"
+                >
+                  <User className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{isUrdu ? 'کسٹمر لاگ ان' : 'Customer Login'}</span>
+                </Link>
+              )
+            )}
           </nav>
 
           {/* Mobile Right Controls */}
           <div className="flex items-center gap-2 lg:hidden">
             <Link
-              href="/customer/"
+              href={isCaptainSide ? "/captain/" : "/customer/"}
               className="p-2 bg-slate-100 border border-slate-200 text-emerald-700 rounded-xl text-xs font-bold"
-              title="Customer Hub"
+              title={isCaptainSide ? "Captain Hub" : "Customer Hub"}
             >
               <User className="w-4 h-4" />
             </Link>
@@ -221,66 +286,86 @@ export const Navbar = () => {
       {/* Mobile Drawer Menu in Clean White */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-2 animate-fadeIn shadow-xl">
-          <Link
-            href="/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-bold text-slate-800 hover:bg-slate-50 hover:text-emerald-600"
+          <button
+            type="button"
+            onClick={(e) => handleNavClick(e, '/')}
+            className="w-full text-left block px-3 py-2.5 rounded-xl text-base font-bold text-slate-800 hover:bg-slate-50 hover:text-emerald-600 transition"
           >
             {t.nav_home}
-          </Link>
-          <Link
-            href="/#fares"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleNavClick(e, '/#fares')}
+            className="w-full text-left block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition"
           >
             {t.nav_services}
-          </Link>
-          <Link
-            href="/#intercity"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleNavClick(e, '/#intercity')}
+            className="w-full text-left block px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition"
           >
             {t.nav_intercity}
-          </Link>
-          <Link
-            href="/track/"
-            onClick={() => setMobileMenuOpen(false)}
-            className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600"
+          </button>
+          <button
+            type="button"
+            onClick={(e) => handleNavClick(e, '/track/')}
+            className="w-full text-left flex items-center gap-2 px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 transition"
           >
             <Search className="w-4 h-4 text-emerald-600" />
             <span>{t.nav_track}</span>
-          </Link>
+          </button>
           
           <div className="pt-2 border-t border-slate-200 space-y-2">
-            <Link
-              href="/customer/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold text-slate-900 bg-slate-100 border border-slate-200"
-            >
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-emerald-600" />
-                <span>{currentCustomer ? currentCustomer.full_name : (isUrdu ? 'کسٹمر پورٹل' : 'Customer Account')}</span>
-              </div>
-              <span className="text-[10px] text-emerald-600 font-bold">{currentCustomer ? 'Active' : 'Sign In'}</span>
-            </Link>
+            {isCaptainSide ? (
+              <>
+                <Link
+                  href="/captain/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold text-slate-900 bg-slate-100 border border-slate-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-emerald-600" />
+                    <span>{currentCaptain ? currentCaptain.full_name : (isUrdu ? 'کیپٹن پورٹل' : 'Captain Portal')}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">{currentCaptain ? 'Active' : 'Sign In'}</span>
+                </Link>
 
-            <Link
-              href="/captain/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-300"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>{isUrdu ? 'کیپٹن ڈیش بورڈ و رجسٹریشن' : 'Drive with OLAK (Captain)'}</span>
-            </Link>
+                {/* 2nd Last Item on Captain side: Ride with OLAK (Customer) */}
+                <Link
+                  href="/customer/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 shadow-2xs hover:bg-emerald-100 transition"
+                >
+                  <Car className="w-4 h-4 text-emerald-600" />
+                  <span>{isUrdu ? 'اولاک کے ساتھ سفر کریں (کسٹمر)' : 'Ride with OLAK (Customer)'}</span>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/customer/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-bold text-slate-900 bg-slate-100 border border-slate-200"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-emerald-600" />
+                    <span>{currentCustomer ? currentCustomer.full_name : (isUrdu ? 'کسٹمر پورٹل' : 'Customer Account')}</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded-full">{currentCustomer ? 'Active' : 'Sign In'}</span>
+                </Link>
 
-            <Link
-              href="/admin/"
-              onClick={() => setMobileMenuOpen(false)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-slate-500 hover:text-slate-800"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Admin Command Center</span>
-            </Link>
+                {/* 2nd Last Item on Customer side: Drive with OLAK (Captain) */}
+                <Link
+                  href="/captain/"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-bold text-teal-800 bg-teal-50 border border-teal-300 shadow-2xs hover:bg-teal-100 transition"
+                >
+                  <UserPlus className="w-4 h-4 text-teal-700" />
+                  <span>{isUrdu ? 'کیپٹن بنیں اور کمائیں' : 'Drive with OLAK (Captain)'}</span>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
